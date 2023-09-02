@@ -1,0 +1,7 @@
+.env
+node_modules
+*.profile
+.parcel-cache
+dist
+package-lock.json
+yarn.lock
