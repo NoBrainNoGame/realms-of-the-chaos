@@ -1,5 +1,5 @@
 import * as pixi from "pixi.js"
-import * as utils from "../utils"
+import * as booyah from "@ghom/booyah"
 import * as hex from "honeycomb-grid"
 import * as params from "../params"
 import * as constants from "../constants"
@@ -10,7 +10,14 @@ import ContainerChip from "../parents/ContainerChip"
 // @ts-ignore
 import waterLayer from "../../assets/images/water-layer.png"
 
-export default class GridCell extends ContainerChip {
+interface GridCellEvents extends booyah.BaseCompositeEvents {
+  leftClick: []
+  rightClick: []
+  dragStart: []
+  dragEnd: []
+}
+
+export default class GridCell extends ContainerChip<GridCellEvents> {
   private _sprite!: pixi.Sprite
 
   constructor(

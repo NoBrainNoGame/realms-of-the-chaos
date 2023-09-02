@@ -102,7 +102,10 @@ export default class Grid extends ContainerChip {
   }
 
   protected _onTick() {
-    this._container.position.set(window.innerWidth / 2, window.innerHeight / 2)
+    this._container.position.set(
+      window.innerWidth / 2 + 25,
+      window.innerHeight / 2,
+    )
 
     if (this._waterNoiseSprite) {
       this._waterNoiseSprite.x += 0.5
