@@ -8,3 +8,7 @@ export function hexToPolygon(_hex: hex.Hex): pixi.Polygon {
     }),
   )
 }
+
+export function clone<Obj>(obj: Obj): Obj {
+  return JSON.parse(JSON.stringify(obj))
+}
