@@ -82,6 +82,10 @@ export default class Grid extends ContainerChip {
         if (Math.random() < 0.1) {
           z++
         }
+
+        this._subscribe(cell, "leftClick", () => {
+          this._shockWave(hex)
+        })
       })
 
     if (this._waterContainer.children.length > 0) {
@@ -91,7 +95,7 @@ export default class Grid extends ContainerChip {
 
       const filter = new DisplacementFilter(this._waterNoiseSprite)
 
-      filter.scale.x = 10
+      filter.scale.x = 50
       filter.scale.y = 20
       filter.padding = 10
 
@@ -111,5 +115,60 @@ export default class Grid extends ContainerChip {
       this._waterNoiseSprite.x += 0.5
       this._waterNoiseSprite.y += 2
     }
+  }
+
+  private _shockWave(_hex: hex.Hex) {
+    const intervals = 200
+
+    const firstNeighbors = this._getNeighbors(_hex)
+    const secondNeighbors = firstNeighbors
+      .filter((__hex) => __hex !== null)
+      .map((__hex) => this._getNeighbors(__hex))
+      .flat()
+      .filter((__hex) => !firstNeighbors.includes(__hex) && __hex !== _hex)
+
+    const cells = [
+      [this._hexToCell(_hex)],
+      firstNeighbors.map((neighbor) => this._hexToCell(neighbor)),
+      secondNeighbors.map((neighbor) => this._hexToCell(neighbor)),
+    ]
+
+    this._activateChildChip(
+      new booyah.Sequence([
+        new booyah.Lambda(() => {
+          cells[0][0].emit("pulse", 1)
+        }),
+        new booyah.Wait(intervals / 3),
+        new booyah.Parallel(
+          cells[1].map((cell) => {
+            return new booyah.Lambda(() => {
+              cell.emit("pulse", 0.5)
+            })
+          }),
+        ),
+        new booyah.Wait(intervals / 3),
+        new booyah.Parallel(
+          cells[2].map((cell) => {
+            return new booyah.Lambda(() => {
+              cell.emit("pulse", 0.25)
+            })
+          }),
+        ),
+      ]),
+    )
+  }
+
+  private _getNeighbors(_hex: hex.Hex) {
+    const neighbors = new Array<hex.Hex | undefined>()
+
+    for (let i = 0; i < 7; i++) {
+      neighbors.push(this._grid.neighborOf(_hex, i, { allowOutside: false }))
+    }
+
+    return neighbors.filter((neighbor) => !!neighbor) as hex.Hex[]
+  }
+
+  private _hexToCell(_hex: hex.Hex) {
+    return this._cells.find((cell) => cell.hex === _hex)!
   }
 }

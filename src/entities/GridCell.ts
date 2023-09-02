@@ -1,9 +1,12 @@
 import * as pixi from "pixi.js"
+import * as events from "@pixi/events"
 import * as booyah from "@ghom/booyah"
 import * as hex from "honeycomb-grid"
 import * as params from "../params"
 import * as constants from "../constants"
 import * as colors from "color-engine"
+
+import pointer from "../core/pointer"
 
 import ContainerChip from "../parents/ContainerChip"
 
@@ -14,17 +17,25 @@ interface GridCellEvents extends booyah.BaseCompositeEvents {
   leftClick: []
   rightClick: []
   dragStart: []
-  dragEnd: []
+  dragEnd: [outside?: boolean]
+  hovered: []
+  notHovered: []
+  pulse: [force: number]
 }
 
 export default class GridCell extends ContainerChip<GridCellEvents> {
   private _sprite!: pixi.Sprite
+  private _yState!: booyah.StateMachine
+
+  get hex() {
+    return this._hex
+  }
 
   constructor(
-    private _hex: hex.Hex,
-    private _texture: pixi.Texture,
+    private readonly _hex: hex.Hex,
+    private readonly _texture: pixi.Texture,
     private _z: number,
-    private _waterContainer: pixi.Container,
+    private readonly _waterContainer: pixi.Container,
   ) {
     super()
   }
@@ -38,6 +49,53 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
 
   protected _onActivate() {
     this._container.zIndex = this._hex.row
+
+    // Y state
+
+    this._activateChildChip(
+      (this._yState = new booyah.StateMachine(
+        {
+          initial: () => new booyah.WaitForEvent(this, "hovered"),
+          hovered: () =>
+            new booyah.Alternative([
+              new booyah.WaitForEvent(this, "notHovered"),
+              new booyah.Sequence([
+                new booyah.Tween({
+                  from: 0,
+                  to: -constants.cellYSpacing / 2,
+                  duration: 500,
+                  easing: booyah.easeInOutCubic,
+                  onTick: (value) => {
+                    this._sprite.position.y = this.position.y + value
+                  },
+                }),
+                new booyah.Forever(),
+              ]),
+            ]),
+          reset: () =>
+            new booyah.Tween({
+              from: this._sprite.position.y - this.position.y,
+              to: 0,
+              duration: 250,
+              easing: booyah.easeInOutCubic,
+              onTick: (value) => {
+                this._sprite.position.y = this.position.y + value
+              },
+            }),
+          outOfControl: () => new booyah.Forever(),
+        },
+        {
+          startingState: "initial",
+          endingStates: [],
+          signals: {
+            initial: "hovered",
+            hovered: "reset",
+            reset: "initial",
+            outOfControl: "initial",
+          },
+        },
+      )),
+    )
 
     // cell
 
@@ -56,13 +114,47 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
       }),
     )
 
-    this._subscribe(this._sprite, "pointerover", () => {
-      this._sprite.position.y = this.position.y - constants.cellYSpacing / 2
-    })
+    this._subscribe(
+      this._sprite,
+      "pointertap",
+      (event: events.FederatedPointerEvent) => {
+        if (event.button === 0) {
+          this.emit("leftClick")
+        } else if (event.button === 2) {
+          this.emit("rightClick")
+        }
+      },
+    )
 
-    this._subscribe(this._sprite, "pointerout", () => {
-      this._sprite.position.y = this.position.y
-    })
+    this._subscribe(
+      this._sprite,
+      "pointerdown",
+      (event: events.FederatedPointerEvent) => {
+        if (event.button === 0) {
+          this.emit("dragStart")
+        }
+      },
+    )
+
+    this._subscribe(
+      this._sprite,
+      "pointerup",
+      (event: events.FederatedPointerEvent) => {
+        if (event.button === 0) {
+          this.emit("dragEnd")
+        }
+      },
+    )
+
+    this._subscribe(
+      this._sprite,
+      "pointerupoutside",
+      (event: events.FederatedPointerEvent) => {
+        if (event.button === 0) {
+          this.emit("dragEnd", true)
+        }
+      },
+    )
 
     this._container.addChild(this._sprite)
 
@@ -94,6 +186,38 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
       this._sprite.tint = color.hex
     }
 
+    // pulse
+
+    this._subscribe(this, "pulse", (force: number) => {
+      this._yState.changeState("outOfControl")
+
+      this._activateChildChip(
+        new booyah.Sequence([
+          new booyah.Tween({
+            from: 0,
+            to: force * constants.cellYSpacing,
+            duration: 100,
+            easing: booyah.easeOutSine,
+            onTick: (value) => {
+              this._sprite.position.y = this.position.y + value
+            },
+          }),
+          new booyah.Tween({
+            from: force * constants.cellYSpacing,
+            to: 0,
+            duration: 200,
+            easing: booyah.easeInSine,
+            onTick: (value) => {
+              this._sprite.position.y = this.position.y + value
+            },
+          }),
+          new booyah.Lambda(() => {
+            this._yState.changeState("initial")
+          }),
+        ]),
+      )
+    })
+
     // debug
 
     if (params.debug) {
@@ -108,6 +232,23 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
       )
 
       this._sprite.addChild(coordinates)
+
+      this._subscribe(this._sprite, "pointertap", () => {
+        console.log(this._hex, this._yState.visitedStates)
+      })
+    }
+  }
+
+  protected _onTick() {
+    const hitArea = this._sprite.hitArea
+    const global = this._sprite.getGlobalPosition()
+
+    if (!hitArea) return
+
+    if (hitArea.contains(pointer.x - global.x, pointer.y - global.y)) {
+      this.emit("hovered")
+    } else {
+      this.emit("notHovered")
     }
   }
 }
