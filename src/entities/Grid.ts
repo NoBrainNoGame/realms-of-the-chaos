@@ -13,10 +13,14 @@ import noise from "../../assets/images/displacement_map_repeat.jpg"
 
 import ContainerChip from "../parents/ContainerChip"
 import GridCell from "./GridCell"
-import { OffsetCoordinates } from "honeycomb-grid/dist/hex/types"
 import Character from "./Character"
 
-export default class Grid extends ContainerChip {
+interface GridEvents extends booyah.BaseCompositeEvents {
+  leftClick: [cell: GridCell]
+  rightClick: [cell: GridCell]
+}
+
+export default class Grid extends ContainerChip<GridEvents> {
   private _grid!: hex.Grid<hex.Hex>
   private _cells!: GridCell[]
   private _centerContainer!: pixi.Container
@@ -42,8 +46,8 @@ export default class Grid extends ContainerChip {
     this._grid = new hex.Grid(
       hex.defineHex({
         dimensions: {
-          width: 100,
-          height: 50,
+          width: constants.cellWidth,
+          height: constants.cellHeight,
         },
         orientation: hex.Orientation.POINTY,
       }),
@@ -92,7 +96,11 @@ export default class Grid extends ContainerChip {
         }
 
         this._subscribe(cell, "leftClick", () => {
-          this._shockWave(hex)
+          this.emit("leftClick", cell)
+        })
+
+        this._subscribe(cell, "rightClick", () => {
+          this.emit("rightClick", cell)
         })
       })
 
@@ -125,7 +133,7 @@ export default class Grid extends ContainerChip {
     }
   }
 
-  private _shockWave(_hex: hex.Hex) {
+  public shockWave(_hex: hex.Hex) {
     const intervals = 200
 
     const firstNeighbors = this._getNeighbors(_hex)
@@ -192,5 +200,11 @@ export default class Grid extends ContainerChip {
     const cell = this._hexToCell(_hex)
 
     cell.addCharacter(character)
+  }
+
+  public removeCharacter(character: Character) {
+    const cell = this._cells.find((cell) => cell.hasCharacter(character))!
+
+    cell.removeCharacter(character)
   }
 }

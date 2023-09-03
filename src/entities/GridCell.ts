@@ -26,7 +26,8 @@ interface GridCellEvents extends booyah.BaseCompositeEvents {
 }
 
 export default class GridCell extends ContainerChip<GridCellEvents> {
-  private _characterContainer = new pixi.Container()
+  private _characterContainer!: pixi.Container
+  private _waterContainer!: pixi.Container
   private _sprite!: pixi.Sprite
   private _yState!: booyah.StateMachine
   private _arrived!: boolean
@@ -41,7 +42,7 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
     private readonly _hex: hex.Hex,
     private readonly _texture: pixi.Texture,
     private _z: number,
-    private readonly _waterContainer: pixi.Container,
+    private readonly _waterParentContainer: pixi.Container,
     /**
      * The delay in milliseconds before the cell appears.
      * @private
@@ -61,6 +62,9 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
   protected _onActivate() {
     this._arrived = this._arrivalDelayAnimation === false
     this._container.zIndex = this._hex.row
+
+    this._characterContainer = new pixi.Container()
+    this._waterContainer = new pixi.Container()
 
     // Y state
 
@@ -115,6 +119,30 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
                 },
               }),
             ]),
+          sink: () =>
+            new booyah.Sequence([
+              new booyah.Tween({
+                from: 0,
+                to: constants.cellHeight * 4,
+                duration: 250,
+                easing: booyah.easeInCubic,
+                onTick: (value) => {
+                  this._container.position.y = this.position.y + value
+                },
+              }),
+              new booyah.Lambda(() => {
+                this.emit("hidden")
+              }),
+              new booyah.Tween({
+                from: constants.cellHeight * 4,
+                to: 0,
+                duration: 250,
+                easing: booyah.easeOutCubic,
+                onTick: (value) => {
+                  this._container.position.y = this.position.y + value
+                },
+              }),
+            ]),
         },
         {
           startingState: "initial",
@@ -124,6 +152,7 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
             hovered: "reset",
             reset: "initial",
             pulse: "initial",
+            sink: "initial",
           },
         },
       )),
@@ -191,8 +220,6 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
 
     // character container
 
-    this._characterContainer = new pixi.Container()
-
     this._container.addChild(this._characterContainer)
 
     // debug
@@ -240,8 +267,7 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
       this._activateChildChip(
         new booyah.Sequence([
           new booyah.Wait(this._arrivalDelayAnimation),
-          new booyah.Alternative([
-            new booyah.Wait(500),
+          new booyah.Parallel([
             new booyah.Tween({
               from: 0,
               to: 1,
@@ -264,57 +290,9 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
           new booyah.Lambda(() => {
             this._container.position.copyFrom(this.position)
           }),
-          // water layer
-          // () => {
-          //   if (this._z >= 0) return new booyah.Lambda(() => null)
-          //
-          //   const waterContainer = new pixi.Container()
-          //
-          //   const color = new colors.Color("#ffffff")
-          //
-          //   return new booyah.Sequence([
-          //     ...utils.times(Math.abs(this._z), (index) => {
-          //       const waterLayerSprite = new pixi.Sprite(
-          //         pixi.Texture.from(waterLayer),
-          //       )
-          //
-          //       waterLayerSprite.alpha = 0.7
-          //       waterLayerSprite.anchor.set(0.5)
-          //       waterLayerSprite.position.copyFrom(this.position)
-          //       waterLayerSprite.y +=
-          //         -index * constants.cellYSpacing + constants.cellYSpacing / 2
-          //
-          //       return new booyah.Sequence([
-          //         new booyah.Lambda(() => {
-          //           waterContainer.addChild(waterLayerSprite)
-          //         }),
-          //         new booyah.Alternative([
-          //           new booyah.Wait(500),
-          //           new booyah.Tween({
-          //             from: 0,
-          //             to: 1,
-          //             duration: 500,
-          //             easing: booyah.easeOutQuart,
-          //             onTick: (factor) => {
-          //               waterLayerSprite.alpha = 0.7 * factor
-          //               color.red = 255 - 20 * factor
-          //               color.green = 255 - 25 * factor
-          //             },
-          //           }),
-          //         ]),
-          //       ])
-          //     }),
-          //     new booyah.Lambda(() => {
-          //       this._waterContainer.addChild(waterContainer)
-          //
-          //       this._sprite.tint = color.hex
-          //     }),
-          //   ])
-          // },
+          this._initWaterLayer(),
           new booyah.Lambda(() => {
             this._arrived = true
-
-            this._initWaterLayer()
           }),
         ]),
       )
@@ -323,38 +301,129 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
 
       // water layer
 
-      this._initWaterLayer()
+      this._activateChildChip(this._initWaterLayer())
     }
   }
 
   private _initWaterLayer() {
     if (this._z < 0) {
-      const waterContainer = new pixi.Container()
+      let color: colors.Color
 
-      waterContainer.zIndex = this._hex.row
+      const sequence: booyah.ChipResolvable[] = [
+        new booyah.Lambda(() => {
+          this._waterContainer.zIndex = this._hex.row
+          this._waterParentContainer.addChild(this._waterContainer)
 
-      const color = new colors.Color("#ffffff")
+          color = new colors.Color("#ffffff")
+        }),
+      ]
 
-      for (let i = this._z; i < 0; i++) {
-        const waterLayerSprite = new pixi.Sprite(pixi.Texture.from(waterLayer))
+      if (this._arrivalDelayAnimation !== false) {
+        sequence.push(
+          ...utils.times(Math.abs(this._z), (i) => {
+            const duration = 200
 
-        waterLayerSprite.alpha = 0.7
-        waterLayerSprite.anchor.set(0.5)
-        waterLayerSprite.position.copyFrom(this.position)
-        waterLayerSprite.tint = color.hex
-        waterLayerSprite.y +=
-          i * constants.cellYSpacing + constants.cellYSpacing / 2
+            const z = this._z + i
 
-        waterContainer.addChild(waterLayerSprite)
+            const waterLayerSprite = new pixi.Sprite(
+              pixi.Texture.from(waterLayer),
+            )
 
-        color.red -= 20
-        color.green -= 25
+            waterLayerSprite.alpha = 0
+            waterLayerSprite.anchor.set(0.5)
+            waterLayerSprite.position.copyFrom(this.position)
+
+            this._waterContainer.addChild(waterLayerSprite)
+
+            return () =>
+              new booyah.Sequence([
+                new booyah.Parallel([
+                  new booyah.Tween({
+                    from: 255,
+                    to: 255 - i * 20,
+                    duration,
+                    easing: booyah.easeOutQuart,
+                    onTick: (redGreen) => {
+                      color.red = redGreen
+                      color.green = redGreen
+
+                      waterLayerSprite.tint = color.hex
+                    },
+                  }),
+                  new booyah.Tween({
+                    from: 0,
+                    to: z * constants.cellYSpacing + constants.cellYSpacing / 2,
+                    duration,
+                    easing: booyah.easeOutQuart,
+                    onTick: (y) => {
+                      waterLayerSprite.position.y = this.position.y + y
+                    },
+                  }),
+                  new booyah.Tween({
+                    from: 0,
+                    to: 0.7,
+                    duration,
+                    easing: booyah.easeOutQuart,
+                    onTick: (alpha) => {
+                      waterLayerSprite.alpha = alpha
+                    },
+                  }),
+                ]),
+              ])
+          }),
+        )
+      } else {
+        sequence.push(
+          new booyah.Lambda(() => {
+            for (let i = this._z; i < 0; i++) {
+              const waterLayerSprite = new pixi.Sprite(
+                pixi.Texture.from(waterLayer),
+              )
+
+              waterLayerSprite.alpha = 0.7
+              waterLayerSprite.anchor.set(0.5)
+              waterLayerSprite.position.copyFrom(this.position)
+              waterLayerSprite.tint = color.hex
+              waterLayerSprite.y +=
+                i * constants.cellYSpacing + constants.cellYSpacing / 2
+
+              this._waterContainer.addChild(waterLayerSprite)
+
+              color.red -= 25
+              color.green -= 25
+            }
+          }),
+        )
       }
 
-      this._waterContainer.addChild(waterContainer)
-
-      this._sprite.tint = color.hex
+      return new booyah.Parallel([
+        new booyah.Sequence(sequence),
+        () =>
+          new booyah.Tween({
+            from: 255,
+            to: 255 + this._z * 25,
+            duration: 1000,
+            easing: booyah.linear,
+            onTick: (value) => {
+              this._sprite.tint = new colors.Color([value, value, 255]).hex
+            },
+          }),
+      ])
+    } else {
+      return new booyah.Lambda(() => null)
     }
+  }
+
+  get characters() {
+    return Object.values(this.children).filter(
+      (child): child is Character => child instanceof Character,
+    )
+  }
+
+  public hasCharacter(character?: Character): boolean {
+    return character
+      ? this.characters.includes(character)
+      : this.characters.length > 0
   }
 
   public addCharacter(character: Character) {
@@ -365,8 +434,27 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
     })
   }
 
+  public removeCharacter(character: Character) {
+    this.sink(() => {
+      this._terminateChildChip(character)
+    })
+  }
+
+  public removeCharacters() {
+    this.sink(() => {
+      this.characters.forEach((character) => {
+        this._terminateChildChip(character)
+      })
+    })
+  }
+
   public pulse(force: number) {
     this._pulseForce = force
     this._yState.changeState("pulse")
+  }
+
+  public sink(cb: () => void) {
+    this._subscribeOnce(this, "hidden", cb)
+    this._yState.changeState("sink")
   }
 }
