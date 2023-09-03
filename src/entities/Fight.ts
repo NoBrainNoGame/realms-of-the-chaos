@@ -18,6 +18,18 @@ export default class Fight extends ContainerChip {
 
   protected _onActivate() {
     this._activateChildChip((this._grid = new Grid()))
+    this._activateChildChip((this._animations = new booyah.Queue()))
+
+    this._subscribe(this._grid, "ready", () => {
+      this._teams.forEach((team, teamIndex) => {
+        team.forEach((character, characterIndex) => {
+          this._grid.addCharacter(
+            character,
+            this._grid.getPlacement(teamIndex, characterIndex),
+          )
+        })
+      })
+    })
 
     // for TESTS
 
@@ -39,12 +51,13 @@ export default class Fight extends ContainerChip {
   }
 
   protected _onTick() {
-    if (this._animations.length === 0) {
+    if (!this._grid.isReady) return
+
+    // @ts-ignore
+    if (this._animations._queue.length === 0) {
       this._teams.forEach((team) => {
         team.forEach((character) => character.timelineTick(this._animations))
       })
     }
   }
-
-  protected _onTerminate() {}
 }

@@ -5,7 +5,7 @@ import * as utils from "./utils"
 import Character from "./entities/Character"
 
 // @ts-ignore
-import placeholder from "../../assets/images/characters/placeholder.png"
+import placeholder from "../assets/images/characters/placeholder.png"
 
 export function makeCharacter() {
   return new Character({

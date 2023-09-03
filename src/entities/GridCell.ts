@@ -23,6 +23,7 @@ interface GridCellEvents extends booyah.BaseCompositeEvents {
   hovered: []
   notHovered: []
   pulse: [force: number]
+  ready: []
 }
 
 export default class GridCell extends ContainerChip<GridCellEvents> {
@@ -30,12 +31,16 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
   private _waterContainer!: pixi.Container
   private _sprite!: pixi.Sprite
   private _yState!: booyah.StateMachine
-  private _arrived!: boolean
+  private _isReady!: boolean
 
   private _pulseForce = 0
 
   get hex() {
     return this._hex
+  }
+
+  get isReady() {
+    return this._isReady
   }
 
   constructor(
@@ -60,7 +65,7 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
   }
 
   protected _onActivate() {
-    this._arrived = this._arrivalDelayAnimation === false
+    this._isReady = false
     this._container.zIndex = this._hex.row
 
     this._characterContainer = new pixi.Container()
@@ -244,7 +249,7 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
   }
 
   protected _onTick() {
-    if (!this._arrived) return
+    if (!this._isReady) return
 
     const hitArea = this._sprite.hitArea
     const global = this._sprite.getGlobalPosition()
@@ -259,12 +264,14 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
   }
 
   private _arrivalAnimation() {
+    const sequence: booyah.ChipResolvable[] = []
+
     if (this._arrivalDelayAnimation !== false) {
       this._container.alpha = 0
       this._container.position.y = this.position.y + 100
       this._container.position.x = this.position.x
 
-      this._activateChildChip(
+      sequence.push(
         new booyah.Sequence([
           new booyah.Wait(this._arrivalDelayAnimation),
           new booyah.Parallel([
@@ -291,9 +298,6 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
             this._container.position.copyFrom(this.position)
           }),
           this._initWaterLayer(),
-          new booyah.Lambda(() => {
-            this._arrived = true
-          }),
         ]),
       )
     } else {
@@ -301,8 +305,18 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
 
       // water layer
 
-      this._activateChildChip(this._initWaterLayer())
+      sequence.push(this._initWaterLayer())
     }
+
+    sequence.push(
+      new booyah.Lambda(() => {
+        this._isReady = true
+
+        this.emit("ready")
+      }),
+    )
+
+    this._activateChildChip(new booyah.Sequence(sequence))
   }
 
   private _initWaterLayer() {

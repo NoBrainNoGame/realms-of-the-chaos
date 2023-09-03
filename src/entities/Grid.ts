@@ -18,6 +18,7 @@ import Character from "./Character"
 interface GridEvents extends booyah.BaseCompositeEvents {
   leftClick: [cell: GridCell]
   rightClick: [cell: GridCell]
+  ready: []
 }
 
 export default class Grid extends ContainerChip<GridEvents> {
@@ -26,10 +27,17 @@ export default class Grid extends ContainerChip<GridEvents> {
   private _centerContainer!: pixi.Container
   private _cellContainer!: pixi.Container
   private _waterContainer!: pixi.Container
+  private _isReady!: boolean
 
   private _waterNoiseSprite?: pixi.Sprite
 
+  get isReady() {
+    return this._isReady
+  }
+
   protected _onActivate() {
+    this._isReady = false
+
     this._centerContainer = new pixi.Container()
     this._cellContainer = new pixi.Container()
     this._waterContainer = new pixi.Container()
@@ -102,6 +110,14 @@ export default class Grid extends ContainerChip<GridEvents> {
         this._subscribe(cell, "rightClick", () => {
           this.emit("rightClick", cell)
         })
+
+        this._subscribe(cell, "ready", () => {
+          if (this._cells.every((cell) => cell.isReady)) {
+            this._isReady = true
+
+            this.emit("ready")
+          }
+        })
       })
 
     if (this._waterContainer.children.length > 0) {
@@ -131,6 +147,20 @@ export default class Grid extends ContainerChip<GridEvents> {
       this._waterNoiseSprite.x += 0.5
       this._waterNoiseSprite.y += 2
     }
+  }
+
+  public getPlacement(
+    teamIndex: number,
+    characterIndex: number,
+  ): hex.OffsetCoordinates {
+    return {
+      col: 2 + teamIndex * constants.gridWidth - 2,
+      row: Math.ceil(constants.gridHeight / 2) + characterIndex,
+    }
+  }
+
+  public getRandomCell() {
+    return this._cells[Math.floor(Math.random() * this._cells.length)]
   }
 
   public shockWave(_hex: hex.Hex) {
@@ -192,6 +222,11 @@ export default class Grid extends ContainerChip<GridEvents> {
     return this._cells.find((cell) => cell.hex === _hex)!
   }
 
+  /**
+   * Add a character to the grid and activate it in GridCell.
+   * @param character
+   * @param position
+   */
   public addCharacter(character: Character, position: hex.OffsetCoordinates) {
     const _hex = this._grid.getHex(position)
 
