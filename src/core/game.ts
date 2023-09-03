@@ -1,5 +1,7 @@
 import * as booyah from "@ghom/booyah"
 
+import * as fixtures from "../fixtures"
+
 import app from "./app"
 
 import Fight from "../entities/Fight"
@@ -12,7 +14,9 @@ class Game extends booyah.Composite {
   }
 
   protected _onActivate() {
-    this._activateChildChip(new Fight())
+    this._activateChildChip(
+      new Fight([fixtures.makeTeam(), fixtures.makeTeam()]),
+    )
   }
 
   protected _onTerminate() {}
