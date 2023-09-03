@@ -154,7 +154,7 @@ export default class Grid extends ContainerChip<GridEvents> {
     characterIndex: number,
   ): hex.OffsetCoordinates {
     return {
-      col: 2 + teamIndex * constants.gridWidth - 2,
+      col: 2 + teamIndex * (constants.gridWidth - 4),
       row: Math.ceil(constants.gridHeight / 2) + characterIndex,
     }
   }

@@ -1,4 +1,5 @@
 import * as booyah from "@ghom/booyah"
+import * as pixi from "pixi.js"
 
 import ContainerChip from "../parents/ContainerChip"
 import Character from "./Character"
@@ -9,6 +10,9 @@ import Grid from "./Grid"
  * Contains a timeline of actions, clones of fighter characters and a grid.
  */
 export default class Fight extends ContainerChip {
+  private _gridContainer!: pixi.Container
+  private _hudContainer!: pixi.Container
+
   private _grid!: Grid
   private _animations!: booyah.Queue
 
@@ -17,7 +21,17 @@ export default class Fight extends ContainerChip {
   }
 
   protected _onActivate() {
-    this._activateChildChip((this._grid = new Grid()))
+    this._gridContainer = new pixi.Container()
+    this._hudContainer = new pixi.Container()
+
+    this._container.addChild(this._gridContainer, this._hudContainer)
+
+    this._activateChildChip((this._grid = new Grid()), {
+      context: {
+        container: this._gridContainer,
+      },
+    })
+
     this._activateChildChip((this._animations = new booyah.Queue()))
 
     this._subscribe(this._grid, "ready", () => {
