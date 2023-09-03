@@ -28,7 +28,7 @@ export default class Fight extends ContainerChip {
       race: enums.CharacterRace.AVENGER_GHOST,
       level: 10,
       distribution: {
-        [enums.CharacterSkill.POWER]: 5,
+        [enums.CharacterSkill.MAGICAL_DAMAGE]: 5,
         [enums.CharacterSkill.CHARISMA]: 2,
         [enums.CharacterSkill.INTELLIGENCE]: 3,
       },

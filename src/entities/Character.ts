@@ -1,9 +1,7 @@
-import * as utils from "../utils"
 import * as pixi from "pixi.js"
 import * as enums from "../enums"
 
 import ContainerChip from "../parents/ContainerChip"
-import Grid from "./Grid"
 
 interface CharacterProperties {
   name: string

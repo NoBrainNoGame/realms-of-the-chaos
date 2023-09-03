@@ -29,44 +29,26 @@ export enum CharacterRace {
 
 export enum CharacterSkill {
   /**
-   * Strength is the ability to exert force, lift heavy objects, and break things. <br>
-   * Used for melee attacks and buildings.
+   * Speed is the ability to move quickly <br>
+   * Used for movement and action durations in timeline.
    */
-  STRENGTH = "strength",
+  SPEED = "speed",
 
   /**
-   * Power is the ability to cast spells, use magical items <br>
-   * Used for magical attacks.
+   * Scope is the ability to see far <br>
+   * Used for vision and range of character base-attack.
    */
-  POWER = "power",
+  SCOPE = "scope",
 
   /**
-   * Dexterity is the ability to move quickly, dodge attacks <br>
+   * Health is the vitality of the character
    */
-  DEXTERITY = "dexterity",
+  HEALTH = "health",
 
-  /**
-   * Constitution is the ability to resist damage, heal wounds <br>
-   */
-  CONSTITUTION = "constitution",
-
-  /**
-   * Intelligence is the ability to learn, remember, and solve problems <br>
-   * Used for building, knowledge and logic.
-   */
-  INTELLIGENCE = "intelligence",
-
-  /**
-   * Wisdom is the ability to perceive and understand <br>
-   * Used for perception and insight.
-   */
-  WISDOM = "wisdom",
-
-  /**
-   * Charisma is the ability to influence others <br>
-   * Used for social interactions.
-   */
-  CHARISMA = "charisma",
+  PHYSICAL_DAMAGE = "physicalDamage",
+  MAGICAL_DAMAGE = "magicalDamage",
+  PHYSICAL_RESISTANCE = "physicalResistance",
+  MAGICAL_RESISTANCE = "magicalResistance",
 
   /**
    * Luck is the ability to get lucky <br>
@@ -75,32 +57,14 @@ export enum CharacterSkill {
   LUCK = "luck",
 
   /**
-   * Magical Resistance is the ability to resist magical attacks <br>
-   * Used for magical defense.
+   * Charisma is the ability to influence others <br>
+   * Used for social interactions.
    */
-  MAGICAL_RESISTANCE = "magicalResistance",
+  CHARISMA = "charisma",
 
   /**
-   * Physical Resistance is the ability to resist physical attacks <br>
-   * Used for physical defense.
+   * Intelligence is the ability to learn, remember, and solve problems <br>
+   * Used for building, knowledge and logic.
    */
-  PHYSICAL_RESISTANCE = "physicalResistance",
-
-  /**
-   * Speed is the ability to move quickly <br>
-   * Used for movement and action durations in timeline.
-   */
-  SPEED = "speed",
-
-  /**
-   * Stealth is the ability to hide and move silently <br>
-   * Used for stealth actions.
-   */
-  STEALTH = "stealth",
-
-  /**
-   * Perception is the ability to notice things <br>
-   * Used for perception actions.
-   */
-  PERCEPTION = "perception",
+  INTELLIGENCE = "intelligence",
 }

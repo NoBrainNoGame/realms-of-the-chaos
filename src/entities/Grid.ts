@@ -71,7 +71,13 @@ export default class Grid extends ContainerChip {
         return a.row === b.row ? b.col - a.col : b.row - a.row
       })
       .forEach((hex) => {
-        const cell = new GridCell(hex, hillTexture, z, this._waterContainer)
+        const cell = new GridCell(
+          hex,
+          hillTexture,
+          z,
+          this._waterContainer,
+          hex.row * hex.col * 10,
+        )
 
         this._cells.push(cell)
 
@@ -124,8 +130,6 @@ export default class Grid extends ContainerChip {
 
     const firstNeighbors = this._getNeighbors(_hex)
 
-    console.log(firstNeighbors)
-
     const secondNeighbors = firstNeighbors
       .map((__hex) => this._getNeighbors(__hex))
       .flat()
@@ -134,8 +138,6 @@ export default class Grid extends ContainerChip {
           !firstNeighbors.some((___hex) => ___hex.equals(__hex)) &&
           !__hex.equals(_hex),
       )
-
-    console.log(secondNeighbors)
 
     const cells = [
       [this._hexToCell(_hex)],
