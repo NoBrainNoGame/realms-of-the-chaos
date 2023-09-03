@@ -2,11 +2,9 @@ import * as booyah from "@ghom/booyah"
 
 import app from "./app"
 
-import Grid from "../entities/Grid"
+import Fight from "../entities/Fight"
 
 class Game extends booyah.Composite {
-  private _grid!: Grid
-
   get defaultChildChipContext() {
     return {
       container: app.stage,
@@ -14,7 +12,7 @@ class Game extends booyah.Composite {
   }
 
   protected _onActivate() {
-    this._activateChildChip((this._grid = new Grid()))
+    this._activateChildChip(new Fight())
   }
 
   protected _onTerminate() {}

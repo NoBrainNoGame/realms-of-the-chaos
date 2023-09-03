@@ -12,6 +12,7 @@ import ContainerChip from "../parents/ContainerChip"
 
 // @ts-ignore
 import waterLayer from "../../assets/images/water-layer.png"
+import Character from "./Character"
 
 interface GridCellEvents extends booyah.BaseCompositeEvents {
   leftClick: []
@@ -24,8 +25,11 @@ interface GridCellEvents extends booyah.BaseCompositeEvents {
 }
 
 export default class GridCell extends ContainerChip<GridCellEvents> {
+  private _characterContainer = new pixi.Container()
   private _sprite!: pixi.Sprite
   private _yState!: booyah.StateMachine
+
+  private _pulseForce = 0
 
   get hex() {
     return this._hex
@@ -49,6 +53,7 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
 
   protected _onActivate() {
     this._container.zIndex = this._hex.row
+    this._container.position.copyFrom(this.position)
 
     // Y state
 
@@ -66,7 +71,7 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
                   duration: 500,
                   easing: booyah.easeInOutCubic,
                   onTick: (value) => {
-                    this._sprite.position.y = this.position.y + value
+                    this._container.position.y = this.position.y + value
                   },
                 }),
                 new booyah.Forever(),
@@ -74,15 +79,35 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
             ]),
           reset: () =>
             new booyah.Tween({
-              from: this._sprite.position.y - this.position.y,
+              from: this._container.position.y - this.position.y,
               to: 0,
               duration: 250,
               easing: booyah.easeInOutCubic,
               onTick: (value) => {
-                this._sprite.position.y = this.position.y + value
+                this._container.position.y = this.position.y + value
               },
             }),
-          outOfControl: () => new booyah.Forever(),
+          pulse: () =>
+            new booyah.Sequence([
+              new booyah.Tween({
+                from: 0,
+                to: this._pulseForce * constants.cellYSpacing,
+                duration: 100,
+                easing: booyah.easeOutSine,
+                onTick: (value) => {
+                  this._container.position.y = this.position.y + value
+                },
+              }),
+              new booyah.Tween({
+                from: this._pulseForce * constants.cellYSpacing,
+                to: 0,
+                duration: 200,
+                easing: booyah.easeInSine,
+                onTick: (value) => {
+                  this._container.position.y = this.position.y + value
+                },
+              }),
+            ]),
         },
         {
           startingState: "initial",
@@ -91,7 +116,7 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
             initial: "hovered",
             hovered: "reset",
             reset: "initial",
-            outOfControl: "initial",
+            pulse: "initial",
           },
         },
       )),
@@ -102,7 +127,6 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
     this._sprite = new pixi.Sprite(this._texture)
 
     this._sprite.anchor.set(0.5, 0.25)
-    this._sprite.position.copyFrom(this.position)
     this._sprite.eventMode = "dynamic"
 
     this._sprite.hitArea = new pixi.Polygon(
@@ -158,6 +182,12 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
 
     this._container.addChild(this._sprite)
 
+    // character container
+
+    this._characterContainer = new pixi.Container()
+
+    this._container.addChild(this._characterContainer)
+
     // water layer
 
     if (this._z < 0) {
@@ -185,38 +215,6 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
 
       this._sprite.tint = color.hex
     }
-
-    // pulse
-
-    this._subscribe(this, "pulse", (force: number) => {
-      this._yState.changeState("outOfControl")
-
-      this._activateChildChip(
-        new booyah.Sequence([
-          new booyah.Tween({
-            from: 0,
-            to: force * constants.cellYSpacing,
-            duration: 100,
-            easing: booyah.easeOutSine,
-            onTick: (value) => {
-              this._sprite.position.y = this.position.y + value
-            },
-          }),
-          new booyah.Tween({
-            from: force * constants.cellYSpacing,
-            to: 0,
-            duration: 200,
-            easing: booyah.easeInSine,
-            onTick: (value) => {
-              this._sprite.position.y = this.position.y + value
-            },
-          }),
-          new booyah.Lambda(() => {
-            this._yState.changeState("initial")
-          }),
-        ]),
-      )
-    })
 
     // debug
 
@@ -250,5 +248,18 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
     } else {
       this.emit("notHovered")
     }
+  }
+
+  public addCharacter(character: Character) {
+    this._activateChildChip(character, {
+      context: {
+        container: this._characterContainer,
+      },
+    })
+  }
+
+  public pulse(force: number) {
+    this._pulseForce = force
+    this._yState.changeState("pulse")
   }
 }
