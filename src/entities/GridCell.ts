@@ -14,6 +14,7 @@ import ContainerChip from "../parents/ContainerChip"
 // @ts-ignore
 import waterLayer from "../../assets/images/water-layer.png"
 import Character from "./Character"
+import { cellHeight } from "../constants"
 
 interface GridCellEvents extends booyah.BaseCompositeEvents {
   leftClick: []
@@ -84,7 +85,7 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
                 new booyah.Tween({
                   from: 0,
                   to: -constants.cellYSpacing / 2,
-                  duration: 500,
+                  duration: 150,
                   easing: booyah.easeInOutCubic,
                   onTick: (value) => {
                     this._container.position.y = this.position.y + value
@@ -97,7 +98,7 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
             new booyah.Tween({
               from: this._container.position.y - this.position.y,
               to: 0,
-              duration: 250,
+              duration: 150,
               easing: booyah.easeInOutCubic,
               onTick: (value) => {
                 this._container.position.y = this.position.y + value
@@ -128,7 +129,7 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
             new booyah.Sequence([
               new booyah.Tween({
                 from: 0,
-                to: constants.cellHeight * 4,
+                to: constants.cellHeight * 2,
                 duration: 250,
                 easing: booyah.easeInCubic,
                 onTick: (value) => {
@@ -139,7 +140,7 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
                 this.emit("hidden")
               }),
               new booyah.Tween({
-                from: constants.cellHeight * 4,
+                from: constants.cellHeight * 2,
                 to: 0,
                 duration: 250,
                 easing: booyah.easeOutCubic,
@@ -428,6 +429,21 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
     }
   }
 
+  private _refreshCharacterPositions() {
+    const characters = this.characters
+
+    if (characters.length === 1) {
+      characters[0].position.set(0)
+    } else if (characters.length === 2) {
+      characters[0].position.set(-constants.cellWidth / 4, 0)
+      characters[1].position.set(constants.cellWidth / 4, 0)
+    } else if (characters.length === 3) {
+      characters[0].position.set(-constants.cellWidth / 4, 0)
+      characters[1].position.set(0, -cellHeight / 4)
+      characters[2].position.set(constants.cellWidth / 4, 0)
+    }
+  }
+
   get characters() {
     return Object.values(this.children).filter(
       (child): child is Character => child instanceof Character,
@@ -441,10 +457,14 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
   }
 
   public addCharacter(character: Character) {
-    this._activateChildChip(character, {
-      context: {
-        container: this._characterContainer,
-      },
+    this.sink(() => {
+      this._activateChildChip(character, {
+        context: {
+          container: this._characterContainer,
+        },
+      })
+
+      this._refreshCharacterPositions()
     })
   }
 

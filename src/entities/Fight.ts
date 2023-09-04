@@ -44,24 +44,6 @@ export default class Fight extends ContainerChip {
         })
       })
     })
-
-    // for TESTS
-
-    // this._subscribe(this._grid, "leftClick", (cell) => {
-    //   if (cell.hasCharacter()) {
-    //     cell.removeCharacters()
-    //   } else {
-    //     this._grid.shockWave(cell.hex)
-    //   }
-    // })
-    //
-    // this._subscribe(this._grid, "rightClick", (cell) => {
-    //   const character = makePlaceholderCharacter()
-    //
-    //   this._characters.push(character)
-    //
-    //   this._grid.addCharacter(character, cell.hex)
-    // })
   }
 
   protected _onTick() {

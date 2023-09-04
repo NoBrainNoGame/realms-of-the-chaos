@@ -27,6 +27,10 @@ export default class Character extends ContainerChip<CharacterEvents> {
     return 200 - Math.min(this.getStat(enums.CharacterSkill.SPEED), 100)
   }
 
+  get position() {
+    return this._container.position
+  }
+
   constructor(private _baseProperties: CharacterProperties) {
     super()
   }
@@ -46,6 +50,8 @@ export default class Character extends ContainerChip<CharacterEvents> {
   }
 
   timelineTick(animations: booyah.Queue) {
+    if (this.state !== "active") return
+
     this._timeBeforeAction -= this._lastTickInfo.timeSinceLastTick
 
     if (this._timeBeforeAction <= 0) {
@@ -56,9 +62,9 @@ export default class Character extends ContainerChip<CharacterEvents> {
 
         this.addActionTime(timeCost)
 
-        animations.add(chip)
+        animations.add(chip, {})
       } else {
-        animations.add(new PlayerTurn(this, animations))
+        animations.add(new PlayerTurn(this, animations), {})
       }
     }
   }

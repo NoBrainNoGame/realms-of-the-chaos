@@ -5,6 +5,7 @@ import * as fixtures from "../fixtures"
 import app from "./app"
 
 import Fight from "../entities/Fight"
+import GridEditor from "../entities/GridEditor"
 
 class Game extends booyah.Composite {
   get defaultChildChipContext() {
@@ -14,9 +15,11 @@ class Game extends booyah.Composite {
   }
 
   protected _onActivate() {
-    this._activateChildChip(
-      new Fight([fixtures.makeTeam(), fixtures.makeTeam()]),
-    )
+    // this._activateChildChip(
+    //   new Fight([fixtures.makeTeam(), fixtures.makeTeam()]),
+    // )
+
+    this._activateChildChip(new GridEditor())
   }
 
   protected _onTerminate() {}
