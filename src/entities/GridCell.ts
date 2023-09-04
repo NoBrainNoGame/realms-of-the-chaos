@@ -33,6 +33,7 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
   private _sprite!: pixi.Sprite
   private _yState!: booyah.StateMachine
   private _isReady!: boolean
+  private _hovered!: boolean
 
   private _pulseForce = 0
 
@@ -67,6 +68,8 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
 
   protected _onActivate() {
     this._isReady = false
+    this._hovered = false
+
     this._container.zIndex = this._hex.row
 
     this._characterContainer = new pixi.Container()
@@ -77,13 +80,25 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
     this._activateChildChip(
       (this._yState = new booyah.StateMachine(
         {
-          initial: () => new booyah.WaitForEvent(this, "hovered"),
+          initial: () =>
+            new booyah.Sequence([
+              new booyah.Tween({
+                from: this._container.position.y - this.position.y,
+                to: 0,
+                duration: 150,
+                easing: booyah.easeInOutCubic,
+                onTick: (value) => {
+                  this._container.position.y = this.position.y + value
+                },
+              }),
+              new booyah.WaitForEvent(this, "hovered"),
+            ]),
           hovered: () =>
             new booyah.Alternative([
               new booyah.WaitForEvent(this, "notHovered"),
               new booyah.Sequence([
                 new booyah.Tween({
-                  from: 0,
+                  from: this._container.position.y - this.position.y,
                   to: -constants.cellYSpacing / 2,
                   duration: 150,
                   easing: booyah.easeInOutCubic,
@@ -97,7 +112,7 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
           reset: () =>
             new booyah.Tween({
               from: this._container.position.y - this.position.y,
-              to: 0,
+              to: this._hovered ? -constants.cellYSpacing / 2 : 0,
               duration: 150,
               easing: booyah.easeInOutCubic,
               onTick: (value) => {
@@ -107,7 +122,7 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
           pulse: () =>
             new booyah.Sequence([
               new booyah.Tween({
-                from: 0,
+                from: this._container.position.y - this.position.y,
                 to: this._pulseForce * constants.cellYSpacing,
                 duration: 100,
                 easing: booyah.easeOutSine,
@@ -117,7 +132,7 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
               }),
               new booyah.Tween({
                 from: this._pulseForce * constants.cellYSpacing,
-                to: 0,
+                to: this._hovered ? -constants.cellYSpacing / 2 : 0,
                 duration: 200,
                 easing: booyah.easeInSine,
                 onTick: (value) => {
@@ -128,7 +143,7 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
           sink: () =>
             new booyah.Sequence([
               new booyah.Tween({
-                from: 0,
+                from: this._container.position.y - this.position.y,
                 to: constants.cellHeight * 2,
                 duration: 250,
                 easing: booyah.easeInCubic,
@@ -141,7 +156,7 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
               }),
               new booyah.Tween({
                 from: constants.cellHeight * 2,
-                to: 0,
+                to: this._hovered ? -constants.cellYSpacing / 2 : 0,
                 duration: 250,
                 easing: booyah.easeOutCubic,
                 onTick: (value) => {
@@ -259,8 +274,10 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
 
     if (hitArea.contains(pointer.x - global.x, pointer.y - global.y)) {
       this.emit("hovered")
+      this._hovered = true
     } else {
       this.emit("notHovered")
+      this._hovered = false
     }
   }
 
