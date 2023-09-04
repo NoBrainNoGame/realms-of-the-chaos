@@ -11,9 +11,14 @@ import hill from "../../assets/images/grid-cells/hill.png"
 // @ts-ignore
 import noise from "../../assets/images/displacement_map_repeat.jpg"
 
-import ContainerChip from "../parents/ContainerChip"
+// @ts-ignore
+import waterLayer from "../../assets/images/water-layer.png"
+
 import GridCell from "./GridCell"
 import Character from "./Character"
+import ContainerChip from "../extensions/ContainerChip"
+import GridWater from "./GridWater"
+import GridCharacter from "./GridCharacter"
 
 interface GridEvents extends booyah.BaseCompositeEvents {
   leftClick: [cell: GridCell]
@@ -24,28 +29,30 @@ interface GridEvents extends booyah.BaseCompositeEvents {
 export default class Grid extends ContainerChip<GridEvents> {
   private _grid!: hex.Grid<hex.Hex>
   private _cells!: GridCell[]
+  private _waterCells!: GridWater[]
+  private _characters!: GridCharacter[]
   private _centerContainer!: pixi.Container
   private _cellContainer!: pixi.Container
   private _waterContainer!: pixi.Container
-  private _isReady!: boolean
+  private _characterContainer!: pixi.Container
 
   private _waterNoiseSprite?: pixi.Sprite
 
-  get isReady() {
-    return this._isReady
-  }
-
   protected _onActivate() {
-    this._isReady = false
-
     this._centerContainer = new pixi.Container()
     this._cellContainer = new pixi.Container()
     this._waterContainer = new pixi.Container()
+    this._characterContainer = new pixi.Container()
 
     this._cellContainer.sortableChildren = true
     this._waterContainer.sortableChildren = true
+    this._characterContainer.sortableChildren = true
 
-    this._centerContainer.addChild(this._cellContainer, this._waterContainer)
+    this._centerContainer.addChild(
+      this._cellContainer,
+      this._waterContainer,
+      this._characterContainer,
+    )
 
     this._container.addChild(this._centerContainer)
 
@@ -83,13 +90,7 @@ export default class Grid extends ContainerChip<GridEvents> {
         return a.row === b.row ? b.col - a.col : b.row - a.row
       })
       .forEach((hex) => {
-        const cell = new GridCell(
-          hex,
-          hillTexture,
-          z,
-          this._waterContainer,
-          hex.row * hex.col * 10,
-        )
+        const cell = new GridCell(hex, hillTexture, z, hex.row * hex.col * 10)
 
         this._cells.push(cell)
 
@@ -109,14 +110,6 @@ export default class Grid extends ContainerChip<GridEvents> {
 
         this._subscribe(cell, "rightClick", () => {
           this.emit("rightClick", cell)
-        })
-
-        this._subscribe(cell, "ready", () => {
-          if (this._cells.every((cell) => cell.isReady)) {
-            this._isReady = true
-
-            this.emit("ready")
-          }
         })
       })
 

@@ -1,7 +1,7 @@
 import * as booyah from "@ghom/booyah"
 import * as pixi from "pixi.js"
 
-import ContainerChip from "../parents/ContainerChip"
+import ContainerChip from "../extensions/ContainerChip"
 import Character from "./Character"
 import Grid from "./Grid"
 

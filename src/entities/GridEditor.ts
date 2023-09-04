@@ -1,6 +1,6 @@
 import * as fixtures from "../fixtures"
 
-import ContainerChip from "../parents/ContainerChip"
+import ContainerChip from "../extensions/ContainerChip"
 import Grid from "./Grid"
 
 export default class GridEditor extends ContainerChip {
