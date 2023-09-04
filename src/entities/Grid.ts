@@ -138,15 +138,14 @@ export default class Grid extends ContainerChip<GridEvents> {
   }
 
   protected _onTick() {
-    this._container.position.set(
-      window.innerWidth / 2 + 25,
-      window.innerHeight / 2,
-    )
-
     if (this._waterNoiseSprite) {
       this._waterNoiseSprite.x += 0.5
       this._waterNoiseSprite.y += 2
     }
+  }
+
+  protected _onResize(width: number, height: number) {
+    this._container.position.set(width / 2 + 25, height / 2)
   }
 
   public getPlacement(
