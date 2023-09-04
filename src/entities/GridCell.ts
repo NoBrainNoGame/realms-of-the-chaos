@@ -45,6 +45,10 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
     return this._isReady
   }
 
+  get isUnderWater() {
+    return this._z < 0
+  }
+
   constructor(
     private readonly _hex: hex.Hex,
     private readonly _texture: pixi.Texture,

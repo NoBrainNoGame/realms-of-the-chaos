@@ -40,7 +40,7 @@ export default class DebugComposite extends booyah.Composite {
       this._subscribe(this.target, "beforeActivatedChildChip", (child) => {
         if (child instanceof DebugComposite) return
 
-        const debug = new DebugComposite(child, this._onLog, path)
+        const debug = new DebugComposite(child, this._onLog, path, this._ignore)
 
         debugList.push(debug)
 
@@ -52,7 +52,7 @@ export default class DebugComposite extends booyah.Composite {
 
         const debug = debugList.find((debug) => debug.target === child)
 
-        if (debug) {
+        if (debug && debug.state === "active") {
           this._terminateChildChip(debug)
 
           debugList.splice(debugList.indexOf(debug), 1)

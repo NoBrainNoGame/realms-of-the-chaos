@@ -26,6 +26,7 @@ class Game extends booyah.Composite {
           },
           [],
           (name) =>
+            name === "Lambda" ||
             name === "Sequence" ||
             name === "Parallel" ||
             name === "StateMachine",
@@ -36,10 +37,7 @@ class Game extends booyah.Composite {
     // this._activateChildChip(
     //   new Fight([fixtures.makeTeam(), fixtures.makeTeam()]),
     // )
-
-    requestAnimationFrame(() => {
-      this._activateChildChip(new GridEditor())
-    })
+    this._activateChildChip(new GridEditor())
   }
 
   protected _onTerminate() {}

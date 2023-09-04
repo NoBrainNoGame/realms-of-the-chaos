@@ -120,7 +120,7 @@ export default class Grid extends ContainerChip<GridEvents> {
         })
       })
 
-    if (this._waterContainer.children.length > 0) {
+    if (this._cells.some((cell) => cell.isUnderWater)) {
       this._waterNoiseSprite = new pixi.Sprite(pixi.Texture.from(noise))
       this._waterNoiseSprite.texture.baseTexture.wrapMode =
         pixi.WRAP_MODES.REPEAT
