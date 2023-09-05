@@ -1,5 +1,5 @@
 import * as booyah from "@ghom/booyah"
-import ContainerChip from "../parents/ContainerChip"
+import ContainerChip from "../extensions/ContainerChip"
 import Character from "./Character"
 
 export default class PlayerTurn extends ContainerChip {

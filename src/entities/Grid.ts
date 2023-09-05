@@ -8,17 +8,9 @@ import { DisplacementFilter } from "@pixi/filter-displacement"
 // @ts-ignore
 import hill from "../../assets/images/grid-cells/hill.png"
 
-// @ts-ignore
-import noise from "../../assets/images/displacement_map_repeat.jpg"
-
-// @ts-ignore
-import waterLayer from "../../assets/images/water-layer.png"
-
 import GridCell from "./GridCell"
-import Character from "./Character"
 import ContainerChip from "../extensions/ContainerChip"
-import GridWater from "./GridWater"
-import GridCharacter from "./GridCharacter"
+import WaterCell from "./WaterCell"
 
 interface GridEvents extends booyah.BaseCompositeEvents {
   leftClick: [cell: GridCell]
@@ -27,38 +19,15 @@ interface GridEvents extends booyah.BaseCompositeEvents {
 }
 
 export default class Grid extends ContainerChip<GridEvents> {
-  private _grid!: hex.Grid<hex.Hex>
+  private _honeycomb!: hex.Grid<hex.Hex>
   private _cells!: GridCell[]
-  private _waterCells!: GridWater[]
-  private _characters!: GridCharacter[]
-  private _centerContainer!: pixi.Container
-  private _cellContainer!: pixi.Container
-  private _waterContainer!: pixi.Container
-  private _characterContainer!: pixi.Container
-
-  private _waterNoiseSprite?: pixi.Sprite
 
   protected _onActivate() {
-    this._centerContainer = new pixi.Container()
-    this._cellContainer = new pixi.Container()
-    this._waterContainer = new pixi.Container()
-    this._characterContainer = new pixi.Container()
-
-    this._cellContainer.sortableChildren = true
-    this._waterContainer.sortableChildren = true
-    this._characterContainer.sortableChildren = true
-
-    this._centerContainer.addChild(
-      this._cellContainer,
-      this._waterContainer,
-      this._characterContainer,
-    )
-
-    this._container.addChild(this._centerContainer)
+    this._container.sortableChildren = true
 
     const hillTexture = pixi.Texture.from(hill)
 
-    this._grid = new hex.Grid(
+    this._honeycomb = new hex.Grid(
       hex.defineHex({
         dimensions: {
           width: constants.cellWidth,
@@ -72,18 +41,11 @@ export default class Grid extends ContainerChip<GridEvents> {
       }),
     )
 
-    const center = this._grid.getHex({
-      col: Math.floor(constants.gridWidth / 2),
-      row: Math.floor(constants.gridHeight / 2),
-    })!
-
-    this._centerContainer.position.set(-center.x, -center.y)
-
     let z = -6
 
     this._cells = []
 
-    this._grid
+    this._honeycomb
       .toArray()
       .sort((a, b) => {
         // first last row, then last col
@@ -94,11 +56,7 @@ export default class Grid extends ContainerChip<GridEvents> {
 
         this._cells.push(cell)
 
-        this._activateChildChip(cell, {
-          context: {
-            container: this._cellContainer,
-          },
-        })
+        this._activateChildChip(cell)
 
         if (Math.random() < 0.1) {
           z++
@@ -112,33 +70,6 @@ export default class Grid extends ContainerChip<GridEvents> {
           this.emit("rightClick", cell)
         })
       })
-
-    if (this._cells.some((cell) => cell.isUnderWater)) {
-      this._waterNoiseSprite = new pixi.Sprite(pixi.Texture.from(noise))
-      this._waterNoiseSprite.texture.baseTexture.wrapMode =
-        pixi.WRAP_MODES.REPEAT
-
-      const filter = new DisplacementFilter(this._waterNoiseSprite)
-
-      filter.scale.x = 50
-      filter.scale.y = 20
-      filter.padding = 10
-
-      this._waterContainer.filters = [filter]
-
-      this._centerContainer.addChild(this._waterNoiseSprite)
-    }
-  }
-
-  protected _onTick() {
-    if (this._waterNoiseSprite) {
-      this._waterNoiseSprite.x += 0.5
-      this._waterNoiseSprite.y += 2
-    }
-  }
-
-  protected _onResize(width: number, height: number) {
-    this._container.position.set(width / 2 + 25, height / 2)
   }
 
   public getPlacement(
@@ -158,10 +89,10 @@ export default class Grid extends ContainerChip<GridEvents> {
   public shockWave(_hex: hex.Hex) {
     const intervals = 200
 
-    const firstNeighbors = this._getNeighbors(_hex)
+    const firstNeighbors = this.getNeighbors(_hex)
 
     const secondNeighbors = firstNeighbors
-      .map((__hex) => this._getNeighbors(__hex))
+      .map((__hex) => this.getNeighbors(__hex))
       .flat()
       .filter(
         (__hex) =>
@@ -170,9 +101,9 @@ export default class Grid extends ContainerChip<GridEvents> {
       )
 
     const cells = [
-      [this._hexToCell(_hex)],
-      firstNeighbors.map((neighbor) => this._hexToCell(neighbor)),
-      secondNeighbors.map((neighbor) => this._hexToCell(neighbor)),
+      [this.getCell(_hex)],
+      firstNeighbors.map((neighbor) => this.getCell(neighbor)),
+      secondNeighbors.map((neighbor) => this.getCell(neighbor)),
     ]
 
     this._activateChildChip(
@@ -200,38 +131,23 @@ export default class Grid extends ContainerChip<GridEvents> {
     )
   }
 
-  private _getNeighbors(_hex: hex.Hex) {
+  public getNeighbors(_hex: hex.Hex) {
     const neighbors = new Array<hex.Hex | undefined>()
 
     for (let i = 0; i < 8; i++) {
-      neighbors.push(this._grid.neighborOf(_hex, i, { allowOutside: false }))
+      neighbors.push(
+        this._honeycomb.neighborOf(_hex, i, { allowOutside: false }),
+      )
     }
 
     return neighbors.filter((neighbor) => !!neighbor) as hex.Hex[]
   }
 
-  private _hexToCell(_hex: hex.Hex) {
-    return this._cells.find((cell) => cell.hex === _hex)!
+  public getCell(_hex: hex.OffsetCoordinates) {
+    return this._cells.find((cell) => cell.hex.equals(_hex))!
   }
 
-  /**
-   * Add a character to the grid and activate it in GridCell.
-   * @param character
-   * @param position
-   */
-  public addCharacter(character: Character, position: hex.OffsetCoordinates) {
-    const _hex = this._grid.getHex(position)
-
-    if (!_hex) throw new Error("Invalid position")
-
-    const cell = this._hexToCell(_hex)
-
-    cell.addCharacter(character)
-  }
-
-  public removeCharacter(character: Character) {
-    const cell = this._cells.find((cell) => cell.hasCharacter(character))!
-
-    cell.removeCharacter(character)
+  public getCells() {
+    return this._cells
   }
 }
