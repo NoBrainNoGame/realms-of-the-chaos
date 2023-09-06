@@ -1,12 +1,14 @@
 import * as booyah from "@ghom/booyah"
 import * as hex from "honeycomb-grid"
 import * as pixi from "pixi.js"
+import * as enums from "../enums"
 
 import ContainerChip from "../extensions/ContainerChip"
 import Character from "./Character"
 import Grid from "./Grid"
 import * as constants from "../constants"
 import Water from "./Water"
+import GridCell from "./GridCell"
 
 /**
  * Represent a fight between two or more entities. <br>
@@ -26,6 +28,8 @@ export default class Fight extends ContainerChip {
 
   constructor(private _teams: Character[][]) {
     super()
+
+    if (this._teams.length > 4) throw new Error("Too many teams")
   }
 
   protected _onActivate() {
@@ -70,7 +74,7 @@ export default class Fight extends ContainerChip {
 
     // init water
 
-    this._activateChildChip((this._water = new Water(this._grid)), {
+    this._activateChildChip((this._water = new Water(this._grid, false)), {
       context: {
         container: this._waterContainer,
       },
@@ -89,6 +93,7 @@ export default class Fight extends ContainerChip {
           team.forEach((character, characterIndex) => {
             this.addCharacter(
               character,
+              teamIndex,
               this._grid.getPlacement(teamIndex, characterIndex),
             )
           })
@@ -104,20 +109,31 @@ export default class Fight extends ContainerChip {
   protected _onTick() {
     if (!this._grid.isReady) return
 
-    // @ts-ignore
-    if (this._animations._queue.length === 0) {
-      this._teams.forEach((team) => {
-        team.forEach((character) => character.timelineTick(this._animations))
-      })
+    if (this._animations.isEmpty) {
+      for (let i = 0; i < this._characters.length; i++) {
+        // For each character, we check if they can do an action. (based on their own timeline)
+        if (
+          this._characters[i].timelineTick(
+            this._animations,
+            this._grid,
+            this._characters,
+          )
+        ) {
+          // If the character do an action, we stop the timeline and let the action/animation run.
+          break
+        }
+      }
     }
   }
 
   /**
    * Add a character to the grid and activate it in GridCell.
-   * @param character
-   * @param position
    */
-  public addCharacter(character: Character, position: hex.OffsetCoordinates) {
+  public addCharacter(
+    character: Character,
+    teamIndex: number,
+    position: hex.OffsetCoordinates,
+  ) {
     let cell = this._grid.getCell(position)
 
     cell.sink(() => {
@@ -127,9 +143,15 @@ export default class Fight extends ContainerChip {
         },
       })
 
+      character.teamIndex = teamIndex
       character.cell = cell
 
       this._refreshCharacterPositions(cell.hex)
+
+      this._subscribe(character, "moved", (fromCell, toCell) => {
+        this._refreshCharacterPositions(fromCell.hex)
+        this._refreshCharacterPositions(toCell.hex)
+      })
 
       this._characters.push(character)
     })
@@ -150,6 +172,10 @@ export default class Fight extends ContainerChip {
       (character) => character.cell && character.cell.hex.equals(_hex),
     )
 
+    characters.forEach((character) => {
+      character.zAdjustment = 0
+    })
+
     if (characters.length === 1) {
       characters[0].position.set(0)
     } else if (characters.length === 2) {
@@ -159,6 +185,9 @@ export default class Fight extends ContainerChip {
       characters[0].position.set(-constants.cellWidth / 4, 0)
       characters[1].position.set(0, -constants.cellHeight / 4)
       characters[2].position.set(constants.cellWidth / 4, 0)
+      characters[1].zAdjustment = -0.5
+    } else if (characters.length !== 0) {
+      throw new Error("Too many characters on the same cell")
     }
   }
 }

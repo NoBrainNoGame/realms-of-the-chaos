@@ -3,18 +3,18 @@ import * as hex from "honeycomb-grid"
 import * as pixi from "pixi.js"
 import * as constants from "../constants"
 
-import { DisplacementFilter } from "@pixi/filter-displacement"
-
 // @ts-ignore
 import hill from "../../assets/images/grid-cells/hill.png"
 
 import GridCell from "./GridCell"
 import ContainerChip from "../extensions/ContainerChip"
-import WaterCell from "./WaterCell"
 
 interface GridEvents extends booyah.BaseCompositeEvents {
   leftClick: [cell: GridCell]
   rightClick: [cell: GridCell]
+  dragStart: [cell: GridCell]
+  dragEnd: [cell: GridCell]
+  drop: [from: GridCell, to: GridCell]
   ready: []
 }
 
@@ -41,7 +41,7 @@ export default class Grid extends ContainerChip<GridEvents> {
       }),
     )
 
-    let z = -6
+    let z = 0
 
     this._cells = []
 
@@ -69,6 +69,22 @@ export default class Grid extends ContainerChip<GridEvents> {
         this._subscribe(cell, "rightClick", () => {
           this.emit("rightClick", cell)
         })
+
+        this._subscribe(cell, "dragStart", () => {
+          this.emit("dragStart", cell)
+        })
+
+        this._subscribe(cell, "dragEnd", (outside: boolean) => {
+          this.emit("dragEnd", cell)
+
+          if (outside) {
+            const hovered = this.getHoveredCell()
+
+            if (hovered) {
+              this.emit("drop", cell, hovered)
+            }
+          }
+        })
       })
   }
 
@@ -84,6 +100,10 @@ export default class Grid extends ContainerChip<GridEvents> {
 
   public getRandomCell() {
     return this._cells[Math.floor(Math.random() * this._cells.length)]
+  }
+
+  public getHoveredCell() {
+    return this._cells.find((cell) => cell.isHovered)
   }
 
   public shockWave(_hex: hex.Hex) {
@@ -131,7 +151,7 @@ export default class Grid extends ContainerChip<GridEvents> {
     )
   }
 
-  public getNeighbors(_hex: hex.Hex) {
+  public getNeighbors(_hex: hex.Hex): hex.Hex[] {
     const neighbors = new Array<hex.Hex | undefined>()
 
     for (let i = 0; i < 8; i++) {
@@ -143,11 +163,29 @@ export default class Grid extends ContainerChip<GridEvents> {
     return neighbors.filter((neighbor) => !!neighbor) as hex.Hex[]
   }
 
+  public getRecursiveNeighbors(_hex: hex.Hex, depth: number): hex.Hex[] {
+    if (depth === 0) return []
+
+    const neighbors = new Set(this.getNeighbors(_hex))
+
+    for (const neighbor of Array.from(neighbors)) {
+      this.getRecursiveNeighbors(neighbor, depth - 1).forEach((neighbor) =>
+        neighbors.add(neighbor),
+      )
+    }
+
+    return Array.from(neighbors)
+  }
+
   public getCell(_hex: hex.OffsetCoordinates) {
     return this._cells.find((cell) => cell.hex.equals(_hex))!
   }
 
   public getCells() {
     return this._cells
+  }
+
+  public getDistanceBetween(a: hex.Hex, b: hex.Hex) {
+    return this._honeycomb.distance(a, b)
   }
 }

@@ -3,15 +3,30 @@ import * as events from "@pixi/events"
 import * as booyah from "@ghom/booyah"
 import * as hex from "honeycomb-grid"
 import * as params from "../params"
-import * as colors from "color-engine"
 
 import pointer from "../core/pointer"
 
 // @ts-ignore
-import waterLayer from "../../assets/images/water-layer.png"
+import teamColorBlue from "../../assets/images/team-colors/blue.png"
+
+// @ts-ignore
+import teamColorRed from "../../assets/images/team-colors/red.png"
+
+// @ts-ignore
+import teamColorGreen from "../../assets/images/team-colors/green.png"
+
+// @ts-ignore
+import teamColorPurple from "../../assets/images/team-colors/purple.png"
 
 import ContainerChip from "../extensions/ContainerChip"
 import * as constants from "../constants"
+
+const teamColors: [string, string, string, string] = [
+  teamColorBlue,
+  teamColorRed,
+  teamColorGreen,
+  teamColorPurple,
+]
 
 interface GridCellEvents extends booyah.BaseCompositeEvents {
   leftClick: []
@@ -25,9 +40,11 @@ interface GridCellEvents extends booyah.BaseCompositeEvents {
 
 export default class GridCell extends ContainerChip {
   private _sprite!: pixi.Sprite
-  protected _yState!: booyah.StateMachine
-  protected _hovered!: boolean
-  protected _pulseForce!: number
+  private _yState!: booyah.StateMachine
+  private _tint!: number | string
+  private _hovered!: boolean
+  private _pulseForce!: number
+  private _teamIndicators!: pixi.Sprite[]
 
   constructor(
     private readonly _hex: hex.Hex,
@@ -40,6 +57,15 @@ export default class GridCell extends ContainerChip {
     private readonly _arrivalDelayAnimation: false | number = false,
   ) {
     super()
+  }
+
+  get tint() {
+    return this._tint
+  }
+
+  set tint(value: number | string) {
+    this._tint = value
+    this._sprite.tint = value
   }
 
   get hex() {
@@ -69,6 +95,10 @@ export default class GridCell extends ContainerChip {
     return this._z
   }
 
+  get isHovered() {
+    return this._hovered
+  }
+
   protected _onActivate() {
     super._onActivate()
 
@@ -76,6 +106,8 @@ export default class GridCell extends ContainerChip {
 
     this._hovered = false
     this._pulseForce = 0
+
+    this._tint = 0xffffff
 
     // Y state
 
@@ -110,6 +142,19 @@ export default class GridCell extends ContainerChip {
                 }),
                 new booyah.Forever(),
               ]),
+            ]),
+          highlighted: () =>
+            new booyah.Sequence([
+              new booyah.Tween({
+                from: this._container.position.y - this.basePosition.y,
+                to: -constants.cellYSpacing / 2,
+                duration: 150,
+                easing: booyah.easeInOutCubic,
+                onTick: (value) => {
+                  this._container.position.y = this.basePosition.y + value
+                },
+              }),
+              new booyah.Forever(),
             ]),
           reset: () =>
             new booyah.Tween({
@@ -241,6 +286,19 @@ export default class GridCell extends ContainerChip {
 
     this._container.addChild(this._sprite)
 
+    // team indicators
+
+    this._teamIndicators = teamColors.map((path) => {
+      const sprite = new pixi.Sprite(pixi.Texture.from(path))
+
+      sprite.anchor.set(0.5)
+      sprite.visible = false
+
+      return sprite
+    })
+
+    this._container.addChild(...this._teamIndicators)
+
     // debug
 
     if (params.debug) {
@@ -331,6 +389,30 @@ export default class GridCell extends ContainerChip {
     return new booyah.Sequence(sequence)
   }
 
+  private _refreshTeamIndicators() {
+    const activeIndicators = this._teamIndicators.filter(
+      (indicator) => indicator.visible,
+    )
+
+    if (activeIndicators.length === 0) return
+    else if (activeIndicators.length === 1) {
+      activeIndicators[0].position.set(0)
+      activeIndicators[0].scale.set(1)
+    } else if (activeIndicators.length === 2) {
+      activeIndicators[0].position.set(-constants.cellWidth / 4, 0)
+      activeIndicators[1].position.set(constants.cellWidth / 4, 0)
+      activeIndicators[0].scale.set(0.5)
+      activeIndicators[1].scale.set(0.5)
+    } else if (activeIndicators.length === 3) {
+      activeIndicators[0].position.set(-constants.cellWidth / 4, 0)
+      activeIndicators[1].position.set(constants.cellWidth / 4, 0)
+      activeIndicators[2].position.set(0, -constants.cellHeight / 4)
+      activeIndicators[0].scale.set(0.5)
+      activeIndicators[1].scale.set(0.5)
+      activeIndicators[2].scale.set(0.5)
+    }
+  }
+
   public pulse(force: number) {
     this._pulseForce = force
     this._yState.changeState("pulse")
@@ -339,5 +421,25 @@ export default class GridCell extends ContainerChip {
   public sink(cb: () => void) {
     this._subscribeOnce(this, "hidden", cb)
     this._yState.changeState("sink")
+  }
+
+  public highlight() {
+    this._yState.changeState("highlighted")
+  }
+
+  public unHighlight() {
+    this._yState.changeState("reset")
+  }
+
+  public addTeamIndicator(teamIndex: number) {
+    this._teamIndicators[teamIndex].visible = true
+
+    this._refreshTeamIndicators()
+  }
+
+  public removeTeamIndicator(teamIndex: number) {
+    this._teamIndicators[teamIndex].visible = false
+
+    this._refreshTeamIndicators()
   }
 }
