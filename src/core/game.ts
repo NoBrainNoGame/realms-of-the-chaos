@@ -21,9 +21,7 @@ class Game extends booyah.Composite {
       this._activateChildChip(
         new DebugComposite(
           this,
-          (log) => {
-            console.log(log)
-          },
+          console.log,
           [],
           (name) =>
             name === "Lambda" ||
@@ -34,10 +32,14 @@ class Game extends booyah.Composite {
       )
     }
 
-    // this._activateChildChip(
-    //   new Fight([fixtures.makeTeam(), fixtures.makeTeam()]),
-    // )
-    this._activateChildChip(new GridEditor())
+    if (params.version === "editor") {
+      this._activateChildChip(new GridEditor())
+    } else if (params.version === "fight") {
+      this._activateChildChip(
+        new Fight([fixtures.makeTeam(), fixtures.makeTeam()]),
+      )
+    }
+    //
   }
 
   protected _onTerminate() {}

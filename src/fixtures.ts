@@ -7,17 +7,15 @@ import Character from "./entities/Character"
 // @ts-ignore
 import placeholder from "../assets/images/characters/placeholder.png"
 
-export function makeCharacter() {
+export function makeCharacter(level = 10) {
   return new Character({
     name: "Placeholder Mage",
     texture: pixi.Texture.from(placeholder),
     class: enums.CharacterClass.MAGE,
     race: enums.CharacterRace.AVENGER_GHOST,
-    level: 10,
+    level,
     distribution: {
-      [enums.CharacterSkill.MAGICAL_DAMAGE]: 5,
-      [enums.CharacterSkill.CHARISMA]: 2,
-      [enums.CharacterSkill.INTELLIGENCE]: 3,
+      [enums.CharacterSkill.SPEED]: level,
     },
   })
 }

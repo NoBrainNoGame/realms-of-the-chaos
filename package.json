@@ -5,15 +5,17 @@
     "test": "tsc --noEmit",
     "build": "parcel build index.html",
     "start": "parcel index.html",
-    "format": "prettier --write src"
+    "format": "prettier --write src",
+    "share": "cloudflared tunnel --url http://localhost:1234"
   },
   "type": "module",
   "prettier": {
     "semi": false
   },
   "dependencies": {
-    "@ghom/booyah": "^1.2.9",
+    "@ghom/booyah": "^1.2.11",
     "@pixi/filter-displacement": "^7.2.4",
+    "@pixi/filter-glow": "^5.2.1",
     "color-engine": "^2.0.2-flooooood",
     "honeycomb-grid": "^4.1.4",
     "howler": "^2.2.3",
