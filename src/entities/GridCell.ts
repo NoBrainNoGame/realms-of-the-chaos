@@ -36,6 +36,7 @@ interface GridCellEvents extends booyah.BaseCompositeEvents {
   hovered: []
   notHovered: []
   hidden: []
+  comeBack: []
 }
 
 export default class GridCell extends ContainerChip {
@@ -97,6 +98,10 @@ export default class GridCell extends ContainerChip {
 
   get isHovered() {
     return this._hovered
+  }
+
+  get container() {
+    return this._container
   }
 
   protected _onActivate() {
@@ -193,7 +198,7 @@ export default class GridCell extends ContainerChip {
                 from: this._container.position.y - this.basePosition.y,
                 to: constants.cellHeight * 2,
                 duration: 250,
-                easing: booyah.easeInCubic,
+                easing: booyah.easeInBack,
                 onTick: (value) => {
                   this._container.position.y = this.basePosition.y + value
                 },
@@ -204,11 +209,14 @@ export default class GridCell extends ContainerChip {
               new booyah.Tween({
                 from: constants.cellHeight * 2,
                 to: this._hovered ? -constants.cellYSpacing / 2 : 0,
-                duration: 250,
-                easing: booyah.easeOutCubic,
+                duration: 1000,
+                easing: booyah.easeOutBounce,
                 onTick: (value) => {
                   this._container.position.y = this.basePosition.y + value
                 },
+              }),
+              new booyah.Lambda(() => {
+                this.emit("comeBack")
               }),
             ]),
         },
@@ -418,8 +426,9 @@ export default class GridCell extends ContainerChip {
     this._yState.changeState("pulse")
   }
 
-  public sink(cb: () => void) {
-    this._subscribeOnce(this, "hidden", cb)
+  public sink(onHidden: () => void, onComeBack: () => void) {
+    this._subscribeOnce(this, "hidden", onHidden)
+    this._subscribeOnce(this, "comeBack", onComeBack)
     this._yState.changeState("sink")
   }
 

@@ -35,6 +35,10 @@ export default class Character extends ContainerChip<CharacterEvents> {
     super()
   }
 
+  get texture() {
+    return this._baseProperties.texture
+  }
+
   get cell() {
     return this._cell
   }

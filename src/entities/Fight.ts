@@ -135,36 +135,53 @@ export default class Fight extends ContainerChip {
     position: hex.OffsetCoordinates,
   ) {
     let cell = this._grid.getCell(position)
+    const tempSprite = new pixi.Sprite(character.texture)
 
-    cell.sink(() => {
-      this._activateChildChip(character, {
-        context: {
-          container: this._characterContainer,
-        },
-      })
+    tempSprite.anchor.set(0.5, 0.75)
 
-      character.teamIndex = teamIndex
-      character.cell = cell
+    cell.sink(
+      () => {
+        cell.container.addChild(tempSprite)
+      },
+      () => {
+        this._activateChildChip(character, {
+          context: {
+            container: this._characterContainer,
+          },
+        })
 
-      this._refreshCharacterPositions(cell.hex)
+        character.teamIndex = teamIndex
+        character.cell = cell
 
-      this._subscribe(character, "moved", (fromCell, toCell) => {
-        this._refreshCharacterPositions(fromCell.hex)
-        this._refreshCharacterPositions(toCell.hex)
-      })
+        this._refreshCharacterPositions(cell.hex)
 
-      this._characters.push(character)
-    })
+        this._subscribe(character, "moved", (fromCell, toCell) => {
+          this._refreshCharacterPositions(fromCell.hex)
+          this._refreshCharacterPositions(toCell.hex)
+        })
+
+        this._characters.push(character)
+
+        requestAnimationFrame(() => {
+          cell.container.removeChild(tempSprite)
+
+          tempSprite.destroy()
+        })
+      },
+    )
   }
 
   public removeCharacter(character: Character) {
     if (!character.cell) return
 
-    character.cell.sink(() => {
-      this._characters.splice(this._characters.indexOf(character), 1)
+    character.cell.sink(
+      () => {
+        this._characters.splice(this._characters.indexOf(character), 1)
 
-      character.cell = null
-    })
+        character.cell = null
+      },
+      () => {},
+    )
   }
 
   private _refreshCharacterPositions(_hex: hex.OffsetCoordinates) {
