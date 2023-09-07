@@ -55,15 +55,18 @@ export default class PlayerTurn extends ContainerChip {
         toCell.hex,
       )
 
-      this.chipContext.animations.add(
+      this.chipContext.animations.add(() =>
         this._character.moveAction(toCell, distance),
       )
 
       this.terminate()
     })
 
+    // display character possible moves on pressing character cell
+
     this._subscribe(this.chipContext.grid, "dragStart", (cell: GridCell) => {
-      // todo: display character possible moves
+      if (this._character.cell !== cell) return
+
       const reachableCells = this.chipContext.grid
         .getRecursiveNeighbors(cell.hex, constants.characterMaxDistanceMove)
         .map((_hex) => this.chipContext.grid.getCell(_hex))
@@ -75,9 +78,26 @@ export default class PlayerTurn extends ContainerChip {
       })
     })
 
-    // this._subscribe(this._grid, "dragEnd", (cell: GridCell) => {
-    //   // todo: hide character possible moves
-    // })
+    // display character possible actions
+
+    this._character.actions.forEach((action) => {
+      this._activateChildChip(
+        new booyah.Sequence([
+          action,
+          new booyah.Lambda(() => {
+            this.terminate()
+          }),
+        ]),
+        {
+          context: {
+            character: this._character,
+            characters: this.chipContext.characters,
+            animations: this.chipContext.animations,
+            grid: this.chipContext.grid,
+          },
+        },
+      )
+    })
   }
 
   protected _onTerminate() {

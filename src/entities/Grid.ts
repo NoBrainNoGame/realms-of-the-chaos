@@ -74,7 +74,7 @@ export default class Grid extends ContainerChip<GridEvents> {
           this.emit("dragStart", cell)
         })
 
-        this._subscribe(cell, "dragEnd", (outside: boolean) => {
+        this._subscribe(cell, "dragEnd", (outside) => {
           this.emit("dragEnd", cell)
 
           if (outside) {

@@ -9,7 +9,7 @@ export default abstract class ContainerChip<
 > extends ContextChip<CompositeEvents> {
   protected _container!: pixi.Container
 
-  public get defaultChildChipContext() {
+  get defaultChildChipContext() {
     return {
       container: this._container,
     }

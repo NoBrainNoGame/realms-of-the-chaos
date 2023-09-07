@@ -23,11 +23,12 @@ class Game extends booyah.Composite {
           this,
           console.log,
           [],
-          (name) =>
-            name === "Lambda" ||
-            name === "Sequence" ||
-            name === "Parallel" ||
-            name === "StateMachine",
+          (path) =>
+            path.includes("Lambda") ||
+            path.includes("Parallel") ||
+            path.includes("StateMachine") ||
+            path.includes("TimelineCharacter") ||
+            (path.includes("Sequence") && !path.includes("PlayerTurn")),
         ),
       )
     }
@@ -39,7 +40,6 @@ class Game extends booyah.Composite {
         new Fight([fixtures.makeTeam(), fixtures.makeTeam()]),
       )
     }
-    //
   }
 
   protected _onTerminate() {}

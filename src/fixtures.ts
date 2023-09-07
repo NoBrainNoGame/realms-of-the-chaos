@@ -2,10 +2,15 @@ import * as booyah from "@ghom/booyah"
 import * as pixi from "pixi.js"
 import * as enums from "./enums"
 import * as utils from "./utils"
-import Character from "./entities/Character"
 
 // @ts-ignore
 import placeholder from "../assets/images/characters/placeholder.png"
+
+// @ts-ignore
+import attack from "../assets/images/action-icons/attack.png"
+
+import CharacterAction from "./entities/CharacterAction"
+import Character from "./entities/Character"
 
 export function makeCharacter(level = 10) {
   return new Character({
@@ -17,6 +22,21 @@ export function makeCharacter(level = 10) {
     distribution: {
       [enums.CharacterSkill.SPEED]: level,
     },
+    actions: [
+      new CharacterAction({
+        name: "Attack",
+        icon: pixi.Texture.from(attack),
+        timeCost: ({ author }) => author.latence,
+        canBeUsed: ({ target }) => Array.isArray(target),
+        behavior: ({ target, author }) => {
+          if (!Array.isArray(target)) throw new Error("Invalid target")
+
+          return new booyah.Lambda(() => {
+            target.forEach(author.doPhysicalDamagesTo.bind(author))
+          })
+        },
+      }),
+    ],
   })
 }
 

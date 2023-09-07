@@ -1,17 +1,25 @@
 import * as pixi from "pixi.js"
 import * as enums from "../enums"
 import * as booyah from "@ghom/booyah"
-import * as hex from "honeycomb-grid"
-
-import ContainerChip from "../extensions/ContainerChip"
-import PlayerTurn from "./PlayerTurn"
-import GridCell from "./GridCell"
-import Grid from "./Grid"
 
 import { GlowFilter } from "@pixi/filter-glow"
 
+// @ts-ignore
+import gaugeBackground from "../../assets/images/gauge-background-white.png"
+
+// @ts-ignore
+import gaugeBar from "../../assets/images/gauge-bar-red.png"
+
+import ContainerChip from "../extensions/ContainerChip"
+import CharacterAction from "./CharacterAction"
+import PlayerTurn from "./PlayerTurn"
+import GridCell from "./GridCell"
+import Gauge from "./Gauge"
+import Grid from "./Grid"
+
 interface CharacterEvents extends booyah.BaseCompositeEvents {
   moved: [from: GridCell, to: GridCell]
+  dead: []
 }
 
 export interface CharacterProperties {
@@ -22,6 +30,7 @@ export interface CharacterProperties {
   level: number
   distribution: Partial<Record<enums.CharacterSkill, number>>
   behavior?: () => { timeCost: number; chip: booyah.ChipResolvable }
+  actions?: CharacterAction[]
 }
 
 export default class Character extends ContainerChip<CharacterEvents> {
@@ -30,9 +39,15 @@ export default class Character extends ContainerChip<CharacterEvents> {
   private _sprite!: pixi.Sprite
   private _timeBeforeAction!: number
   private _zAdjustment!: number
+  private _hpGauge!: Gauge
+  private _remainingHp!: number
 
   constructor(private _baseProperties: CharacterProperties) {
     super()
+  }
+
+  get timeBeforeAction() {
+    return this._timeBeforeAction
   }
 
   get texture() {
@@ -68,7 +83,25 @@ export default class Character extends ContainerChip<CharacterEvents> {
   }
 
   get latence() {
-    return 200 - Math.min(this.getStat(enums.CharacterSkill.SPEED), 100)
+    return 100 / (this.getStat(enums.CharacterSkill.SPEED) * 0.7)
+  }
+
+  get maxHp() {
+    return this.getStat(enums.CharacterSkill.HEALTH) * 10
+  }
+
+  get hp() {
+    return this._remainingHp
+  }
+
+  set hp(hp: number) {
+    this._remainingHp = hp
+
+    this._hpGauge.value = this._remainingHp / this.maxHp
+
+    if (this._remainingHp <= 0) {
+      this.emit("dead")
+    }
   }
 
   get position() {
@@ -83,10 +116,15 @@ export default class Character extends ContainerChip<CharacterEvents> {
     this._zAdjustment = z
   }
 
+  get actions() {
+    return this._baseProperties.actions ?? []
+  }
+
   protected _onActivate() {
     this._cell = null
     this._teamIndex = 0
     this._zAdjustment = 0
+    this._remainingHp = this.maxHp
     this._timeBeforeAction = this.latence
 
     this._sprite = new pixi.Sprite(this._baseProperties.texture)
@@ -95,6 +133,21 @@ export default class Character extends ContainerChip<CharacterEvents> {
     this._sprite.visible = false
 
     this._container.addChild(this._sprite)
+
+    this._activateChildChip(
+      (this._hpGauge = new Gauge({
+        bar: pixi.Texture.from(gaugeBar),
+        background: pixi.Texture.from(gaugeBackground),
+        width: 75,
+        height: 8,
+        initialValue: 1,
+        text: () => `${this._remainingHp} / ${this.maxHp}`,
+        position: {
+          x: 0,
+          y: -75,
+        },
+      })),
+    )
   }
 
   protected _onTick() {
@@ -109,25 +162,29 @@ export default class Character extends ContainerChip<CharacterEvents> {
     return 1 + (this._baseProperties.distribution[name] ?? 0)
   }
 
-  public timelineTick(
+  public fightTick(
     animations: booyah.Queue,
     grid: Grid,
     characters: Character[],
   ): boolean {
     if (this.state !== "active") return false
 
-    if (this._timeBeforeAction > 0)
-      this._timeBeforeAction -= this._lastTickInfo.timeSinceLastTick
-    else {
+    if (this._timeBeforeAction > 0) {
+      this._timeBeforeAction--
+    } else {
       this._timeBeforeAction = 0
 
       if (this._baseProperties.behavior) {
+        // Use automatic behavior for NPC
+
         const { timeCost, chip } = this._baseProperties.behavior()
 
         this.addActionTime(timeCost)
 
         animations.add(chip)
       } else {
+        // Or wait for player action
+
         animations.add(new PlayerTurn(this), {
           grid,
           animations,
@@ -196,5 +253,25 @@ export default class Character extends ContainerChip<CharacterEvents> {
         this.emit("moved", lastCell, target)
       }),
     ])
+  }
+
+  public doPhysicalDamagesTo(this: this, target: Character) {
+    const damages = Math.max(
+      0,
+      this.getStat(enums.CharacterSkill.PHYSICAL_DAMAGE) * 2 -
+        target.getStat(enums.CharacterSkill.PHYSICAL_RESISTANCE) / 2,
+    )
+
+    target.hp -= damages
+  }
+
+  public doMagicalDamagesTo(target: Character) {
+    const damages = Math.max(
+      0,
+      this.getStat(enums.CharacterSkill.MAGICAL_DAMAGE) * 2 -
+        target.getStat(enums.CharacterSkill.MAGICAL_RESISTANCE) / 2,
+    )
+
+    target.hp -= damages
   }
 }

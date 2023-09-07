@@ -8,7 +8,7 @@ export default class DebugComposite extends booyah.Composite {
     /**
      * Returns true if the path should be ignored.
      */
-    private _ignore?: (name: string) => boolean,
+    private _ignore?: (path: string[]) => boolean,
   ) {
     super()
   }
@@ -17,12 +17,12 @@ export default class DebugComposite extends booyah.Composite {
     const path = this._path.slice(0)
     const name = this.target.constructor.name
 
-    if (this._ignore && this._ignore(name)) {
+    path.push(name)
+
+    if (this._ignore && this._ignore(path)) {
       this.terminate()
       return
     }
-
-    path.push(name)
 
     this._subscribe(this.target, "activated", () =>
       this._onLog(`${path.join(".")}: ON`),

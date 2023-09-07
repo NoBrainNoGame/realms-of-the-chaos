@@ -1,14 +1,13 @@
 import * as booyah from "@ghom/booyah"
 import * as hex from "honeycomb-grid"
 import * as pixi from "pixi.js"
-import * as enums from "../enums"
 
 import ContainerChip from "../extensions/ContainerChip"
 import Character from "./Character"
 import Grid from "./Grid"
 import * as constants from "../constants"
 import Water from "./Water"
-import GridCell from "./GridCell"
+import Timeline from "./Timeline"
 
 /**
  * Represent a fight between two or more entities. <br>
@@ -16,6 +15,7 @@ import GridCell from "./GridCell"
  */
 export default class Fight extends ContainerChip {
   private _centerContainer!: pixi.Container
+  private _anchorContainer!: pixi.Container
   private _gridContainer!: pixi.Container
   private _waterContainer!: pixi.Container
   private _characterContainer!: pixi.Container
@@ -23,6 +23,7 @@ export default class Fight extends ContainerChip {
 
   private _grid!: Grid
   private _water!: Water
+  private _timeline!: Timeline
   private _characters!: Character[]
   private _animations!: booyah.Queue
 
@@ -36,8 +37,7 @@ export default class Fight extends ContainerChip {
     // init containers
 
     this._centerContainer = new pixi.Container()
-
-    this._container.addChild(this._centerContainer)
+    this._anchorContainer = new pixi.Container()
 
     this._gridContainer = new pixi.Container()
     this._waterContainer = new pixi.Container()
@@ -46,12 +46,15 @@ export default class Fight extends ContainerChip {
 
     this._characterContainer.sortableChildren = true
 
-    this._centerContainer.addChild(
+    this._centerContainer.addChild(this._anchorContainer)
+
+    this._anchorContainer.addChild(
       this._gridContainer,
       this._waterContainer,
       this._characterContainer,
-      this._hudContainer,
     )
+
+    this._container.addChild(this._centerContainer, this._hudContainer)
 
     // init queue animation
 
@@ -70,7 +73,7 @@ export default class Fight extends ContainerChip {
       row: Math.floor(constants.gridHeight / 2),
     })!
 
-    this._centerContainer.position.set(-center.hex.x, -center.hex.y)
+    this._anchorContainer.position.set(-center.hex.x, -center.hex.y)
 
     // init water
 
@@ -79,6 +82,17 @@ export default class Fight extends ContainerChip {
         container: this._waterContainer,
       },
     })
+
+    // init timeline
+
+    this._activateChildChip(
+      (this._timeline = new Timeline(this, this._teams)),
+      {
+        context: {
+          container: this._hudContainer,
+        },
+      },
+    )
 
     // init characters
 
@@ -103,17 +117,21 @@ export default class Fight extends ContainerChip {
   }
 
   protected _onResize(width: number, height: number) {
-    this._container.position.set(width / 2 + 25, height / 2)
+    this._centerContainer.position.set(width / 2 + 25, height / 2)
   }
 
   protected _onTick() {
-    if (!this._grid.isReady) return
+    if (!this.isReady) return
 
-    if (this._animations.isEmpty) {
-      for (let i = 0; i < this._characters.length; i++) {
+    const activeCharacters = this._characters.filter(
+      (character) => character.state === "active",
+    )
+
+    while (this._animations.isEmpty && activeCharacters.length > 0) {
+      for (let i = 0; i < activeCharacters.length; i++) {
         // For each character, we check if they can do an action. (based on their own timeline)
         if (
-          this._characters[i].timelineTick(
+          this._characters[i].fightTick(
             this._animations,
             this._grid,
             this._characters,
@@ -139,6 +157,17 @@ export default class Fight extends ContainerChip {
 
     tempSprite.anchor.set(0.5, 0.75)
 
+    this._characters.push(character)
+
+    this._subscribe(character, "moved", (fromCell, toCell) => {
+      this._refreshCharacterPositions(fromCell.hex)
+      this._refreshCharacterPositions(toCell.hex)
+    })
+
+    this._subscribeOnce(character, "dead", () => {
+      this.removeCharacter(character)
+    })
+
     cell.sink(
       () => {
         cell.container.addChild(tempSprite)
@@ -155,13 +184,6 @@ export default class Fight extends ContainerChip {
 
         this._refreshCharacterPositions(cell.hex)
 
-        this._subscribe(character, "moved", (fromCell, toCell) => {
-          this._refreshCharacterPositions(fromCell.hex)
-          this._refreshCharacterPositions(toCell.hex)
-        })
-
-        this._characters.push(character)
-
         requestAnimationFrame(() => {
           cell.container.removeChild(tempSprite)
 
@@ -174,11 +196,24 @@ export default class Fight extends ContainerChip {
   public removeCharacter(character: Character) {
     if (!character.cell) return
 
-    character.cell.sink(
-      () => {
-        this._characters.splice(this._characters.indexOf(character), 1)
+    const { cell } = character
 
-        character.cell = null
+    const tempSprite = new pixi.Sprite(character.texture)
+
+    tempSprite.anchor.set(0.5, 0.75)
+
+    cell.container.addChild(tempSprite)
+    character.cell = null
+
+    this._terminateChildChip(character)
+
+    this._characters.splice(this._characters.indexOf(character), 1)
+
+    this._refreshCharacterPositions(cell.hex)
+
+    cell.sink(
+      () => {
+        cell.container.removeChild(tempSprite)
       },
       () => {},
     )

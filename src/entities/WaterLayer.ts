@@ -9,7 +9,7 @@ import ContainerChip from "../extensions/ContainerChip"
 
 export default class WaterLayer extends ContainerChip {
   private _sprite!: pixi.Sprite
-  private _tint!: number
+  private _tint!: string
 
   constructor(
     private _z: number,
@@ -33,7 +33,7 @@ export default class WaterLayer extends ContainerChip {
       150 + Math.abs(booyah.lerp(0, 105, this._z / this._cell.z)),
       150 + Math.abs(booyah.lerp(0, 105, this._z / this._cell.z)),
       255,
-    ]).toNumber()
+    ]).toString("hex")
 
     this._sprite.tint = this._tint
 

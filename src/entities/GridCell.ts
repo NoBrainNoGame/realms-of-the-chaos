@@ -39,7 +39,7 @@ interface GridCellEvents extends booyah.BaseCompositeEvents {
   comeBack: []
 }
 
-export default class GridCell extends ContainerChip {
+export default class GridCell extends ContainerChip<GridCellEvents> {
   private _sprite!: pixi.Sprite
   private _yState!: booyah.StateMachine
   private _tint!: number | string

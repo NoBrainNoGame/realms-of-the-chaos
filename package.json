@@ -16,6 +16,7 @@
     "@ghom/booyah": "^1.2.11",
     "@pixi/filter-displacement": "^7.2.4",
     "@pixi/filter-glow": "^5.2.1",
+    "@pixi/filter-outline": "^5.2.0",
     "color-engine": "^2.0.2-flooooood",
     "honeycomb-grid": "^4.1.4",
     "howler": "^2.2.3",
