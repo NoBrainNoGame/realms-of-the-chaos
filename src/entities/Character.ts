@@ -10,16 +10,30 @@ import gaugeBackground from "../../assets/images/gauge-background-white.png"
 // @ts-ignore
 import gaugeBar from "../../assets/images/gauge-bar-red.png"
 
+import CharacterAction, { CharacterActionOptions } from "./CharacterAction"
 import ContainerChip from "../extensions/ContainerChip"
-import CharacterAction from "./CharacterAction"
 import PlayerTurn from "./PlayerTurn"
 import GridCell from "./GridCell"
 import Gauge from "./Gauge"
+import Fight from "./Fight"
 import Grid from "./Grid"
+
+import globalActions from "../data/globalActions"
+import classRules from "../data/classRules"
 
 interface CharacterEvents extends booyah.BaseCompositeEvents {
   moved: [from: GridCell, to: GridCell]
   dead: []
+}
+
+export interface CharacterBehaviorContext {
+  fight: Fight
+  character: Character
+}
+
+export type CharacterBehavior = (ctx: CharacterBehaviorContext) => {
+  timeCost: number
+  chip: booyah.ChipResolvable
 }
 
 export interface CharacterProperties {
@@ -29,20 +43,24 @@ export interface CharacterProperties {
   race: enums.CharacterRace
   level: number
   distribution: Partial<Record<enums.CharacterSkill, number>>
-  behavior?: () => { timeCost: number; chip: booyah.ChipResolvable }
-  actions?: CharacterAction[]
+  behavior?: CharacterBehavior
+  actions?: CharacterActionOptions[]
 }
 
 export default class Character extends ContainerChip<CharacterEvents> {
   private _cell!: GridCell | null
-  private _teamIndex!: number
+  private _teamIndex!: number | null
   private _sprite!: pixi.Sprite
   private _timeBeforeAction!: number
   private _zAdjustment!: number
   private _hpGauge!: Gauge
   private _remainingHp!: number
+  private _actions!: CharacterAction[]
 
-  constructor(private _baseProperties: CharacterProperties) {
+  constructor(
+    private _baseProperties: CharacterProperties,
+    private _fight: Fight,
+  ) {
     super()
   }
 
@@ -59,13 +77,13 @@ export default class Character extends ContainerChip<CharacterEvents> {
   }
 
   set cell(cell: GridCell | null) {
-    if (this._cell) {
+    if (this._cell && this._teamIndex !== null) {
       this._cell.removeTeamIndicator(this._teamIndex)
     }
 
     this._cell = null
 
-    if (cell) {
+    if (cell && this._teamIndex !== null) {
       this._cell = cell
 
       cell?.addTeamIndicator(this._teamIndex)
@@ -76,14 +94,18 @@ export default class Character extends ContainerChip<CharacterEvents> {
     return this._teamIndex
   }
 
-  set teamIndex(teamIndex: number) {
+  set teamIndex(teamIndex: number | null) {
     this._teamIndex = teamIndex
 
-    if (this.cell) this.cell.addTeamIndicator(teamIndex)
+    if (this._cell && teamIndex !== null) this._cell.addTeamIndicator(teamIndex)
   }
 
   get latence() {
     return 100 / (this.getStat(enums.CharacterSkill.SPEED) * 0.7)
+  }
+
+  get level() {
+    return this._baseProperties.level
   }
 
   get maxHp() {
@@ -105,6 +127,10 @@ export default class Character extends ContainerChip<CharacterEvents> {
   }
 
   get position() {
+    return this._container.position
+  }
+
+  get internalPosition() {
     return this._sprite.position
   }
 
@@ -117,7 +143,7 @@ export default class Character extends ContainerChip<CharacterEvents> {
   }
 
   get actions() {
-    return this._baseProperties.actions ?? []
+    return this._actions
   }
 
   protected _onActivate() {
@@ -126,6 +152,12 @@ export default class Character extends ContainerChip<CharacterEvents> {
     this._zAdjustment = 0
     this._remainingHp = this.maxHp
     this._timeBeforeAction = this.latence
+
+    this._actions = [
+      ...(this._baseProperties.actions ?? []),
+      ...Object.values(globalActions),
+      ...Object.values(classRules[this._baseProperties.class].actions),
+    ].map((options) => new CharacterAction(options, this, this._fight))
 
     this._sprite = new pixi.Sprite(this._baseProperties.texture)
 
@@ -162,11 +194,7 @@ export default class Character extends ContainerChip<CharacterEvents> {
     return 1 + (this._baseProperties.distribution[name] ?? 0)
   }
 
-  public fightTick(
-    animations: booyah.Queue,
-    grid: Grid,
-    characters: Character[],
-  ): boolean {
+  public fightTick(fight: Fight): boolean {
     if (this.state !== "active") return false
 
     if (this._timeBeforeAction > 0) {
@@ -177,19 +205,18 @@ export default class Character extends ContainerChip<CharacterEvents> {
       if (this._baseProperties.behavior) {
         // Use automatic behavior for NPC
 
-        const { timeCost, chip } = this._baseProperties.behavior()
+        const { timeCost, chip } = this._baseProperties.behavior({
+          fight,
+          character: this,
+        })
 
         this.addActionTime(timeCost)
 
-        animations.add(chip)
+        fight.animations.add(chip)
       } else {
         // Or wait for player action
 
-        animations.add(new PlayerTurn(this), {
-          grid,
-          animations,
-          characters,
-        })
+        fight.animations.add(new PlayerTurn(this, fight))
       }
 
       return true
@@ -223,7 +250,8 @@ export default class Character extends ContainerChip<CharacterEvents> {
 
     return new booyah.Sequence([
       new booyah.Lambda(() => {
-        this._cell!.removeTeamIndicator(this._teamIndex)
+        if (this._cell && this._teamIndex !== null)
+          this._cell.removeTeamIndicator(this._teamIndex)
 
         lastCell = this._cell!
         this._cell = null
@@ -248,30 +276,61 @@ export default class Character extends ContainerChip<CharacterEvents> {
       new booyah.Lambda(() => {
         this._cell = target
 
-        this._cell.addTeamIndicator(this._teamIndex)
+        if (this._teamIndex !== null)
+          this._cell.addTeamIndicator(this._teamIndex)
 
         this.emit("moved", lastCell, target)
       }),
     ])
   }
 
-  public doPhysicalDamagesTo(this: this, target: Character) {
+  public doPhysicalDamagesTo(
+    this: this,
+    target: Character,
+    multiplier = 1,
+    armorPiercing = false,
+  ) {
     const damages = Math.max(
       0,
-      this.getStat(enums.CharacterSkill.PHYSICAL_DAMAGE) * 2 -
-        target.getStat(enums.CharacterSkill.PHYSICAL_RESISTANCE) / 2,
+      this.getStat(enums.CharacterSkill.PHYSICAL_DAMAGE) * 2 * multiplier -
+        (armorPiercing
+          ? 0
+          : target.getStat(enums.CharacterSkill.PHYSICAL_RESISTANCE) / 2),
     )
 
     target.hp -= damages
   }
 
-  public doMagicalDamagesTo(target: Character) {
+  public doMagicalDamagesTo(
+    this: this,
+    target: Character,
+    multiplier = 1,
+    armorPiercing = false,
+  ) {
     const damages = Math.max(
       0,
-      this.getStat(enums.CharacterSkill.MAGICAL_DAMAGE) * 2 -
-        target.getStat(enums.CharacterSkill.MAGICAL_RESISTANCE) / 2,
+      this.getStat(enums.CharacterSkill.MAGICAL_DAMAGE) * 2 * multiplier -
+        (armorPiercing
+          ? 0
+          : target.getStat(enums.CharacterSkill.MAGICAL_RESISTANCE) / 2),
     )
 
     target.hp -= damages
+  }
+
+  /**
+   * @todo add probability system for distribution about class and race stats
+   */
+  static generateRandomDistribution(level: number) {
+    const distribution: Partial<Record<enums.CharacterSkill, number>> = {}
+
+    for (let i = 0; i < level; i++) {
+      const skill = Object.values(enums.CharacterSkill)[
+        Math.floor(Math.random() * Object.values(enums.CharacterSkill).length)
+      ]
+      distribution[skill] = (distribution[skill] ?? 0) + 1
+    }
+
+    return distribution
   }
 }

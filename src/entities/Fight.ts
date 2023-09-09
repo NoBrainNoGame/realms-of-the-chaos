@@ -1,13 +1,13 @@
 import * as booyah from "@ghom/booyah"
 import * as hex from "honeycomb-grid"
 import * as pixi from "pixi.js"
+import * as constants from "../constants"
 
 import ContainerChip from "../extensions/ContainerChip"
-import Character from "./Character"
-import Grid from "./Grid"
-import * as constants from "../constants"
-import Water from "./Water"
+import Character, { CharacterProperties } from "./Character"
 import Timeline from "./Timeline"
+import Water from "./Water"
+import Grid from "./Grid"
 
 /**
  * Represent a fight between two or more entities. <br>
@@ -19,6 +19,7 @@ export default class Fight extends ContainerChip {
   private _gridContainer!: pixi.Container
   private _waterContainer!: pixi.Container
   private _characterContainer!: pixi.Container
+  private _animationContainer!: pixi.Container
   private _hudContainer!: pixi.Container
 
   private _grid!: Grid
@@ -26,11 +27,32 @@ export default class Fight extends ContainerChip {
   private _timeline!: Timeline
   private _characters!: Character[]
   private _animations!: booyah.Queue
+  private _teams: Character[][]
 
-  constructor(private _teams: Character[][]) {
+  constructor(teams: CharacterProperties[][]) {
     super()
 
-    if (this._teams.length > 4) throw new Error("Too many teams")
+    if (teams.length > 4) throw new Error("Too many teams")
+
+    this._teams = teams.map((team) =>
+      team.map((character) => new Character(character, this)),
+    )
+  }
+
+  get grid() {
+    return this._grid
+  }
+
+  get animations() {
+    return this._animations
+  }
+
+  get characters() {
+    return this._characters
+  }
+
+  get animationContainer() {
+    return this._animationContainer
   }
 
   protected _onActivate() {
@@ -42,6 +64,7 @@ export default class Fight extends ContainerChip {
     this._gridContainer = new pixi.Container()
     this._waterContainer = new pixi.Container()
     this._characterContainer = new pixi.Container()
+    this._animationContainer = new pixi.Container()
     this._hudContainer = new pixi.Container()
 
     this._characterContainer.sortableChildren = true
@@ -52,6 +75,7 @@ export default class Fight extends ContainerChip {
       this._gridContainer,
       this._waterContainer,
       this._characterContainer,
+      this._animationContainer,
     )
 
     this._container.addChild(this._centerContainer, this._hudContainer)
@@ -130,13 +154,7 @@ export default class Fight extends ContainerChip {
     while (this._animations.isEmpty && activeCharacters.length > 0) {
       for (let i = 0; i < activeCharacters.length; i++) {
         // For each character, we check if they can do an action. (based on their own timeline)
-        if (
-          this._characters[i].fightTick(
-            this._animations,
-            this._grid,
-            this._characters,
-          )
-        ) {
+        if (this._characters[i].fightTick(this)) {
           // If the character do an action, we stop the timeline and let the action/animation run.
           break
         }
@@ -229,14 +247,14 @@ export default class Fight extends ContainerChip {
     })
 
     if (characters.length === 1) {
-      characters[0].position.set(0)
+      characters[0].internalPosition.set(0)
     } else if (characters.length === 2) {
-      characters[0].position.set(-constants.cellWidth / 4, 0)
-      characters[1].position.set(constants.cellWidth / 4, 0)
+      characters[0].internalPosition.set(-constants.cellWidth / 4, 0)
+      characters[1].internalPosition.set(constants.cellWidth / 4, 0)
     } else if (characters.length === 3) {
-      characters[0].position.set(-constants.cellWidth / 4, 0)
-      characters[1].position.set(0, -constants.cellHeight / 4)
-      characters[2].position.set(constants.cellWidth / 4, 0)
+      characters[0].internalPosition.set(-constants.cellWidth / 4, 0)
+      characters[1].internalPosition.set(0, -constants.cellHeight / 4)
+      characters[2].internalPosition.set(constants.cellWidth / 4, 0)
       characters[1].zAdjustment = -0.5
     } else if (characters.length !== 0) {
       throw new Error("Too many characters on the same cell")

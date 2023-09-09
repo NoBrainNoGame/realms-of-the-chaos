@@ -3,6 +3,7 @@ import * as events from "@pixi/events"
 import * as booyah from "@ghom/booyah"
 import * as hex from "honeycomb-grid"
 import * as params from "../params"
+import * as constants from "../constants"
 
 import pointer from "../core/pointer"
 
@@ -19,7 +20,7 @@ import teamColorGreen from "../../assets/images/team-colors/green.png"
 import teamColorPurple from "../../assets/images/team-colors/purple.png"
 
 import ContainerChip from "../extensions/ContainerChip"
-import * as constants from "../constants"
+import Grid from "./Grid"
 
 const teamColors: [string, string, string, string] = [
   teamColorBlue,

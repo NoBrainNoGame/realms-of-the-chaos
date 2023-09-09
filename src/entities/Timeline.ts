@@ -82,8 +82,16 @@ export default class Timeline extends ContainerChip {
 
   protected _onTick() {
     const sortedCharacters = this._characters.sort((a, b) => {
-      // sort characters by their time before action
-      return b.character.timeBeforeAction - a.character.timeBeforeAction
+      // sort characters by their time before action, then by their index
+      if (
+        b.character.timeBeforeAction <= 0 &&
+        a.character.timeBeforeAction <= 0
+      )
+        return (
+          this._teams.flat().indexOf(b.character) -
+          this._teams.flat().indexOf(a.character)
+        )
+      else return b.character.timeBeforeAction - a.character.timeBeforeAction
     })
 
     for (const character of sortedCharacters) {

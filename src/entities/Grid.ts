@@ -1,6 +1,7 @@
 import * as booyah from "@ghom/booyah"
 import * as hex from "honeycomb-grid"
 import * as pixi from "pixi.js"
+import * as enums from "../enums"
 import * as constants from "../constants"
 
 // @ts-ignore
@@ -109,31 +110,17 @@ export default class Grid extends ContainerChip<GridEvents> {
   public shockWave(_hex: hex.Hex) {
     const intervals = 200
 
-    const firstNeighbors = this.getNeighbors(_hex)
-
-    const secondNeighbors = firstNeighbors
-      .map((__hex) => this.getNeighbors(__hex))
-      .flat()
-      .filter(
-        (__hex) =>
-          !firstNeighbors.some((___hex) => ___hex.equals(__hex)) &&
-          !__hex.equals(_hex),
-      )
-
-    const cells = [
-      [this.getCell(_hex)],
-      firstNeighbors.map((neighbor) => this.getCell(neighbor)),
-      secondNeighbors.map((neighbor) => this.getCell(neighbor)),
-    ]
+    const firstNeighbors = this.getRangedCells(_hex, 1)
+    const secondNeighbors = this.getRangedCells(_hex, 2)
 
     this._activateChildChip(
       new booyah.Sequence([
         new booyah.Lambda(() => {
-          cells[0][0].pulse(1)
+          this.getCell(_hex).pulse(1)
         }),
         new booyah.Wait(intervals / 3),
         new booyah.Parallel(
-          cells[1].map((cell) => {
+          firstNeighbors.map((cell) => {
             return new booyah.Lambda(() => {
               cell.pulse(0.5)
             })
@@ -141,7 +128,7 @@ export default class Grid extends ContainerChip<GridEvents> {
         ),
         new booyah.Wait(intervals / 3),
         new booyah.Parallel(
-          cells[2].map((cell) => {
+          secondNeighbors.map((cell) => {
             return new booyah.Lambda(() => {
               cell.pulse(0.25)
             })
@@ -154,27 +141,50 @@ export default class Grid extends ContainerChip<GridEvents> {
   public getNeighbors(_hex: hex.Hex): hex.Hex[] {
     const neighbors = new Array<hex.Hex | undefined>()
 
-    for (let i = 0; i < 8; i++) {
-      neighbors.push(
-        this._honeycomb.neighborOf(_hex, i, { allowOutside: false }),
-      )
-    }
+    neighbors.push(
+      this._honeycomb.neighborOf(_hex, hex.Direction.E, {
+        allowOutside: false,
+      }),
+      this._honeycomb.neighborOf(_hex, hex.Direction.NE, {
+        allowOutside: false,
+      }),
+      this._honeycomb.neighborOf(_hex, hex.Direction.E, {
+        allowOutside: false,
+      }),
+      this._honeycomb.neighborOf(_hex, hex.Direction.SE, {
+        allowOutside: false,
+      }),
+      this._honeycomb.neighborOf(_hex, hex.Direction.SW, {
+        allowOutside: false,
+      }),
+      this._honeycomb.neighborOf(_hex, hex.Direction.W, {
+        allowOutside: false,
+      }),
+      this._honeycomb.neighborOf(_hex, hex.Direction.NW, {
+        allowOutside: false,
+      }),
+    )
 
     return neighbors.filter((neighbor) => !!neighbor) as hex.Hex[]
   }
 
-  public getRecursiveNeighbors(_hex: hex.Hex, depth: number): hex.Hex[] {
-    if (depth === 0) return []
+  public getNeighborsByRange(center: hex.Hex, range: number): GridCell[] {
+    if (range === 0) return []
 
-    const neighbors = new Set(this.getNeighbors(_hex))
+    const neighbors: GridCell[] = []
 
-    for (const neighbor of Array.from(neighbors)) {
-      this.getRecursiveNeighbors(neighbor, depth - 1).forEach((neighbor) =>
-        neighbors.add(neighbor),
-      )
+    for (let i = 1; i < range + 1; i++) {
+      neighbors.push(...this.getRangedCells(center, i))
     }
 
-    return Array.from(neighbors)
+    return neighbors
+  }
+
+  public getRangedCells(_hex: hex.Hex, range: number): GridCell[] {
+    return this._cells.filter((cell) => {
+      const distance = this._honeycomb.distance(_hex, cell.hex)
+      return distance === range
+    })
   }
 
   public getCell(_hex: hex.OffsetCoordinates) {

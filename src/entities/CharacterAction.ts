@@ -6,37 +6,63 @@ import pointer from "../core/pointer"
 import ContainerChip from "../extensions/ContainerChip"
 import Character from "./Character"
 import GridCell from "./GridCell"
-import Grid from "./Grid"
+import Fight from "./Fight"
+import Characters from "../data/characters"
+
+type CharacterActionScope =
+  | "self"
+  | "ally"
+  | "enemy"
+  | "character"
+  | "everywhere"
 
 export interface CharacterActionBehaviorContext {
   author: Character
-  target?: Character[] | GridCell
+  target: GridCell
 }
 
-interface CharacterActionOptions {
+export type CharacterActionBehavior = (
+  context: CharacterActionBehaviorContext & {
+    targets: Character[]
+    container: pixi.Container
+  },
+) => booyah.ChipResolvable
+
+export interface CharacterActionOptions {
   name: string
   icon: pixi.Texture
   timeCost: (context: CharacterActionBehaviorContext) => number
   canBeUsed: (context: CharacterActionBehaviorContext) => boolean
-  behavior: (context: CharacterActionBehaviorContext) => booyah.ChipResolvable
+  behavior: CharacterActionBehavior
+  range: number
+  scope: CharacterActionScope
 }
 
 export default class CharacterAction extends ContainerChip {
   private _sprite!: pixi.Sprite
   private _floatingSprite!: pixi.Sprite
 
-  get chipContext(): {
-    character: Character
-    characters: Character[]
-    container: pixi.Container
-    animations: booyah.Queue
-    grid: Grid
-  } {
-    // @ts-ignore
-    return super.chipContext
+  get name() {
+    return this._options.name
   }
 
-  constructor(private _options: CharacterActionOptions) {
+  get range() {
+    return this._options.range
+  }
+
+  get scope() {
+    return this._options.scope
+  }
+
+  get timeCost() {
+    return this._options.timeCost
+  }
+
+  constructor(
+    private _options: CharacterActionOptions,
+    private _character: Character,
+    private _fight: Fight,
+  ) {
     super()
   }
 
@@ -67,35 +93,34 @@ export default class CharacterAction extends ContainerChip {
       // animate the action drag and drop
       this._floatingSprite.visible = true
 
+      this._highlightCells()
+
       this._subscribeOnce(this._sprite, "pointerup", () => {
         this._floatingSprite.visible = false
+        this._fight.grid.getCells().forEach((cell) => cell.unHighlight())
+
+        if (this._options.scope === "self") {
+          this._use({
+            author: this._character,
+            target: this._character.cell!,
+          })
+        }
       })
 
       this._subscribeOnce(this._sprite, "pointerupoutside", () => {
         if (this._state !== "active") return
 
-        const cell = this.chipContext.grid.getHoveredCell()
+        this._unHighlightCells()
+
+        const cell = this._fight.grid.getHoveredCell()
 
         if (cell) {
-          const targets = this.chipContext.characters.filter(
-            (character) => character.cell === cell,
-          )
-
           const context = {
-            author: this.chipContext.character,
-            target: targets || cell,
+            author: this._character,
+            target: cell,
           }
 
-          if (this._options.canBeUsed(context)) {
-            this.chipContext.character.addActionTime(
-              this._options.timeCost(context),
-            )
-
-            this.chipContext.animations.add(this._options.behavior(context))
-
-            // todo: juiciness for doing anything (sound, animation, etc.)
-            this.terminate()
-          }
+          this._use(context)
         }
 
         // finish the drag and drop animation
@@ -105,7 +130,7 @@ export default class CharacterAction extends ContainerChip {
   }
 
   protected _onResize(width: number, height: number) {
-    const { actions } = this.chipContext.character
+    const { actions } = this._character
 
     this._sprite.position.set(
       width / 2 - actions.length * 50 + actions.indexOf(this) * 100,
@@ -115,5 +140,96 @@ export default class CharacterAction extends ContainerChip {
 
   protected _onTick() {
     this._floatingSprite.position.copyFrom(pointer)
+  }
+
+  protected _onTerminate() {
+    this._unHighlightCells()
+  }
+
+  private _use(context: CharacterActionBehaviorContext) {
+    if (this._canBeUsed(context)) {
+      this._character.addActionTime(this._options.timeCost(context))
+
+      this._fight.animations.add(
+        this._options.behavior({
+          ...context,
+          container: this._fight.animationContainer,
+          targets: this._fight.characters.filter((c) => {
+            if (c.cell !== context.target) return false
+
+            if (this._options.scope === "ally")
+              return c.teamIndex === context.author.teamIndex
+            if (this._options.scope === "enemy")
+              return c.teamIndex !== context.author.teamIndex
+
+            return true
+          }),
+        }),
+      )
+
+      // todo: juiciness for doing anything (sound, animation, etc.)
+      this.terminate()
+    }
+  }
+
+  private _canBeUsed(context: CharacterActionBehaviorContext) {
+    return this._options.canBeUsed(context) && this._isInRange(context)
+  }
+
+  private _isInRange(context: CharacterActionBehaviorContext) {
+    const { author, target } = context
+
+    if (this._options.scope === "self") return context.author.cell === target
+
+    const distance = this._fight.grid.getDistanceBetween(
+      author.cell!.hex,
+      target.hex,
+    )
+
+    if (distance > this._options.range) return false
+
+    if (this._options.scope === "everywhere") return true
+
+    if (this._options.scope === "ally")
+      return this._fight.characters.some(
+        (c) => c.cell === target && c.teamIndex === author.teamIndex,
+      )
+
+    if (this._options.scope === "enemy")
+      return this._fight.characters.some(
+        (c) => c.cell === target && c.teamIndex !== author.teamIndex,
+      )
+
+    if (this._options.scope === "character")
+      return this._fight.characters.some((c) => c.cell === target)
+
+    return false
+  }
+
+  private _highlightCells() {
+    const cells = [
+      this._character.cell!,
+      ...this._fight.grid.getNeighborsByRange(
+        this._character.cell!.hex,
+        this._options.range,
+      ),
+    ]
+
+    cells.forEach((cell) => {
+      if (
+        this._canBeUsed({
+          author: this._character,
+          target: cell,
+        })
+      ) {
+        cell.highlight()
+      }
+    })
+  }
+
+  private _unHighlightCells() {
+    this._fight.grid.getCells().forEach((cell) => {
+      cell.unHighlight()
+    })
   }
 }

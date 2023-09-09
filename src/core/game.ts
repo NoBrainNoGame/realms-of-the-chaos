@@ -1,13 +1,16 @@
 import * as booyah from "@ghom/booyah"
 
-import * as fixtures from "../fixtures"
 import * as params from "../params"
 
 import app from "./app"
+import behaviors from "../data/behaviors"
+import characters from "../data/characters"
 
 import Fight from "../entities/Fight"
+import Character from "../entities/Character"
 import GridEditor from "../entities/GridEditor"
 import DebugComposite from "../debug/DebugComposite"
+import { CharacterBehavior } from "../enums"
 
 class Game extends booyah.Composite {
   get defaultChildChipContext() {
@@ -37,12 +40,39 @@ class Game extends booyah.Composite {
       this._activateChildChip(new GridEditor())
     } else if (params.version === "fight") {
       this._activateChildChip(
-        new Fight([fixtures.makeTeam(), fixtures.makeTeam()]),
+        new Fight([
+          [
+            {
+              ...characters.Merlin,
+              level: 10,
+              distribution: Character.generateRandomDistribution(10),
+            },
+            {
+              ...characters.Merlin,
+              name: "Sorcerio",
+              level: 10,
+              distribution: Character.generateRandomDistribution(10),
+            },
+          ],
+          [
+            {
+              ...characters.Eva,
+              level: 10,
+              distribution: Character.generateRandomDistribution(10),
+              behavior: behaviors[CharacterBehavior.STANDARD],
+            },
+            {
+              ...characters.Eva,
+              name: "Cléophée",
+              level: 10,
+              distribution: Character.generateRandomDistribution(10),
+              behavior: behaviors[CharacterBehavior.STANDARD],
+            },
+          ],
+        ]),
       )
     }
   }
-
-  protected _onTerminate() {}
 }
 
 const game = new Game()

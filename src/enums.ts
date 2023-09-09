@@ -68,3 +68,7 @@ export enum CharacterSkill {
    */
   INTELLIGENCE = "intelligence",
 }
+
+export enum CharacterBehavior {
+  STANDARD = "standard",
+}
