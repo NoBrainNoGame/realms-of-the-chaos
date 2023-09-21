@@ -13,88 +13,96 @@ export default class PlayerTurn extends ContainerChip {
   constructor(
     private _character: Character,
     private _fight: Fight,
+    private _turnType: "move" | "action",
   ) {
     super()
   }
 
   protected _onActivate() {
-    // todo: En fonction de ce que le player fait on ajoute du temps d'action au character via addActionTime
-    //  et on lance une animation via this._animations.add
+    // En fonction de ce que le player fait on ajoute du temps d'action au character via addActionTime
+    // et on lance une animation via this._animations.add
+
+    // todo: séparer le cas d'un move et celui d'une action.
 
     // highlight character cell
 
     this._character.highlight()
 
-    // init move listeners
+    if (this._turnType === "move") {
+      // init move listeners
 
-    this._subscribe(this._fight.grid, "drop", (fromCell, toCell) => {
-      // check if the fromCell is the cell of current character
-      if (this._character.cell !== fromCell) return
+      // todo: detect reachable zone with the path finder (grid.getReachableCellsByRange)
+      // todo: follow the doc tu refactor this
 
-      const reachableCells = this._fight.grid.getNeighborsByRange(
-        fromCell.hex,
-        constants.characterMaxDistanceMove,
-      )
+      this._subscribe(this._fight.grid, "drop", (fromCell, toCell) => {
+        // check if the fromCell is the cell of current character
+        if (this._character.cell !== fromCell) return
 
-      if (!reachableCells.includes(toCell)) return
+        const reachableCells = this._fight.grid.getNeighborsByRange(
+          fromCell.hex,
+          constants.characterMaxDistanceMove,
+        )
 
-      const closeCharacters = this._fight.characters.filter(
-        (character) =>
-          character !== this._character && character.cell === toCell,
-      )
+        if (!reachableCells.includes(toCell)) return
 
-      if (closeCharacters.length >= constants.maxCharacterCountPerCell) return
+        const closeCharacters = this._fight.characters.filter(
+          (character) =>
+            character !== this._character && character.cell === toCell,
+        )
 
-      const distance = this._fight.grid.getDistanceBetween(
-        fromCell.hex,
-        toCell.hex,
-      )
+        if (closeCharacters.length >= constants.maxCharacterCountPerCell) return
 
-      this._fight.animations.add(() =>
-        this._character.moveAction(toCell, distance),
-      )
+        const distance = this._fight.grid.getDistanceBetween(
+          fromCell.hex,
+          toCell.hex,
+        )
 
-      this.terminate()
-    })
+        this._fight.animations.add(() =>
+          this._character.moveAction(toCell, distance),
+        )
 
-    // display character possible moves on pressing character cell
-
-    this._subscribe(this._fight.grid, "dragStart", (cell: GridCell) => {
-      if (this._character.cell !== cell) return
-
-      const reachableCells = this._fight.grid.getNeighborsByRange(
-        cell.hex,
-        constants.characterMaxDistanceMove,
-      )
-
-      reachableCells.forEach((cell) => cell.highlight())
-
-      this._subscribeOnce(cell, "dragEnd", () => {
-        reachableCells.forEach((cell) => cell.unHighlight())
+        this.terminate()
       })
-    })
 
-    // display character possible actions
+      // display character possible moves on pressing character cell
 
-    this._character.actions.forEach((action) => {
-      this._activateChildChip(
-        new booyah.Sequence([
-          action,
-          new booyah.Lambda(() => {
-            this.terminate()
-          }),
-        ]),
-        {
-          context: {
-            character: this._character,
-            characters: this._fight.characters,
-            animations: this._fight.animations,
-            grid: this._fight.grid,
-            animationContainer: this._fight.animationContainer,
+      this._subscribe(this._fight.grid, "dragStart", (cell: GridCell) => {
+        if (this._character.cell !== cell) return
+
+        const reachableCells = this._fight.grid.getNeighborsByRange(
+          cell.hex,
+          constants.characterMaxDistanceMove,
+        )
+
+        reachableCells.forEach((cell) => cell.highlight())
+
+        this._subscribeOnce(cell, "dragEnd", () => {
+          reachableCells.forEach((cell) => cell.unHighlight())
+        })
+      })
+    } else {
+      // display character possible actions
+
+      this._character.actions.forEach((action) => {
+        this._activateChildChip(
+          new booyah.Sequence([
+            action,
+            new booyah.Lambda(() => {
+              this.terminate()
+            }),
+          ]),
+          {
+            context: {
+              character: this._character,
+              characters: this._fight.characters,
+              animations: this._fight.animations,
+              grid: this._fight.grid,
+              animationContainer: this._fight.animationContainer,
+            },
           },
-        },
-      )
-    })
+        )
+      })
+    }
   }
 
   protected _onTerminate() {

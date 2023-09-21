@@ -43,7 +43,8 @@ export interface CharacterProperties {
   race: enums.CharacterRace
   level: number
   distribution: Partial<Record<enums.CharacterSkill, number>>
-  behavior?: CharacterBehavior
+  moveBehavior?: CharacterBehavior
+  actionBehavior?: CharacterBehavior
   actions?: CharacterActionOptions[]
 }
 
@@ -52,6 +53,7 @@ export default class Character extends ContainerChip<CharacterEvents> {
   private _teamIndex!: number | null
   private _sprite!: pixi.Sprite
   private _timeBeforeAction!: number
+  private _timeBeforeMove!: number
   private _zAdjustment!: number
   private _hpGauge!: Gauge
   private _remainingHp!: number
@@ -152,6 +154,7 @@ export default class Character extends ContainerChip<CharacterEvents> {
     this._zAdjustment = 0
     this._remainingHp = this.maxHp
     this._timeBeforeAction = this.latence
+    this._timeBeforeMove = this.latence / 2
 
     this._actions = [
       ...(this._baseProperties.actions ?? []),
@@ -197,15 +200,36 @@ export default class Character extends ContainerChip<CharacterEvents> {
   public fightTick(fight: Fight): boolean {
     if (this.state !== "active") return false
 
+    if (this._timeBeforeMove > 0) {
+      this._timeBeforeMove--
+    } else {
+      this._timeBeforeMove = 0
+
+      if (this._baseProperties.moveBehavior) {
+        const { timeCost, chip } = this._baseProperties.moveBehavior({
+          fight,
+          character: this,
+        })
+
+        this.addActionTime(timeCost)
+
+        fight.animations.add(chip)
+      } else {
+        fight.animations.add(new PlayerTurn(this, fight, "move"))
+      }
+
+      return true
+    }
+
     if (this._timeBeforeAction > 0) {
       this._timeBeforeAction--
     } else {
       this._timeBeforeAction = 0
 
-      if (this._baseProperties.behavior) {
+      if (this._baseProperties.actionBehavior) {
         // Use automatic behavior for NPC
 
-        const { timeCost, chip } = this._baseProperties.behavior({
+        const { timeCost, chip } = this._baseProperties.actionBehavior({
           fight,
           character: this,
         })
@@ -216,7 +240,7 @@ export default class Character extends ContainerChip<CharacterEvents> {
       } else {
         // Or wait for player action
 
-        fight.animations.add(new PlayerTurn(this, fight))
+        fight.animations.add(new PlayerTurn(this, fight, "action"))
       }
 
       return true

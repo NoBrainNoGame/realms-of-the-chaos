@@ -61,6 +61,10 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
     super()
   }
 
+  get crossingCost() {
+    return 1
+  }
+
   get tint() {
     return this._tint
   }
@@ -312,9 +316,10 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
 
     if (params.debug) {
       const coordinates = new pixi.Text(
-        `${this._hex.col}:${this._hex.row}:${this._z}`,
+        `${this._hex.col}:${this._hex.row}:${this._z}\n${this._hex.s},${this._hex.r},${this._hex.q}`,
         {
           fill: "white",
+          fontSize: 15,
         },
       )
 

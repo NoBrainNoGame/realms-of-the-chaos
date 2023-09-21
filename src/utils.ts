@@ -19,3 +19,23 @@ export function times<Value>(
 ): Value[] {
   return new Array(count).fill(0).map((_, index) => generator(index))
 }
+
+export class Vector {
+  constructor(
+    public x: number = 0,
+    public y: number = 0,
+    public z: number = 0,
+  ) {}
+
+  get s() {
+    return this.x
+  }
+
+  get r() {
+    return this.y
+  }
+
+  get q() {
+    return this.z
+  }
+}

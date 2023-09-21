@@ -7,7 +7,7 @@ import * as booyah from "@ghom/booyah"
 import * as constants from "../constants"
 import * as enums from "../enums"
 
-import type { CharacterBehavior } from "../entities/Character"
+import type { CharacterActionBehavior } from "../entities/Character"
 
 const behaviors = {
   [enums.CharacterBehavior.STANDARD]: ({ fight, character }) => {
@@ -68,6 +68,6 @@ const behaviors = {
       chip: character.moveAction(tempGoodCell, reachableDistance),
     }
   },
-} satisfies Record<enums.CharacterBehavior, CharacterBehavior>
+} satisfies Record<enums.CharacterBehavior, CharacterActionBehavior>
 
 export default behaviors
