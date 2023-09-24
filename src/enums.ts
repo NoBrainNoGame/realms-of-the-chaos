@@ -72,3 +72,12 @@ export enum CharacterSkill {
 export enum CharacterBehavior {
   STANDARD = "standard",
 }
+
+export enum Direction {
+  NE = 1,
+  E = 2,
+  SE = 3,
+  SW = 5,
+  W = 6,
+  NW = 7,
+}

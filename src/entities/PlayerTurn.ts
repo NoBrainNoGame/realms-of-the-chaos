@@ -34,51 +34,74 @@ export default class PlayerTurn extends ContainerChip {
       // todo: detect reachable zone with the path finder (grid.getReachableCellsByRange)
       // todo: follow the doc tu refactor this
 
-      this._subscribe(this._fight.grid, "drop", (fromCell, toCell) => {
+      this._subscribe(this._fight.grid, "dragAndDrop", (fromCell, toCell) => {
         // check if the fromCell is the cell of current character
-        if (this._character.cell !== fromCell) return
+        if (
+          !this._character.cell ||
+          this._character.cell !== fromCell ||
+          this._character.cell === toCell
+        )
+          return
 
-        const reachableCells = this._fight.grid.getNeighborsByRange(
-          fromCell.hex,
-          constants.characterMaxDistanceMove,
+        const reachableCells = this._fight.grid.getReachableNeighbors(
+          fromCell,
+          //1, //constants.characterMaxDistanceMove,
         )
 
-        if (!reachableCells.includes(toCell)) return
+        if (!reachableCells) {
+          // todo: add animation to show that any move is not possible
+          console.log("no reachable cells")
+          return
+        }
 
-        const closeCharacters = this._fight.characters.filter(
+        if (!reachableCells.includes(toCell)) {
+          // todo: add animation to show that the move is not possible
+          console.log("not reachable cell")
+          return
+        }
+
+        const cellCharacters = this._fight.characters.filter(
           (character) =>
             character !== this._character && character.cell === toCell,
         )
 
-        if (closeCharacters.length >= constants.maxCharacterCountPerCell) return
+        if (cellCharacters.length >= constants.maxCharacterCountPerCell) {
+          // todo: add animation to show that the cell is full
+          console.log("cell full")
+          return
+        }
 
-        const distance = this._fight.grid.getDistanceBetween(
+        const cellCountBetween = this._fight.grid.getCellCountBetween(
           fromCell.hex,
           toCell.hex,
         )
 
         this._fight.animations.add(() =>
-          this._character.moveAction(toCell, distance),
+          this._character.moveAction(toCell, cellCountBetween),
         )
 
         this.terminate()
+
+        console.log("move")
       })
 
       // display character possible moves on pressing character cell
 
-      this._subscribe(this._fight.grid, "dragStart", (cell: GridCell) => {
+      this._subscribe(this._fight.grid, "drag", (cell) => {
         if (this._character.cell !== cell) return
 
-        const reachableCells = this._fight.grid.getNeighborsByRange(
-          cell.hex,
-          constants.characterMaxDistanceMove,
+        const reachableCells = this._fight.grid.getReachableNeighbors(
+          cell,
+          // 1, //constants.characterMaxDistanceMove,
         )
 
-        reachableCells.forEach((cell) => cell.highlight())
+        if (!reachableCells) return
 
-        this._subscribeOnce(cell, "dragEnd", () => {
+        this._subscribeOnce(cell, "drop", () => {
           reachableCells.forEach((cell) => cell.unHighlight())
         })
+
+        reachableCells.forEach((cell) => cell.highlight())
       })
     } else {
       // display character possible actions
@@ -93,10 +116,10 @@ export default class PlayerTurn extends ContainerChip {
           ]),
           {
             context: {
+              grid: this._fight.grid,
               character: this._character,
               characters: this._fight.characters,
               animations: this._fight.animations,
-              grid: this._fight.grid,
               animationContainer: this._fight.animationContainer,
             },
           },

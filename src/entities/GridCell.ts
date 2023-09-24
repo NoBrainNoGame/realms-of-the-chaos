@@ -32,8 +32,8 @@ const teamColors: [string, string, string, string] = [
 interface GridCellEvents extends booyah.BaseCompositeEvents {
   leftClick: []
   rightClick: []
-  dragStart: []
-  dragEnd: [outside?: boolean]
+  drag: []
+  drop: [outside?: boolean]
   hovered: []
   notHovered: []
   hidden: []
@@ -272,7 +272,7 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
       "pointerdown",
       (event: events.FederatedPointerEvent) => {
         if (event.button === 0) {
-          this.emit("dragStart")
+          this.emit("drag")
         }
       },
     )
@@ -282,7 +282,7 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
       "pointerup",
       (event: events.FederatedPointerEvent) => {
         if (event.button === 0) {
-          this.emit("dragEnd")
+          this.emit("drop")
         }
       },
     )
@@ -292,7 +292,7 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
       "pointerupoutside",
       (event: events.FederatedPointerEvent) => {
         if (event.button === 0) {
-          this.emit("dragEnd", true)
+          this.emit("drop", true)
         }
       },
     )
