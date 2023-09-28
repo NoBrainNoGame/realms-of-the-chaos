@@ -1,5 +1,4 @@
 import * as booyah from "@ghom/booyah"
-import * as hex from "honeycomb-grid"
 import * as pixi from "pixi.js"
 import * as utils from "../utils"
 import * as enums from "../enums"
@@ -21,7 +20,6 @@ interface GridEvents extends booyah.BaseCompositeEvents {
 }
 
 export default class Grid extends ContainerChip<GridEvents> {
-  private _honeycomb!: hex.Grid<hex.Hex>
   private _cells!: GridCell[]
 
   protected _onActivate() {
@@ -29,32 +27,13 @@ export default class Grid extends ContainerChip<GridEvents> {
 
     const hillTexture = pixi.Texture.from(hill)
 
-    this._honeycomb = new hex.Grid(
-      hex.defineHex({
-        dimensions: {
-          width: constants.cellWidth,
-          height: constants.cellHeight,
-        },
-        orientation: hex.Orientation.POINTY,
-      }),
-      hex.rectangle({
-        width: constants.gridWidth,
-        height: constants.gridHeight,
-      }),
-    )
-
     let z = 0
 
     this._cells = []
 
-    this._honeycomb
-      .toArray()
-      .sort((a, b) => {
-        // first last row, then last col
-        return a.row === b.row ? b.col - a.col : b.row - a.row
-      })
-      .forEach((hex) => {
-        const cell = new GridCell(hex, hillTexture, z, hex.row * hex.col * 10)
+    for (let row = constants.gridHeight; row >= 0; row--) {
+      for (let col = 0; col < constants.gridWidth; col++) {
+        const cell = new GridCell(col, row, z, hillTexture, row * col * 10)
 
         this._cells.push(cell)
 
@@ -87,16 +66,17 @@ export default class Grid extends ContainerChip<GridEvents> {
             }
           }
         })
-      })
+      }
+    }
   }
 
   public getPlacement(
     teamIndex: number,
     characterIndex: number,
-  ): hex.OffsetCoordinates {
+  ): pixi.IPointData {
     return {
-      col: 2 + teamIndex * (constants.gridWidth - 4),
-      row: Math.ceil(constants.gridHeight / 2) + characterIndex,
+      x: 2 + teamIndex * (constants.gridWidth - 4),
+      y: Math.ceil(constants.gridHeight / 2) + characterIndex,
     }
   }
 
@@ -108,199 +88,118 @@ export default class Grid extends ContainerChip<GridEvents> {
     return this._cells.find((cell) => cell.isHovered)
   }
 
-  public shockWave(_hex: hex.Hex) {
+  public shockWave(position: pixi.IPointData) {
     const intervals = 200
 
-    const firstNeighbors = this.getRangedCells(_hex, 1)
-    const secondNeighbors = this.getRangedCells(_hex, 2)
+    const center = this.getCell(position)
+
+    if (!center) return
+
+    const firstNeighbors = this.getRange(position, 1)
+    const secondNeighbors = this.getRange(position, 2)
 
     this._activateChildChip(
       new booyah.Sequence([
         new booyah.Lambda(() => {
-          this.getCell(_hex).pulse(1)
+          center.pulse(1)
         }),
         new booyah.Wait(intervals / 3),
         new booyah.Parallel(
           firstNeighbors.map((cell) => {
-            return new booyah.Lambda(() => {
-              cell.pulse(0.5)
-            })
+            return cell
+              ? new booyah.Lambda(() => {
+                  cell.pulse(0.5)
+                })
+              : new booyah.Transitory()
           }),
         ),
         new booyah.Wait(intervals / 3),
         new booyah.Parallel(
           secondNeighbors.map((cell) => {
-            return new booyah.Lambda(() => {
-              cell.pulse(0.25)
-            })
+            return cell
+              ? new booyah.Lambda(() => {
+                  cell.pulse(0.25)
+                })
+              : new booyah.Transitory()
           }),
         ),
       ]),
     )
   }
 
-  public getNeighborsObject(
-    _hex: hex.Hex,
-  ): Record<enums.Direction, hex.Hex | undefined> {
-    return Object.fromEntries(
-      Object.entries(enums.Direction).map(([key, value]) => {
-        return [
-          // @ts-ignore
-          enums.Direction[value],
-          this._honeycomb.neighborOf(_hex, value as hex.Direction, {
-            allowOutside: false,
-          }),
-        ]
-      }),
-    )
-  }
-
-  public getNeighbors(_hex: hex.Hex): hex.Hex[] {
-    return Object.values(this.getNeighborsObject(_hex)).filter(
-      (neighbor) => neighbor !== undefined,
-    ) as hex.Hex[]
-  }
-
-  public getNeighborsByRange(center: hex.Hex, range: number): GridCell[] {
-    if (range === 0) return []
-
-    const neighbors: GridCell[] = []
-
-    for (let i = 1; i < range + 1; i++) {
-      neighbors.push(...this.getRangedCells(center, i))
-    }
-
-    return neighbors
-  }
-
-  public getRangedCells(_hex: hex.Hex, range: number): GridCell[] {
-    return this._cells.filter((cell) => {
-      const distance = this._honeycomb.distance(_hex, cell.hex)
-      return distance === range
+  public getNeighbor(
+    position: pixi.IPointData,
+    direction: enums.Direction,
+  ): GridCell | null {
+    return this.getCell({
+      x: position.x + utils.directionCoordinates[direction].x,
+      y: position.y + utils.directionCoordinates[direction].y,
     })
   }
 
-  public getCell(_hex: hex.OffsetCoordinates) {
-    return this._cells.find((cell) => cell.hex.equals(_hex))!
+  public getNeighbors(position: pixi.IPointData): (GridCell | null)[] {
+    return [
+      this.getNeighbor(position, enums.Direction.N),
+      this.getNeighbor(position, enums.Direction.E),
+      this.getNeighbor(position, enums.Direction.S),
+      this.getNeighbor(position, enums.Direction.W),
+    ]
+  }
+
+  public getAround(position: pixi.IPointData): (GridCell | null)[] {
+    return [
+      ...this.getNeighbors(position),
+      this.getCell({ x: position.x - 1, y: position.y - 1 }),
+      this.getCell({ x: position.x + 1, y: position.y - 1 }),
+      this.getCell({ x: position.x - 1, y: position.y + 1 }),
+      this.getCell({ x: position.x + 1, y: position.y + 1 }),
+    ]
+  }
+
+  public getRange(
+    position: pixi.IPointData,
+    range: number,
+  ): (GridCell | null)[] {
+    if (range === 0) return [this.getCell(position)]
+
+    const neighbors = this.getNeighbors(position)
+
+    return [
+      ...neighbors,
+      ...neighbors.flatMap((neighbor) =>
+        neighbor ? this.getRange(neighbor.cellPosition, range - 1) : null,
+      ),
+    ]
+  }
+
+  public getCell(position: pixi.IPointData): GridCell | null {
+    return (
+      this._cells.find(
+        (cell) => cell.col === position.x && cell.row === position.y,
+      ) || null
+    )
   }
 
   public getCells() {
     return this._cells
   }
 
-  public getDistanceBetween(a: hex.Hex, b: hex.Hex) {
-    return this._honeycomb.distance(a, b)
+  public getDistanceBetween(a: pixi.IPointData, b: pixi.IPointData) {
+    return Math.abs(a.x - b.x) + Math.abs(a.y - b.y)
   }
 
-  public getCellCountBetween(a: hex.Hex, b: hex.Hex): number {
-    // Fonction heuristique pour estimer le coût restant
-    // Utilisez une distance euclidienne, mais vous pouvez ajuster cela en fonction de vos besoins
-    const vec = subtract(a, b)
+  public canReachNeighbor(
+    position: pixi.IPointData,
+    direction: enums.Direction,
+  ): boolean {
+    const cell = this.getCell(position)
 
-    return (Math.abs(vec.q) + Math.abs(vec.r) + Math.abs(vec.s)) / 2
-  }
+    if (!cell) return false
 
-  // public getPathBetween(origin: GridCell, target: GridCell): GridCell[] | null {
-  //   const openList: [number, GridCell][] = [[0, origin]] // [f, cell]
-  //   const closedSet: Set<GridCell> = new Set()
-  //
-  //   const gScores: Map<GridCell, number> = new Map()
-  //
-  //   this._cells.forEach((cell) => {
-  //     gScores.set(cell, Infinity)
-  //   })
-  //
-  //   gScores.set(origin, 0)
-  //
-  //   const parents: Map<GridCell, GridCell | null> = new Map()
-  //
-  //   while (openList.length > 0) {
-  //     openList.sort((a, b) => a[0] - b[0])
-  //     const [_, currentCell] = openList.shift()!
-  //
-  //     if (currentCell === target) {
-  //       // Reconstruction du chemin
-  //       const path: GridCell[] = []
-  //       let cell: GridCell | null = target
-  //       while (cell !== null) {
-  //         path.unshift(cell)
-  //         cell = parents.get(cell) || null
-  //       }
-  //
-  //       return path
-  //     }
-  //
-  //     closedSet.add(currentCell)
-  //
-  //     for (const neighbor of this.getNeighbors(currentCell.hex)) {
-  //       const neighborCell = this.getCell(neighbor)
-  //
-  //       if (!neighborCell || closedSet.has(neighborCell)) {
-  //         continue
-  //       }
-  //
-  //       const tentativeGScore =
-  //         gScores.get(currentCell)! +
-  //         hex.distance(this._honeycomb.hexPrototype, currentCell.hex, neighbor)
-  //
-  //       if (
-  //         !openList.some(([_, cell]) => cell.hex.equals(neighborCell.hex)) ||
-  //         tentativeGScore < gScores.get(neighborCell)!
-  //       ) {
-  //         parents.set(neighborCell, currentCell)
-  //         gScores.set(neighborCell, tentativeGScore)
-  //         const fScore =
-  //           tentativeGScore +
-  //           this.getCellCountBetween(neighborCell.hex, target.hex)
-  //         openList.push([fScore, neighborCell])
-  //       }
-  //     }
-  //   }
-  //
-  //   // Aucun chemin trouvé
-  //   return null
-  // }
-
-  // public getReachableCellsByRange(
-  //   origin: GridCell,
-  //   range: number,
-  // ): GridCell[] | null {
-  //   // todo: use the path finder to implement this method
-  //   return null
-  // }
-
-  public getReachableNeighbors(origin: GridCell): GridCell[] {
-    const neighbors = this.getNeighborsObject(origin.hex)
-
-    return Object.entries(neighbors)
-      .filter(([direction, neighbor]) => {
-        if (!neighbor) return false
-
-        const cell = this.getCell(neighbor)
-
-        if (!cell) return false
-
-        return this.canReachNeighbor(origin.hex, direction)
-      })
-      .map(this.getCell.bind(this))
-  }
-
-  public canReachNeighbor(_hex: hex.Hex, direction: hex.Direction): boolean {
-    const neighbor = this._honeycomb.neighborOf(_hex, direction, {
-      allowOutside: false,
-    })
+    const neighbor = this.getNeighbor(position, direction)
 
     if (!neighbor) return false
 
-    const _cell = this.getCell(_hex)
-    const cell = this.getCell(neighbor)
-
-    return Math.abs(cell.z - _cell.z) <= 1
+    return Math.abs(neighbor.z - cell.z) <= 1
   }
-}
-
-/// GENERATED BY AI ///
-
-function subtract(a: hex.Hex, b: hex.Hex): utils.Vector {
-  return new utils.Vector(a.q - b.q, a.r - b.r, a.s - b.s)
 }

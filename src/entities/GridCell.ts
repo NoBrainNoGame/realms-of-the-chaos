@@ -1,7 +1,6 @@
 import * as pixi from "pixi.js"
 import * as events from "@pixi/events"
 import * as booyah from "@ghom/booyah"
-import * as hex from "honeycomb-grid"
 import * as params from "../params"
 import * as constants from "../constants"
 
@@ -49,9 +48,10 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
   private _teamIndicators!: pixi.Sprite[]
 
   constructor(
-    private readonly _hex: hex.Hex,
+    public readonly col: number,
+    public readonly row: number,
+    public readonly z: number,
     private readonly _texture: pixi.Texture,
-    private readonly _z: number,
     /**
      * The delay in milliseconds before the cell appears.
      * @private
@@ -74,31 +74,32 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
     this._sprite.tint = value
   }
 
-  get hex() {
-    return this._hex
-  }
-
   get isUnderWater() {
-    return this._z < 0
+    return this.z < 0
   }
 
   get position() {
     return this._container.position
   }
 
+  get cellPosition() {
+    return {
+      x: this.col,
+      y: this.row,
+      z: this.z,
+    }
+  }
+
   get basePosition() {
+    // todo: use isometric coordinates instead of "hex"
     return {
       x: this._hex.x,
-      y: this._hex.y + -this._z * constants.cellYSpacing,
+      y: this._hex.y + -this.z * constants.cellYSpacing,
     }
   }
 
   get globalPosition() {
     return this._container.getGlobalPosition()
-  }
-
-  get z() {
-    return this._z
   }
 
   get isHovered() {
@@ -112,7 +113,7 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
   protected _onActivate() {
     super._onActivate()
 
-    this._container.zIndex = this._hex.row
+    this._container.zIndex = this.row
 
     this._hovered = false
     this._pulseForce = 0
@@ -246,6 +247,7 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
     this._sprite.anchor.set(0.5, 0.25)
     this._sprite.eventMode = "dynamic"
 
+    // todo: use isometric coordinates instead of "hex"
     this._sprite.hitArea = new pixi.Polygon(
       this._hex.corners.map((corner) => {
         return {
@@ -315,13 +317,10 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
     // debug
 
     if (params.debug) {
-      const coordinates = new pixi.Text(
-        `${this._hex.col}:${this._hex.row}:${this._z}\n${this._hex.s},${this._hex.r},${this._hex.q}`,
-        {
-          fill: "white",
-          fontSize: 15,
-        },
-      )
+      const coordinates = new pixi.Text(`${this.col}:${this.row}:${this.z}`, {
+        fill: "white",
+        fontSize: 15,
+      })
 
       coordinates.anchor.set(0.5)
       coordinates.position.set(

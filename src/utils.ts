@@ -1,5 +1,5 @@
-import * as hex from "honeycomb-grid"
 import * as pixi from "pixi.js"
+import * as enums from "./enums"
 
 export function hexToPolygon(_hex: hex.Hex): pixi.Polygon {
   return new pixi.Polygon(
@@ -20,22 +20,9 @@ export function times<Value>(
   return new Array(count).fill(0).map((_, index) => generator(index))
 }
 
-export class Vector {
-  constructor(
-    public x: number = 0,
-    public y: number = 0,
-    public z: number = 0,
-  ) {}
-
-  get s() {
-    return this.x
-  }
-
-  get r() {
-    return this.y
-  }
-
-  get q() {
-    return this.z
-  }
+export const directionCoordinates: Record<enums.Direction, pixi.IPointData> = {
+  [enums.Direction.N]: { x: 0, y: -1 },
+  [enums.Direction.E]: { x: 1, y: 0 },
+  [enums.Direction.S]: { x: 0, y: 1 },
+  [enums.Direction.W]: { x: -1, y: 0 },
 }
