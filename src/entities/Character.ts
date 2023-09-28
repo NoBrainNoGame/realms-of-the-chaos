@@ -188,7 +188,7 @@ export default class Character extends ContainerChip<CharacterEvents> {
   protected _onTick() {
     if (this._cell) {
       this._container.position.copyFrom(this._cell.position)
-      this._container.zIndex = this._cell.hex.row + this._zAdjustment
+      this._container.zIndex = this._cell.row + this._zAdjustment
       this._sprite.visible = true
     }
   }

@@ -1,6 +1,5 @@
 import * as pixi from "pixi.js"
 import * as booyah from "@ghom/booyah"
-import * as hex from "honeycomb-grid"
 import * as constants from "../constants"
 
 import ContainerChip from "../extensions/ContainerChip"
@@ -10,6 +9,8 @@ import Fight from "./Fight"
 import Grid from "./Grid"
 
 export default class PlayerTurn extends ContainerChip {
+  private _reachableCells!: (GridCell | null)[]
+
   constructor(
     private _character: Character,
     private _fight: Fight,
@@ -19,6 +20,11 @@ export default class PlayerTurn extends ContainerChip {
   }
 
   protected _onActivate() {
+    if (!this._character.cell) {
+      this.terminate()
+      return
+    }
+
     // En fonction de ce que le player fait on ajoute du temps d'action au character via addActionTime
     // et on lance une animation via this._animations.add
 
@@ -29,10 +35,19 @@ export default class PlayerTurn extends ContainerChip {
     this._character.highlight()
 
     if (this._turnType === "move") {
+      // highlight reachable cells
+
+      this._reachableCells = this._fight.grid.getNeighbors(
+        this._character.cell.cellPosition,
+        // 1, //constants.characterMaxDistanceMove,
+      )
+
+      this._reachableCells.forEach((cell) => cell?.highlight())
+
       // init move listeners
 
-      // todo: detect reachable zone with the path finder (grid.getReachableCellsByRange)
-      // todo: follow the doc tu refactor this
+      // todo: detect reachable zone with the path finder
+      // todo: follow the doc to refactor this
 
       this._subscribe(this._fight.grid, "dragAndDrop", (fromCell, toCell) => {
         // check if the fromCell is the cell of current character
@@ -43,10 +58,12 @@ export default class PlayerTurn extends ContainerChip {
         )
           return
 
-        const reachableCells = this._fight.grid.getReachableNeighbors(
-          fromCell,
-          //1, //constants.characterMaxDistanceMove,
-        )
+        const reachableCells = this._fight.grid
+          .getNeighbors(
+            fromCell.cellPosition,
+            //1, //constants.characterMaxDistanceMove,
+          )
+          .filter((cell) => cell?.isReachable)
 
         if (!reachableCells) {
           // todo: add animation to show that any move is not possible
@@ -71,37 +88,18 @@ export default class PlayerTurn extends ContainerChip {
           return
         }
 
-        const cellCountBetween = this._fight.grid.getCellCountBetween(
-          fromCell.hex,
-          toCell.hex,
+        const distance = this._fight.grid.getDistanceBetween(
+          fromCell.cellPosition,
+          toCell.cellPosition,
         )
 
         this._fight.animations.add(() =>
-          this._character.moveAction(toCell, cellCountBetween),
+          this._character.moveAction(toCell, distance),
         )
 
         this.terminate()
 
         console.log("move")
-      })
-
-      // display character possible moves on pressing character cell
-
-      this._subscribe(this._fight.grid, "drag", (cell) => {
-        if (this._character.cell !== cell) return
-
-        const reachableCells = this._fight.grid.getReachableNeighbors(
-          cell,
-          // 1, //constants.characterMaxDistanceMove,
-        )
-
-        if (!reachableCells) return
-
-        this._subscribeOnce(cell, "drop", () => {
-          reachableCells.forEach((cell) => cell.unHighlight())
-        })
-
-        reachableCells.forEach((cell) => cell.highlight())
       })
     } else {
       // display character possible actions
@@ -130,5 +128,9 @@ export default class PlayerTurn extends ContainerChip {
 
   protected _onTerminate() {
     this._character.unHighlight()
+
+    if (this._turnType === "move") {
+      this._reachableCells.forEach((cell) => cell?.unHighlight())
+    }
   }
 }

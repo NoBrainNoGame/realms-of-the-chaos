@@ -39,3 +39,7 @@ export function screenToIsometric(position: pixi.IPointData): pixi.IPointData {
       2,
   }
 }
+
+export function equals(a: pixi.IPointData, b: pixi.IPointData): boolean {
+  return a.x === b.x && a.y === b.y
+}

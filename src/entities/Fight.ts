@@ -1,6 +1,6 @@
 import * as booyah from "@ghom/booyah"
-import * as hex from "honeycomb-grid"
 import * as pixi from "pixi.js"
+import * as utils from "../utils"
 import * as constants from "../constants"
 
 import ContainerChip from "../extensions/ContainerChip"
@@ -93,11 +93,14 @@ export default class Fight extends ContainerChip {
     })
 
     const center = this._grid.getCell({
-      col: Math.floor(constants.gridWidth / 2),
-      row: Math.floor(constants.gridHeight / 2),
+      x: Math.floor(constants.gridWidth / 2),
+      y: Math.floor(constants.gridHeight / 2),
     })!
 
-    this._anchorContainer.position.set(-center.hex.x, -center.hex.y)
+    this._anchorContainer.position.set(
+      -center.basePosition.x,
+      -center.basePosition.y,
+    )
 
     // init water
 
@@ -168,9 +171,12 @@ export default class Fight extends ContainerChip {
   public addCharacter(
     character: Character,
     teamIndex: number,
-    position: hex.OffsetCoordinates,
+    position: pixi.IPointData,
   ) {
     let cell = this._grid.getCell(position)
+
+    if (!cell) throw new Error("Cell not found")
+
     const tempSprite = new pixi.Sprite(character.texture)
 
     tempSprite.anchor.set(0.5, 0.75)
@@ -178,8 +184,8 @@ export default class Fight extends ContainerChip {
     this._characters.push(character)
 
     this._subscribe(character, "moved", (fromCell, toCell) => {
-      this._refreshCharacterPositions(fromCell.hex)
-      this._refreshCharacterPositions(toCell.hex)
+      this._refreshCharacterPositions(fromCell.cellPosition)
+      this._refreshCharacterPositions(toCell.cellPosition)
     })
 
     this._subscribeOnce(character, "dead", () => {
@@ -188,7 +194,7 @@ export default class Fight extends ContainerChip {
 
     cell.sink(
       () => {
-        cell.container.addChild(tempSprite)
+        cell!.container.addChild(tempSprite)
       },
       () => {
         this._activateChildChip(character, {
@@ -200,10 +206,10 @@ export default class Fight extends ContainerChip {
         character.teamIndex = teamIndex
         character.cell = cell
 
-        this._refreshCharacterPositions(cell.hex)
+        this._refreshCharacterPositions(cell!.cellPosition)
 
         requestAnimationFrame(() => {
-          cell.container.removeChild(tempSprite)
+          cell!.container.removeChild(tempSprite)
 
           tempSprite.destroy()
         })
@@ -227,7 +233,7 @@ export default class Fight extends ContainerChip {
 
     this._characters.splice(this._characters.indexOf(character), 1)
 
-    this._refreshCharacterPositions(cell.hex)
+    this._refreshCharacterPositions(cell.cellPosition)
 
     cell.sink(
       () => {
@@ -237,9 +243,10 @@ export default class Fight extends ContainerChip {
     )
   }
 
-  private _refreshCharacterPositions(_hex: hex.OffsetCoordinates) {
+  private _refreshCharacterPositions(position: pixi.IPointData) {
     const characters = this._characters.filter(
-      (character) => character.cell && character.cell.hex.equals(_hex),
+      (character) =>
+        character.cell && utils.equals(character.cell.cellPosition, position),
     )
 
     characters.forEach((character) => {

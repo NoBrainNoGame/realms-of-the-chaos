@@ -11,7 +11,7 @@ export default class GridEditor extends ContainerChip {
       // if (cell.hasCharacter()) {
       //   cell.removeCharacters()
       // } else {
-      this._grid.shockWave(cell.hex)
+      this._grid.shockWave(cell.cellPosition)
       // }
     })
 
