@@ -1,6 +1,7 @@
 import * as pixi from "pixi.js"
 import * as events from "@pixi/events"
 import * as booyah from "@ghom/booyah"
+import * as utils from "../utils"
 import * as params from "../params"
 import * as constants from "../constants"
 
@@ -37,6 +38,7 @@ interface GridCellEvents extends booyah.BaseCompositeEvents {
   notHovered: []
   hidden: []
   comeBack: []
+  reachable: [value: boolean]
 }
 
 export default class GridCell extends ContainerChip<GridCellEvents> {
@@ -46,6 +48,7 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
   private _hovered!: boolean
   private _pulseForce!: number
   private _teamIndicators!: pixi.Sprite[]
+  private _isReachable!: boolean
 
   constructor(
     public readonly col: number,
@@ -61,10 +64,6 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
     super()
   }
 
-  get crossingCost() {
-    return 1
-  }
-
   get tint() {
     return this._tint
   }
@@ -78,24 +77,39 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
     return this.z < 0
   }
 
+  get isElevated() {
+    return this.z > 0
+  }
+
+  get isReachable() {
+    return this._isReachable
+  }
+
+  set isReachable(value: boolean) {
+    this._isReachable = value
+    this.emit("reachable", value)
+  }
+
   get position() {
     return this._container.position
   }
 
-  get cellPosition() {
+  get cellPosition(): pixi.IPointData {
     return {
       x: this.col,
       y: this.row,
-      z: this.z,
     }
   }
 
   get basePosition() {
-    // todo: use isometric coordinates instead of "hex"
-    return {
-      x: this._hex.x,
-      y: this._hex.y + -this.z * constants.cellYSpacing,
-    }
+    const isometric = utils.isometricToScreen({
+      x: this.col,
+      y: this.row,
+    })
+
+    isometric.x += -this.z * constants.cellYSpacing
+
+    return isometric
   }
 
   get globalPosition() {
@@ -247,15 +261,12 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
     this._sprite.anchor.set(0.5, 0.25)
     this._sprite.eventMode = "dynamic"
 
-    // todo: use isometric coordinates instead of "hex"
-    this._sprite.hitArea = new pixi.Polygon(
-      this._hex.corners.map((corner) => {
-        return {
-          x: corner.x - this._hex.x,
-          y: corner.y - this._hex.y,
-        }
-      }),
-    )
+    this._sprite.hitArea = new pixi.Polygon([
+      { x: 0, y: 0 },
+      utils.isometricToScreen({ x: 1, y: 0 }),
+      utils.isometricToScreen({ x: 1, y: 1 }),
+      utils.isometricToScreen({ x: 0, y: 1 }),
+    ])
 
     this._subscribe(
       this._sprite,

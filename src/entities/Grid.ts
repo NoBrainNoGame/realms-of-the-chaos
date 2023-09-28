@@ -1,5 +1,6 @@
 import * as booyah from "@ghom/booyah"
 import * as pixi from "pixi.js"
+import * as pf from "pathfinding"
 import * as utils from "../utils"
 import * as enums from "../enums"
 import * as constants from "../constants"
@@ -21,6 +22,7 @@ interface GridEvents extends booyah.BaseCompositeEvents {
 
 export default class Grid extends ContainerChip<GridEvents> {
   private _cells!: GridCell[]
+  private _pfGrid!: pf.Grid
 
   protected _onActivate() {
     this._container.sortableChildren = true
@@ -29,10 +31,12 @@ export default class Grid extends ContainerChip<GridEvents> {
 
     let z = 0
 
+    this._pfGrid = new pf.Grid(constants.gridWidth, constants.gridHeight)
+
     this._cells = []
 
     for (let row = constants.gridHeight; row >= 0; row--) {
-      for (let col = 0; col < constants.gridWidth; col++) {
+      for (let col = constants.gridWidth; col >= 0; col--) {
         const cell = new GridCell(col, row, z, hillTexture, row * col * 10)
 
         this._cells.push(cell)
@@ -42,6 +46,10 @@ export default class Grid extends ContainerChip<GridEvents> {
         if (Math.random() < 0.1) {
           z++
         }
+
+        this._subscribe(cell, "reachable", (isReachable) => {
+          this._pfGrid.setWalkableAt(col, row, isReachable)
+        })
 
         this._subscribe(cell, "leftClick", () => {
           this.emit("leftClick", cell)
@@ -188,18 +196,17 @@ export default class Grid extends ContainerChip<GridEvents> {
     return Math.abs(a.x - b.x) + Math.abs(a.y - b.y)
   }
 
-  public canReachNeighbor(
-    position: pixi.IPointData,
-    direction: enums.Direction,
-  ): boolean {
-    const cell = this.getCell(position)
+  public getPathBetween(
+    from: pixi.IPointData,
+    to: pixi.IPointData,
+  ): pixi.IPointData[] | null {
+    const path = new pf.BestFirstFinder({
+      heuristic: pf.Heuristic.euclidean,
+      diagonalMovement: pf.DiagonalMovement.Never,
+    }).findPath(from.x, from.y, to.x, to.y, this._pfGrid.clone())
 
-    if (!cell) return false
+    if (!path) return null
 
-    const neighbor = this.getNeighbor(position, direction)
-
-    if (!neighbor) return false
-
-    return Math.abs(neighbor.z - cell.z) <= 1
+    return path.map((position) => ({ x: position[0], y: position[1] }))
   }
 }
