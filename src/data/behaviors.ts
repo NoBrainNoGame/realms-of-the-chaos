@@ -7,7 +7,7 @@ import * as booyah from "@ghom/booyah"
 import * as constants from "../constants"
 import * as enums from "../enums"
 
-import type { CharacterActionBehavior } from "../entities/Character"
+import type { CharacterActionBehavior } from "../entities/CharacterAction"
 
 const behaviors = {
   [enums.CharacterBehavior.STANDARD]: ({ fight, character }) => {

@@ -3,6 +3,8 @@ import * as booyah from "@ghom/booyah"
 
 import pointer from "../core/pointer"
 
+import * as rangeZones from "../data/rangeZones"
+
 import ContainerChip from "../extensions/ContainerChip"
 import Character from "./Character"
 import GridCell from "./GridCell"
@@ -34,7 +36,8 @@ export interface CharacterActionOptions {
   timeCost: (context: CharacterActionBehaviorContext) => number
   canBeUsed: (context: CharacterActionBehaviorContext) => boolean
   behavior: CharacterActionBehavior
-  range: number
+  zone?: rangeZones.RangeZone
+  range: [min: number, max: number]
   scope: CharacterActionScope
 }
 
@@ -46,8 +49,8 @@ export default class CharacterAction extends ContainerChip {
     return this._options.name
   }
 
-  get range() {
-    return this._options.range
+  get zone() {
+    return this._options.zone
   }
 
   get scope() {
@@ -182,11 +185,17 @@ export default class CharacterAction extends ContainerChip {
     if (this._options.scope === "self") return context.author.cell === target
 
     const distance = this._fight.grid.getDistanceBetween(
-      author.cell!.hex,
-      target.hex,
+      author.cell!.cellPosition,
+      target.cellPosition,
     )
 
-    if (distance > this._options.range) return false
+    if (typeof this._options.zone)
+      return this._options.zone(target.cellPosition, this._options.range)
+    else if (
+      distance < this._options.zone[0] ||
+      distance > this._options.zone[1]
+    )
+      return false
 
     if (this._options.scope === "everywhere") return true
 
