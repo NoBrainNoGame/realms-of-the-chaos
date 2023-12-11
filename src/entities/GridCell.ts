@@ -8,25 +8,13 @@ import * as constants from "../constants"
 import pointer from "../core/pointer"
 
 // @ts-ignore
-import teamColorBlue from "../../assets/images/team-colors/blue.png"
-
-// @ts-ignore
-import teamColorRed from "../../assets/images/team-colors/red.png"
-
-// @ts-ignore
-import teamColorGreen from "../../assets/images/team-colors/green.png"
-
-// @ts-ignore
-import teamColorPurple from "../../assets/images/team-colors/purple.png"
+import cellTeamMark from "../../assets/images/grid-cell-team-mark.png"
 
 import ContainerChip from "../extensions/ContainerChip"
 import Grid from "./Grid"
 
-const teamColors: [string, string, string, string] = [
-  teamColorBlue,
-  teamColorRed,
-  teamColorGreen,
-  teamColorPurple,
+const teamColors: [number, number, number, number] = [
+  0x0000ff, 0xff0000, 0x00ff00, 0xff00ff,
 ]
 
 interface GridCellEvents extends booyah.BaseCompositeEvents {
@@ -47,7 +35,7 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
   private _tint!: number | string
   private _hovered!: boolean
   private _pulseForce!: number
-  private _teamIndicators!: pixi.Sprite[]
+  private _teamIndicator!: pixi.Sprite
   private _isReachable!: boolean
 
   constructor(
@@ -127,7 +115,7 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
   protected _onActivate() {
     super._onActivate()
 
-    this._container.zIndex = this.row
+    this._container.zIndex = this.row + this.col
 
     this._hovered = false
     this._pulseForce = 0
@@ -314,22 +302,16 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
 
     // team indicators
 
-    this._teamIndicators = teamColors.map((path) => {
-      const sprite = new pixi.Sprite(pixi.Texture.from(path))
-
-      sprite.anchor.set(0.5)
-      sprite.visible = false
-
-      return sprite
-    })
-
-    this._container.addChild(...this._teamIndicators)
+    this._teamIndicator = this._container.addChild(
+      new pixi.Sprite(pixi.Texture.from(cellTeamMark)),
+    )
+    this._teamIndicator.visible = false
 
     // debug
 
     if (params.debug) {
       const coordinates = new pixi.Text(`${this.col}:${this.row}:${this.z}`, {
-        fill: "white",
+        fill: "grey",
         fontSize: 15,
       })
 
@@ -413,30 +395,6 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
     return new booyah.Sequence(sequence)
   }
 
-  private _refreshTeamIndicators() {
-    const activeIndicators = this._teamIndicators.filter(
-      (indicator) => indicator.visible,
-    )
-
-    if (activeIndicators.length === 0) return
-    else if (activeIndicators.length === 1) {
-      activeIndicators[0].position.set(0)
-      activeIndicators[0].scale.set(1)
-    } else if (activeIndicators.length === 2) {
-      activeIndicators[0].position.set(-constants.cellWidth / 4, 0)
-      activeIndicators[1].position.set(constants.cellWidth / 4, 0)
-      activeIndicators[0].scale.set(0.5)
-      activeIndicators[1].scale.set(0.5)
-    } else if (activeIndicators.length === 3) {
-      activeIndicators[0].position.set(-constants.cellWidth / 4, 0)
-      activeIndicators[1].position.set(constants.cellWidth / 4, 0)
-      activeIndicators[2].position.set(0, -constants.cellHeight / 4)
-      activeIndicators[0].scale.set(0.5)
-      activeIndicators[1].scale.set(0.5)
-      activeIndicators[2].scale.set(0.5)
-    }
-  }
-
   public pulse(force: number) {
     this._pulseForce = force
     this._yState.changeState("pulse")
@@ -457,14 +415,11 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
   }
 
   public addTeamIndicator(teamIndex: number) {
-    this._teamIndicators[teamIndex].visible = true
-
-    this._refreshTeamIndicators()
+    this._teamIndicator.tint = teamColors[teamIndex]
+    this._teamIndicator.visible = true
   }
 
-  public removeTeamIndicator(teamIndex: number) {
-    this._teamIndicators[teamIndex].visible = false
-
-    this._refreshTeamIndicators()
+  public removeTeamIndicator() {
+    this._teamIndicator.visible = false
   }
 }

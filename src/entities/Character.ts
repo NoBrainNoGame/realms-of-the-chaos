@@ -80,7 +80,7 @@ export default class Character extends ContainerChip<CharacterEvents> {
 
   set cell(cell: GridCell | null) {
     if (this._cell && this._teamIndex !== null) {
-      this._cell.removeTeamIndicator(this._teamIndex)
+      this._cell.removeTeamIndicator()
     }
 
     this._cell = null
@@ -275,7 +275,7 @@ export default class Character extends ContainerChip<CharacterEvents> {
     return new booyah.Sequence([
       new booyah.Lambda(() => {
         if (this._cell && this._teamIndex !== null)
-          this._cell.removeTeamIndicator(this._teamIndex)
+          this._cell.removeTeamIndicator()
 
         lastCell = this._cell!
         this._cell = null

@@ -43,9 +43,9 @@ export default class Grid extends ContainerChip<GridEvents> {
 
         this._activateChildChip(cell)
 
-        if (Math.random() < 0.1) {
-          z++
-        }
+        // if (Math.random() < 0.1) {
+        //   z++
+        // }
 
         this._subscribe(cell, "reachable", (isReachable) => {
           this._pfGrid.setWalkableAt(col, row, isReachable)
