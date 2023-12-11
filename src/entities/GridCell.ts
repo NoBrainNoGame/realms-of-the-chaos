@@ -7,15 +7,8 @@ import * as constants from "../constants"
 
 import pointer from "../core/pointer"
 
-// @ts-ignore
-import cellTeamMark from "../../assets/images/grid-cell-team-mark.png"
-
 import ContainerChip from "../extensions/ContainerChip"
 import Grid from "./Grid"
-
-const teamColors: [number, number, number, number] = [
-  0x0000ff, 0xff0000, 0x00ff00, 0xff00ff,
-]
 
 interface GridCellEvents extends booyah.BaseCompositeEvents {
   leftClick: []
@@ -35,7 +28,6 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
   private _tint!: number | string
   private _hovered!: boolean
   private _pulseForce!: number
-  private _teamIndicator!: pixi.Sprite
   private _isReachable!: boolean
 
   constructor(
@@ -250,10 +242,10 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
     this._sprite.eventMode = "dynamic"
 
     this._sprite.hitArea = new pixi.Polygon([
-      { x: 0, y: 0 },
-      utils.isometricToScreen({ x: 1, y: 0 }),
-      utils.isometricToScreen({ x: 1, y: 1 }),
-      utils.isometricToScreen({ x: 0, y: 1 }),
+      utils.isometricToScreen({ x: 0 - 0.5, y: 0 - 0.5 }),
+      utils.isometricToScreen({ x: 1 - 0.5, y: 0 - 0.5 }),
+      utils.isometricToScreen({ x: 1 - 0.5, y: 1 - 0.5 }),
+      utils.isometricToScreen({ x: 0 - 0.5, y: 1 - 0.5 }),
     ])
 
     this._subscribe(
@@ -299,13 +291,6 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
     )
 
     this._container.addChild(this._sprite)
-
-    // team indicators
-
-    this._teamIndicator = this._container.addChild(
-      new pixi.Sprite(pixi.Texture.from(cellTeamMark)),
-    )
-    this._teamIndicator.visible = false
 
     // debug
 
@@ -412,14 +397,5 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
 
   public unHighlight() {
     this._yState.changeState("reset")
-  }
-
-  public addTeamIndicator(teamIndex: number) {
-    this._teamIndicator.tint = teamColors[teamIndex]
-    this._teamIndicator.visible = true
-  }
-
-  public removeTeamIndicator() {
-    this._teamIndicator.visible = false
   }
 }

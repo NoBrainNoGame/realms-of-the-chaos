@@ -1,5 +1,6 @@
 import * as pixi from "pixi.js"
 import * as enums from "../enums"
+import * as constants from "../constants"
 import * as booyah from "@ghom/booyah"
 
 import { GlowFilter } from "@pixi/filter-glow"
@@ -10,13 +11,15 @@ import gaugeBackground from "../../assets/images/gauge-background-white.png"
 // @ts-ignore
 import gaugeBar from "../../assets/images/gauge-bar-red.png"
 
+// @ts-ignore
+import cellTeamMark from "../../assets/images/grid-cell-team-mark.png"
+
 import CharacterAction, { CharacterActionOptions } from "./CharacterAction"
 import ContainerChip from "../extensions/ContainerChip"
 import PlayerTurn from "./PlayerTurn"
 import GridCell from "./GridCell"
 import Gauge from "./Gauge"
 import Fight from "./Fight"
-import Grid from "./Grid"
 
 import globalActions from "../data/globalActions"
 import classRules from "../data/classRules"
@@ -58,6 +61,7 @@ export default class Character extends ContainerChip<CharacterEvents> {
   private _hpGauge!: Gauge
   private _remainingHp!: number
   private _actions!: CharacterAction[]
+  private _teamIndicator!: pixi.Sprite
 
   constructor(
     private _baseProperties: CharacterProperties,
@@ -79,8 +83,8 @@ export default class Character extends ContainerChip<CharacterEvents> {
   }
 
   set cell(cell: GridCell | null) {
-    if (this._cell && this._teamIndex !== null) {
-      this._cell.removeTeamIndicator()
+    if (this._cell && this._teamIndex !== null && cell === null) {
+      this._teamIndicator.visible = false
     }
 
     this._cell = null
@@ -88,7 +92,8 @@ export default class Character extends ContainerChip<CharacterEvents> {
     if (cell && this._teamIndex !== null) {
       this._cell = cell
 
-      cell?.addTeamIndicator(this._teamIndex)
+      this._teamIndicator.tint = constants.teamColors[this._teamIndex]
+      this._teamIndicator.visible = true
     }
   }
 
@@ -99,7 +104,10 @@ export default class Character extends ContainerChip<CharacterEvents> {
   set teamIndex(teamIndex: number | null) {
     this._teamIndex = teamIndex
 
-    if (this._cell && teamIndex !== null) this._cell.addTeamIndicator(teamIndex)
+    if (this._cell && teamIndex !== null) {
+      this._teamIndicator.tint = constants.teamColors[teamIndex]
+      this._teamIndicator.visible = true
+    }
   }
 
   get latence() {
@@ -162,6 +170,17 @@ export default class Character extends ContainerChip<CharacterEvents> {
       ...Object.values(classRules[this._baseProperties.class].actions),
     ].map((options) => new CharacterAction(options, this, this._fight))
 
+    // team indicators
+
+    this._teamIndicator = this._container.addChild(
+      new pixi.Sprite(pixi.Texture.from(cellTeamMark)),
+    )
+    this._teamIndicator.anchor.set(0.5, 0.5)
+    this._teamIndicator.alpha = 0.5
+    this._teamIndicator.visible = false
+
+    // sprite
+
     this._sprite = new pixi.Sprite(this._baseProperties.texture)
 
     this._sprite.anchor.set(0.5, 0.75)
@@ -173,10 +192,10 @@ export default class Character extends ContainerChip<CharacterEvents> {
       (this._hpGauge = new Gauge({
         bar: pixi.Texture.from(gaugeBar),
         background: pixi.Texture.from(gaugeBackground),
-        width: 75,
+        width: 75 * (this.maxHp / 20),
         height: 8,
         initialValue: 1,
-        text: () => `${this._remainingHp} / ${this.maxHp}`,
+        text: () => `${this._remainingHp}`,
         position: {
           x: 0,
           y: -75,
@@ -274,8 +293,7 @@ export default class Character extends ContainerChip<CharacterEvents> {
 
     return new booyah.Sequence([
       new booyah.Lambda(() => {
-        if (this._cell && this._teamIndex !== null)
-          this._cell.removeTeamIndicator()
+        this._teamIndicator.visible = false
 
         lastCell = this._cell!
         this._cell = null
@@ -300,8 +318,7 @@ export default class Character extends ContainerChip<CharacterEvents> {
       new booyah.Lambda(() => {
         this._cell = target
 
-        if (this._teamIndex !== null)
-          this._cell.addTeamIndicator(this._teamIndex)
+        if (this._teamIndex !== null) this._teamIndicator.visible = true
 
         this.emit("moved", lastCell, target)
       }),
