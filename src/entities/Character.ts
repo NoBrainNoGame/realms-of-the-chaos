@@ -52,6 +52,10 @@ export interface CharacterProperties {
 }
 
 export default class Character extends ContainerChip<CharacterEvents> {
+  get zIndex(): number {
+    return 0
+  }
+
   private _cell!: GridCell | null
   private _teamIndex!: number | null
   private _sprite!: pixi.Sprite
@@ -86,6 +90,9 @@ export default class Character extends ContainerChip<CharacterEvents> {
     if (this._cell && this._teamIndex !== null && cell === null) {
       this._teamIndicator.visible = false
     }
+
+    if (cell) cell.add(this)
+    else if (this._cell) this._cell.remove(this)
 
     this._cell = null
 
@@ -168,7 +175,10 @@ export default class Character extends ContainerChip<CharacterEvents> {
       ...(this._baseProperties.actions ?? []),
       ...Object.values(globalActions),
       ...Object.values(classRules[this._baseProperties.class].actions),
-    ].map((options) => new CharacterAction(options, this, this._fight))
+    ].map(
+      (options) =>
+        new CharacterAction({ ...options, launcher: this }, this._fight),
+    )
 
     // team indicators
 

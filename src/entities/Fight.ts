@@ -17,13 +17,9 @@ export default class Fight extends ContainerChip {
   private _centerContainer!: pixi.Container
   private _anchorContainer!: pixi.Container
   private _gridContainer!: pixi.Container
-  private _waterContainer!: pixi.Container
-  private _characterContainer!: pixi.Container
-  private _animationContainer!: pixi.Container
   private _hudContainer!: pixi.Container
 
   private _grid!: Grid
-  private _water!: Water
   private _timeline!: Timeline
   private _characters!: Character[]
   private _animations!: booyah.Queue
@@ -51,8 +47,8 @@ export default class Fight extends ContainerChip {
     return this._characters
   }
 
-  get animationContainer() {
-    return this._animationContainer
+  get gridContainer() {
+    return this._gridContainer
   }
 
   protected _onActivate() {
@@ -62,21 +58,10 @@ export default class Fight extends ContainerChip {
     this._anchorContainer = new pixi.Container()
 
     this._gridContainer = new pixi.Container()
-    this._waterContainer = new pixi.Container()
-    this._characterContainer = new pixi.Container()
-    this._animationContainer = new pixi.Container()
     this._hudContainer = new pixi.Container()
 
-    this._characterContainer.sortableChildren = true
-
     this._centerContainer.addChild(this._anchorContainer)
-
-    this._anchorContainer.addChild(
-      this._gridContainer,
-      this._waterContainer,
-      this._characterContainer,
-      this._animationContainer,
-    )
+    this._anchorContainer.addChild(this._gridContainer)
 
     this._container.addChild(this._centerContainer, this._hudContainer)
 
@@ -101,14 +86,6 @@ export default class Fight extends ContainerChip {
       -center.basePosition.x,
       -center.basePosition.y,
     )
-
-    // init water
-
-    this._activateChildChip((this._water = new Water(this._grid, false)), {
-      context: {
-        container: this._waterContainer,
-      },
-    })
 
     // init timeline
 
@@ -177,16 +154,7 @@ export default class Fight extends ContainerChip {
 
     if (!cell) throw new Error("Cell not found")
 
-    const tempSprite = new pixi.Sprite(character.texture)
-
-    tempSprite.anchor.set(0.5, 0.75)
-
     this._characters.push(character)
-
-    this._subscribe(character, "moved", (fromCell, toCell) => {
-      this._refreshCharacterPositions(fromCell.cellPosition)
-      this._refreshCharacterPositions(toCell.cellPosition)
-    })
 
     this._subscribeOnce(character, "dead", () => {
       this.removeCharacter(character)
@@ -194,77 +162,35 @@ export default class Fight extends ContainerChip {
 
     cell.sink(
       () => {
-        cell!.container.addChild(tempSprite)
+        this._activateChildChip(character)
+        cell!.add(character)
       },
       () => {
-        this._activateChildChip(character, {
-          context: {
-            container: this._characterContainer,
-          },
-        })
-
         character.teamIndex = teamIndex
-        character.cell = cell
-
-        this._refreshCharacterPositions(cell!.cellPosition)
-
-        requestAnimationFrame(() => {
-          cell!.container.removeChild(tempSprite)
-
-          tempSprite.destroy()
-        })
       },
     )
   }
 
   public removeCharacter(character: Character) {
-    if (!character.cell) return
+    if (!character.cell) {
+      this._terminateChildChip(character)
+
+      this._characters.splice(this._characters.indexOf(character), 1)
+
+      return
+    }
 
     const { cell } = character
 
-    const tempSprite = new pixi.Sprite(character.texture)
-
-    tempSprite.anchor.set(0.5, 0.75)
-
-    cell.container.addChild(tempSprite)
-    character.cell = null
-
-    this._terminateChildChip(character)
-
     this._characters.splice(this._characters.indexOf(character), 1)
-
-    this._refreshCharacterPositions(cell.cellPosition)
 
     cell.sink(
       () => {
-        cell.container.removeChild(tempSprite)
+        cell!.remove(character)
+
+        this._terminateChildChip(character)
       },
       () => {},
     )
-  }
-
-  private _refreshCharacterPositions(position: pixi.IPointData) {
-    const characters = this._characters.filter(
-      (character) =>
-        character.cell && utils.equals(character.cell.cellPosition, position),
-    )
-
-    characters.forEach((character) => {
-      character.zAdjustment = 0
-    })
-
-    if (characters.length === 1) {
-      characters[0].internalPosition.set(0)
-    } else if (characters.length === 2) {
-      characters[0].internalPosition.set(-constants.cellWidth / 4, 0)
-      characters[1].internalPosition.set(constants.cellWidth / 4, 0)
-    } else if (characters.length === 3) {
-      characters[0].internalPosition.set(-constants.cellWidth / 4, 0)
-      characters[1].internalPosition.set(0, -constants.cellHeight / 4)
-      characters[2].internalPosition.set(constants.cellWidth / 4, 0)
-      characters[1].zAdjustment = -0.5
-    } else if (characters.length !== 0) {
-      throw new Error("Too many characters on the same cell")
-    }
   }
 }

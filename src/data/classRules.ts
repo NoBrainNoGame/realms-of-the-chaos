@@ -11,6 +11,7 @@ import arrowShot from "../../assets/images/action-icons/arrow-shot.png"
 import arrow from "../../assets/images/arrow.png"
 
 import * as enums from "../enums"
+import * as rangeZones from "./rangeZones"
 
 import Rules from "../entities/Rules"
 
@@ -25,28 +26,32 @@ const classRules = {
       {
         name: "ArrowShot",
         icon: pixi.Texture.from(arrowShot),
-        range: 6,
-        scope: "enemy",
-        timeCost: ({ author }) => author.latence / 2,
+        targetZone: rangeZones.target,
+        targetType: "character",
+        timeCost: ({ launcher }) => launcher.latence / 2,
         canBeUsed: () => true,
-        behavior: ({ author, targets, container }) => {
+        behavior: ({ launcher, targetCells, fight }) => {
           let arrowSprite = new pixi.Sprite(pixi.Texture.from(arrow))
+
+          const target = fight.characters.find((c) => c.cell === targetCells[0])
+
+          if (!target) return new booyah.Transitory()
 
           return new booyah.Sequence([
             new booyah.Lambda(() => {
-              arrowSprite.position.copyFrom(author.position)
+              arrowSprite.position.copyFrom(launcher.position)
 
               arrowSprite.rotation = Math.atan2(
-                targets[0].position.y - author.position.y,
-                targets[0].position.x - author.position.x,
+                target.position.y - launcher.position.y,
+                target.position.x - launcher.position.x,
               )
 
-              container.addChild(arrowSprite)
+              fight.gridContainer.addChild(arrowSprite)
             }),
             new booyah.Parallel([
               new booyah.Tween({
-                from: author.position.x,
-                to: targets[0].position.x,
+                from: launcher.position.x,
+                to: targetCells[0].position.x,
                 duration: 250,
                 easing: booyah.easeOutCubic,
                 onTick: (x) => {
@@ -54,8 +59,8 @@ const classRules = {
                 },
               }),
               new booyah.Tween({
-                from: author.position.y,
-                to: targets[0].position.y,
+                from: launcher.position.y,
+                to: target.position.y,
                 duration: 250,
                 easing: booyah.easeOutQuart,
                 onTick: (y) => {
@@ -64,13 +69,11 @@ const classRules = {
               }),
             ]),
             new booyah.Lambda(() => {
-              container.removeChild(arrowSprite)
+              fight.gridContainer.removeChild(arrowSprite)
 
               arrowSprite.destroy()
 
-              targets.forEach((target) =>
-                author.doPhysicalDamagesTo(target, 0.5),
-              )
+              launcher.doPhysicalDamagesTo(target)
             }),
           ])
         },

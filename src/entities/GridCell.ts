@@ -380,6 +380,15 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
     return new booyah.Sequence(sequence)
   }
 
+  public add(item: GridCellItem) {
+    item.parent?.removeChild(item.container)
+    this._container.addChildAt(item.container, item.zIndex)
+  }
+
+  public remove(item: GridCellItem) {
+    this._container.removeChild(item.container)
+  }
+
   public pulse(force: number) {
     this._pulseForce = force
     this._yState.changeState("pulse")

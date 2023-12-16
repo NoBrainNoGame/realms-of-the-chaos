@@ -15,6 +15,10 @@ export default abstract class ContainerChip<
     }
   }
 
+  constructor(private _zIndex: number = 0) {
+    super()
+  }
+
   public activate(
     tickInfo: booyah.TickInfo,
     chipContext: Readonly<Record<string, any>>,
@@ -25,7 +29,7 @@ export default abstract class ContainerChip<
 
     super.activate(tickInfo, chipContext, inputSignal, reloadMemento)
 
-    this.chipContext.container.addChild(this._container)
+    this.chipContext.container.addChildAt(this._container, this._zIndex)
   }
 
   public terminate() {

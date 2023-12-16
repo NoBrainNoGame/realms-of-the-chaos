@@ -10,21 +10,29 @@ import physicalAttack from "../../assets/images/action-icons/physical-attack.png
 
 import type { CharacterActionOptions } from "../entities/CharacterAction"
 
+import * as rangeZones from "./rangeZones"
+
 const globalActions = {
-  PhysicalAttack: {
-    name: "PhysicalAttack",
+  kick: {
+    name: "kick",
     icon: pixi.Texture.from(physicalAttack),
-    timeCost: ({ author }) => author.latence,
+    timeCost: ({ launcher }) => launcher.latence,
     canBeUsed: () => true,
-    behavior: ({ author, targets }) => {
+    behavior: ({ launcher, targetCells, fight }) => {
       return new booyah.Lambda(() => {
-        targets.forEach((target) => author.doPhysicalDamagesTo(target))
+        targetCells.forEach((target) => {
+          const character = fight.characters.find((c) => c.cell === target)
+          if (character) launcher.doPhysicalDamagesTo(character)
+        })
       })
     },
-    scope: "enemy",
-    range: 1,
+    targetType: "character",
+    targetZone: rangeZones.target,
+    targetZoneRange: 0,
+    launchZone: rangeZones.line,
+    launchZoneRange: 1,
   },
-} satisfies Record<string, CharacterActionOptions>
+} satisfies Record<string, Omit<CharacterActionOptions, "launcher">>
 
 export type GlobalActionName = keyof typeof globalActions
 

@@ -11,7 +11,7 @@ import GridCell from "./GridCell"
 import Fight from "./Fight"
 import Characters from "../data/characters"
 
-type CharacterActionScope =
+type CharacterActionTargetType =
   | "self"
   | "ally"
   | "enemy"
@@ -19,14 +19,14 @@ type CharacterActionScope =
   | "everywhere"
 
 export interface CharacterActionBehaviorContext {
-  author: Character
-  target: GridCell
+  launcher: Character
+  targetCell: GridCell
 }
 
 export type CharacterActionBehavior = (
   context: CharacterActionBehaviorContext & {
-    targets: Character[]
-    container: pixi.Container
+    targetCells: GridCell[]
+    fight: Fight
   },
 ) => booyah.ChipResolvable
 
@@ -36,9 +36,12 @@ export interface CharacterActionOptions {
   timeCost: (context: CharacterActionBehaviorContext) => number
   canBeUsed: (context: CharacterActionBehaviorContext) => boolean
   behavior: CharacterActionBehavior
-  zone?: rangeZones.RangeZone
-  range: [min: number, max: number]
-  scope: CharacterActionScope
+  launcher: Character
+  launchZone?: rangeZones.RangeZone
+  launchZoneRange?: number
+  targetZone: rangeZones.RangeZone
+  targetZoneRange?: number
+  targetType: CharacterActionTargetType
 }
 
 export default class CharacterAction extends ContainerChip {
@@ -50,11 +53,11 @@ export default class CharacterAction extends ContainerChip {
   }
 
   get zone() {
-    return this._options.zone
+    return this._options.targetZone
   }
 
   get scope() {
-    return this._options.scope
+    return this._options.targetType
   }
 
   get timeCost() {
@@ -63,7 +66,6 @@ export default class CharacterAction extends ContainerChip {
 
   constructor(
     private _options: CharacterActionOptions,
-    private _character: Character,
     private _fight: Fight,
   ) {
     super()
@@ -97,17 +99,16 @@ export default class CharacterAction extends ContainerChip {
       this._floatingSprite.visible = true
 
       this._highlightCells()
+      this._highlightLaunchCells()
 
       this._subscribeOnce(this._sprite, "pointerup", () => {
         this._floatingSprite.visible = false
-        this._fight.grid.getCells().forEach((cell) => cell.unHighlight())
 
-        if (this._options.scope === "self") {
-          this._use({
-            author: this._character,
-            target: this._character.cell!,
-          })
-        }
+        this._unHighlightCells()
+
+        const targetCell = this._fight.grid.getHoveredCell()
+
+        if (targetCell) this._tryToUse(targetCell)
       })
 
       this._subscribeOnce(this._sprite, "pointerupoutside", () => {
@@ -118,12 +119,7 @@ export default class CharacterAction extends ContainerChip {
         const cell = this._fight.grid.getHoveredCell()
 
         if (cell) {
-          const context = {
-            author: this._character,
-            target: cell,
-          }
-
-          this._use(context)
+          this._tryToUse(cell)
         }
 
         // finish the drag and drop animation
@@ -133,7 +129,7 @@ export default class CharacterAction extends ContainerChip {
   }
 
   protected _onResize(width: number, height: number) {
-    const { actions } = this._character
+    const { actions } = this._options.launcher
 
     this._sprite.position.set(
       width / 2 - actions.length * 50 + actions.indexOf(this) * 100,
@@ -149,24 +145,21 @@ export default class CharacterAction extends ContainerChip {
     this._unHighlightCells()
   }
 
-  private _use(context: CharacterActionBehaviorContext) {
-    if (this._canBeUsed(context)) {
-      this._character.addActionTime(this._options.timeCost(context))
+  private _tryToUse(targetCell: GridCell) {
+    if (this._canBeUsed(targetCell)) {
+      this._options.launcher.addActionTime(
+        this._options.timeCost({
+          targetCell,
+          launcher: this._options.launcher,
+        }),
+      )
 
       this._fight.animations.add(
         this._options.behavior({
-          ...context,
-          container: this._fight.animationContainer,
-          targets: this._fight.characters.filter((c) => {
-            if (c.cell !== context.target) return false
-
-            if (this._options.scope === "ally")
-              return c.teamIndex === context.author.teamIndex
-            if (this._options.scope === "enemy")
-              return c.teamIndex !== context.author.teamIndex
-
-            return true
-          }),
+          targetCell,
+          targetCells: this._getTargetCells(targetCell),
+          launcher: this._options.launcher,
+          fight: this._fight,
         }),
       )
 
@@ -175,64 +168,71 @@ export default class CharacterAction extends ContainerChip {
     }
   }
 
-  private _canBeUsed(context: CharacterActionBehaviorContext) {
-    return this._options.canBeUsed(context) && this._isInRange(context)
+  private _canBeUsed(targetCell: GridCell) {
+    return (
+      this._options.canBeUsed({
+        targetCell,
+        launcher: this._options.launcher,
+      }) && this._isReachable(targetCell)
+    )
   }
 
-  private _isInRange(context: CharacterActionBehaviorContext) {
-    const { author, target } = context
+  private _isReachable(targetCell: GridCell) {
+    if (this._options.targetType === "self")
+      return this._options.launcher.cell === targetCell
 
-    if (this._options.scope === "self") return context.author.cell === target
+    if (this._options.targetType === "everywhere") return true
 
-    const distance = this._fight.grid.getDistanceBetween(
-      author.cell!.cellPosition,
-      target.cellPosition,
-    )
-
-    if (typeof this._options.zone)
-      return this._options.zone(target.cellPosition, this._options.range)
-    else if (
-      distance < this._options.zone[0] ||
-      distance > this._options.zone[1]
-    )
-      return false
-
-    if (this._options.scope === "everywhere") return true
-
-    if (this._options.scope === "ally")
+    if (this._options.targetType === "ally")
       return this._fight.characters.some(
-        (c) => c.cell === target && c.teamIndex === author.teamIndex,
+        (c) =>
+          c.cell === targetCell &&
+          c.teamIndex === this._options.launcher.teamIndex,
       )
 
-    if (this._options.scope === "enemy")
+    if (this._options.targetType === "enemy")
       return this._fight.characters.some(
-        (c) => c.cell === target && c.teamIndex !== author.teamIndex,
+        (c) =>
+          c.cell === targetCell &&
+          c.teamIndex !== this._options.launcher.teamIndex,
       )
 
-    if (this._options.scope === "character")
-      return this._fight.characters.some((c) => c.cell === target)
+    if (this._options.targetType === "character")
+      return this._fight.characters.some((c) => c.cell === targetCell)
 
     return false
   }
 
-  private _highlightCells() {
-    const cells = [
-      this._character.cell!,
-      ...this._fight.grid.getNeighborsByRange(
-        this._character.cell!.hex,
-        this._options.range,
-      ),
-    ]
+  private _getLaunchCells() {
+    return this._options.launchZone
+      ? this._options
+          .launchZone(
+            this._options.launcher.cell!.cellPosition,
+            this._options.launchZoneRange ?? 0,
+          )
+          .map((cellPosition) => this._fight.grid.getCell(cellPosition))
+          .filter((cell): cell is GridCell => cell !== undefined)
+      : this._fight.grid.getCells()
+  }
 
-    cells.forEach((cell) => {
-      if (
-        this._canBeUsed({
-          author: this._character,
-          target: cell,
-        })
-      ) {
+  private _getTargetCells(targetCell: GridCell) {
+    return this._options
+      .targetZone(targetCell.cellPosition, this._options.targetZoneRange ?? 0)
+      .map((cellPosition) => this._fight.grid.getCell(cellPosition))
+      .filter((cell): cell is GridCell => cell !== undefined)
+  }
+
+  private _highlightCells() {
+    this._fight.grid.getCells().forEach((cell) => {
+      if (this._canBeUsed(cell)) {
         cell.highlight()
       }
+    })
+  }
+
+  private _highlightLaunchCells() {
+    this._getLaunchCells().forEach((cell) => {
+      cell.highlight()
     })
   }
 
