@@ -22,7 +22,7 @@ const globalActions = {
       return new booyah.Lambda(() => {
         targetCells.forEach((target) => {
           const character = fight.characters.find((c) => c.cell === target)
-          if (character) launcher.doPhysicalDamagesTo(character)
+          if (character) launcher.doDamagesTo(character)
         })
       })
     },

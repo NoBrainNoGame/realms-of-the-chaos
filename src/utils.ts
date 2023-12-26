@@ -1,5 +1,4 @@
 import * as pixi from "pixi.js"
-import * as enums from "./enums"
 import * as constants from "./constants"
 
 export function clone<Obj>(obj: Obj): Obj {
@@ -13,11 +12,18 @@ export function times<Value>(
   return new Array(count).fill(0).map((_, index) => generator(index))
 }
 
-export const directionCoordinates: Record<enums.Direction, pixi.IPointData> = {
-  [enums.Direction.N]: { x: 0, y: -1 },
-  [enums.Direction.E]: { x: 1, y: 0 },
-  [enums.Direction.S]: { x: 0, y: 1 },
-  [enums.Direction.W]: { x: -1, y: 0 },
+export enum Direction {
+  N = 0,
+  E = 1,
+  S = 2,
+  W = 3,
+}
+
+export const directionCoordinates: Record<Direction, pixi.IPointData> = {
+  [Direction.N]: { x: 0, y: -1 },
+  [Direction.E]: { x: 1, y: 0 },
+  [Direction.S]: { x: 0, y: 1 },
+  [Direction.W]: { x: -1, y: 0 },
 }
 
 export function isometricToScreen(position: pixi.IPointData): pixi.IPointData {
@@ -42,4 +48,13 @@ export function screenToIsometric(position: pixi.IPointData): pixi.IPointData {
 
 export function equals(a: pixi.IPointData, b: pixi.IPointData): boolean {
   return a.x === b.x && a.y === b.y
+}
+
+export enum Floor {
+  Character = 0,
+}
+
+export enum CharacterStat {
+  Speed = "Speed",
+  Health = "Health",
 }

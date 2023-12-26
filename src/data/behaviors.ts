@@ -5,12 +5,12 @@
 import * as booyah from "@ghom/booyah"
 
 import * as constants from "../constants"
-import * as enums from "../enums"
+import * as utils from "../utils"
 
-import type { CharacterActionBehavior } from "../entities/CharacterAction"
+import { CharacterBehavior } from "../entities/Character"
 
 const behaviors = {
-  [enums.CharacterBehavior.STANDARD]: ({ fight, character }) => {
+  STANDARD: ({ fight, launcher }) => {
     // define a target (the most dangerous enemy)
     const target = fight.characters.sort((a, b) => {
       return a.level === b.level
@@ -30,22 +30,22 @@ const behaviors = {
     }
 
     const distance = fight.grid.getDistanceBetween(
-      character.cell!.hex,
+      launcher.cell!.hex,
       target.cell!.hex,
     )
 
     // if close enough, attack
 
-    const action = character.actions.find((action) => {
-      return action.scope === "enemy" && action.range >= distance
+    const action = launcher.actions.find((action) => {
+      return action.scope === "enemy" && action.zone
     })
 
     if (action) {
       // do action
       return {
         timeCost: action.timeCost({
-          author: character,
-          target: target.cell!,
+          launcher,
+          targetCell: target.cell!,
         }),
         chip: action,
       }
@@ -68,6 +68,6 @@ const behaviors = {
       chip: character.moveAction(tempGoodCell, reachableDistance),
     }
   },
-} satisfies Record<enums.CharacterBehavior, CharacterActionBehavior>
+} satisfies Record<string, CharacterBehavior>
 
 export default behaviors

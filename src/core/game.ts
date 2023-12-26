@@ -10,7 +10,6 @@ import Fight from "../entities/Fight"
 import Character from "../entities/Character"
 import GridEditor from "../entities/GridEditor"
 import DebugComposite from "../debug/DebugComposite"
-import { CharacterBehavior } from "../enums"
 
 class Game extends booyah.Composite {
   get defaultChildChipContext() {
@@ -45,28 +44,28 @@ class Game extends booyah.Composite {
             {
               ...characters.Merlin,
               level: 10,
-              distribution: Character.generateRandomDistribution(10),
+              baseStats: Character.generateRandomBaseStats(10),
             },
             {
               ...characters.Merlin,
               name: "Sorcerio",
               level: 10,
-              distribution: Character.generateRandomDistribution(10),
+              baseStats: Character.generateRandomBaseStats(10),
             },
           ],
           [
             {
               ...characters.Eva,
               level: 10,
-              distribution: Character.generateRandomDistribution(10),
-              actionBehavior: behaviors[CharacterBehavior.STANDARD],
+              baseStats: Character.generateRandomBaseStats(10),
+              actionBehavior: behaviors.STANDARD,
             },
             {
               ...characters.Eva,
               name: "Cléophée",
               level: 10,
-              distribution: Character.generateRandomDistribution(10),
-              actionBehavior: behaviors[CharacterBehavior.STANDARD],
+              baseStats: Character.generateRandomBaseStats(10),
+              actionBehavior: behaviors.STANDARD,
             },
           ],
         ]),

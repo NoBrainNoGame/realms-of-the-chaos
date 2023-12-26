@@ -118,7 +118,7 @@ export default class PlayerTurn extends ContainerChip {
               character: this._character,
               characters: this._fight.characters,
               animations: this._fight.animations,
-              animationContainer: this._fight.animationContainer,
+              gridContainer: this._fight.gridContainer,
             },
           },
         )

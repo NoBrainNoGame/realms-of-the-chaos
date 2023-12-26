@@ -6,7 +6,6 @@ import * as constants from "../constants"
 import ContainerChip from "../extensions/ContainerChip"
 import Character, { CharacterProperties } from "./Character"
 import Timeline from "./Timeline"
-import Water from "./Water"
 import Grid from "./Grid"
 
 /**
@@ -163,7 +162,7 @@ export default class Fight extends ContainerChip {
     cell.sink(
       () => {
         this._activateChildChip(character)
-        cell!.add(character)
+        cell!.addToContainer(character)
       },
       () => {
         character.teamIndex = teamIndex
@@ -186,7 +185,7 @@ export default class Fight extends ContainerChip {
 
     cell.sink(
       () => {
-        cell!.remove(character)
+        cell!.removeFromContainer(character)
 
         this._terminateChildChip(character)
       },

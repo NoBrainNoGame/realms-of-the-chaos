@@ -8,7 +8,8 @@ import * as constants from "../constants"
 import pointer from "../core/pointer"
 
 import ContainerChip from "../extensions/ContainerChip"
-import Grid from "./Grid"
+import Character from "./Character"
+import MovableChip from "../extensions/MovableChip"
 
 interface GridCellEvents extends booyah.BaseCompositeEvents {
   leftClick: []
@@ -380,12 +381,12 @@ export default class GridCell extends ContainerChip<GridCellEvents> {
     return new booyah.Sequence(sequence)
   }
 
-  public add(item: GridCellItem) {
-    item.parent?.removeChild(item.container)
-    this._container.addChildAt(item.container, item.zIndex)
+  public addToContainer(item: MovableChip) {
+    item.container.parent?.removeChild(item.container)
+    this._container.addChildAt(item.container, item.floor)
   }
 
-  public remove(item: GridCellItem) {
+  public removeFromContainer(item: MovableChip) {
     this._container.removeChild(item.container)
   }
 

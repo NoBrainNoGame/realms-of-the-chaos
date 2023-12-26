@@ -1,5 +1,5 @@
 import * as pixi from "pixi.js"
-import * as enums from "../enums"
+import * as utils from "../utils"
 import * as constants from "../constants"
 import * as booyah from "@ghom/booyah"
 
@@ -23,6 +23,7 @@ import Fight from "./Fight"
 
 import globalActions from "../data/globalActions"
 import classRules from "../data/classRules"
+import MovableChip from "../extensions/MovableChip"
 
 interface CharacterEvents extends booyah.BaseCompositeEvents {
   moved: [from: GridCell, to: GridCell]
@@ -31,7 +32,7 @@ interface CharacterEvents extends booyah.BaseCompositeEvents {
 
 export interface CharacterBehaviorContext {
   fight: Fight
-  character: Character
+  launcher: Character
 }
 
 export type CharacterBehavior = (ctx: CharacterBehaviorContext) => {
@@ -41,21 +42,15 @@ export type CharacterBehavior = (ctx: CharacterBehaviorContext) => {
 
 export interface CharacterProperties {
   name: string
-  texture: pixi.Texture
-  class: enums.CharacterClass
-  race: enums.CharacterRace
   level: number
-  distribution: Partial<Record<enums.CharacterSkill, number>>
+  texture: pixi.Texture
   moveBehavior?: CharacterBehavior
   actionBehavior?: CharacterBehavior
   actions?: CharacterActionOptions[]
+  baseStats: Partial<Record<utils.CharacterStat, number>>
 }
 
-export default class Character extends ContainerChip<CharacterEvents> {
-  get zIndex(): number {
-    return 0
-  }
-
+export default class Character extends MovableChip<CharacterEvents> {
   private _cell!: GridCell | null
   private _teamIndex!: number | null
   private _sprite!: pixi.Sprite
@@ -71,7 +66,7 @@ export default class Character extends ContainerChip<CharacterEvents> {
     private _baseProperties: CharacterProperties,
     private _fight: Fight,
   ) {
-    super()
+    super(utils.Floor.Character)
   }
 
   get timeBeforeAction() {
@@ -91,8 +86,8 @@ export default class Character extends ContainerChip<CharacterEvents> {
       this._teamIndicator.visible = false
     }
 
-    if (cell) cell.add(this)
-    else if (this._cell) this._cell.remove(this)
+    if (cell) cell.addToContainer(this)
+    else if (this._cell) this._cell.removeFromContainer(this)
 
     this._cell = null
 
@@ -118,7 +113,7 @@ export default class Character extends ContainerChip<CharacterEvents> {
   }
 
   get latence() {
-    return 100 / (this.getStat(enums.CharacterSkill.SPEED) * 0.7)
+    return 100 / (this.getStat(utils.CharacterStat.Speed) * 0.7)
   }
 
   get level() {
@@ -126,7 +121,7 @@ export default class Character extends ContainerChip<CharacterEvents> {
   }
 
   get maxHp() {
-    return this.getStat(enums.CharacterSkill.HEALTH) * 10
+    return this.getStat(utils.CharacterStat.Health) * 10
   }
 
   get hp() {
@@ -174,7 +169,6 @@ export default class Character extends ContainerChip<CharacterEvents> {
     this._actions = [
       ...(this._baseProperties.actions ?? []),
       ...Object.values(globalActions),
-      ...Object.values(classRules[this._baseProperties.class].actions),
     ].map(
       (options) =>
         new CharacterAction({ ...options, launcher: this }, this._fight),
@@ -222,8 +216,8 @@ export default class Character extends ContainerChip<CharacterEvents> {
     }
   }
 
-  public getStat(name: enums.CharacterSkill) {
-    return 1 + (this._baseProperties.distribution[name] ?? 0)
+  public getStat(name: utils.CharacterStat) {
+    return 1 + (this._baseProperties.baseStats[name] ?? 0)
   }
 
   public fightTick(fight: Fight): boolean {
@@ -237,7 +231,7 @@ export default class Character extends ContainerChip<CharacterEvents> {
       if (this._baseProperties.moveBehavior) {
         const { timeCost, chip } = this._baseProperties.moveBehavior({
           fight,
-          character: this,
+          launcher: this,
         })
 
         this.addActionTime(timeCost)
@@ -260,7 +254,7 @@ export default class Character extends ContainerChip<CharacterEvents> {
 
         const { timeCost, chip } = this._baseProperties.actionBehavior({
           fight,
-          character: this,
+          launcher: this,
         })
 
         this.addActionTime(timeCost)
@@ -335,49 +329,19 @@ export default class Character extends ContainerChip<CharacterEvents> {
     ])
   }
 
-  public doPhysicalDamagesTo(
-    this: this,
-    target: Character,
-    multiplier = 1,
-    armorPiercing = false,
-  ) {
-    const damages = Math.max(
-      0,
-      this.getStat(enums.CharacterSkill.PHYSICAL_DAMAGE) * 2 * multiplier -
-        (armorPiercing
-          ? 0
-          : target.getStat(enums.CharacterSkill.PHYSICAL_RESISTANCE) / 2),
-    )
-
-    target.hp -= damages
-  }
-
-  public doMagicalDamagesTo(
-    this: this,
-    target: Character,
-    multiplier = 1,
-    armorPiercing = false,
-  ) {
-    const damages = Math.max(
-      0,
-      this.getStat(enums.CharacterSkill.MAGICAL_DAMAGE) * 2 * multiplier -
-        (armorPiercing
-          ? 0
-          : target.getStat(enums.CharacterSkill.MAGICAL_RESISTANCE) / 2),
-    )
-
-    target.hp -= damages
+  public doDamagesTo(this: this, target: Character, damageCount: number) {
+    target.hp -= damageCount
   }
 
   /**
    * @todo add probability system for distribution about class and race stats
    */
-  static generateRandomDistribution(level: number) {
-    const distribution: Partial<Record<enums.CharacterSkill, number>> = {}
+  static generateRandomBaseStats(level: number) {
+    const distribution: Partial<Record<utils.CharacterStat, number>> = {}
 
     for (let i = 0; i < level; i++) {
-      const skill = Object.values(enums.CharacterSkill)[
-        Math.floor(Math.random() * Object.values(enums.CharacterSkill).length)
+      const skill = Object.values(utils.CharacterStat)[
+        Math.floor(Math.random() * Object.values(utils.CharacterStat).length)
       ]
       distribution[skill] = (distribution[skill] ?? 0) + 1
     }

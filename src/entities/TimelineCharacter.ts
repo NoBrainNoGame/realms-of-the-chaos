@@ -53,7 +53,7 @@ export default class TimelineCharacter extends ContainerChip {
           const mask = new pixi.Sprite(pixi.Texture.from(whiteCircle))
           const sprite = new pixi.Sprite(this._character.texture)
           const circle = new pixi.Sprite(
-            pixi.Texture.from(circleColors[this._character.teamIndex]),
+            pixi.Texture.from(circleColors[this._character.teamIndex!]),
           )
 
           mask.anchor.set(0.5)
