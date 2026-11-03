@@ -107,6 +107,8 @@ export const COLLISION_DAMAGE = 3
 export const FALL_DAMAGE = 5
 /** Levels raised or lowered by the earthquake divine power. */
 export const EARTHQUAKE_DELTA = 2
+/** Timeline time for each team to gain 1 divine energy. */
+export const ENERGY_PERIOD = 12
 /** Delay multiplier while a swimmer treads deep water. */
 export const SWIM_FATIGUE = 1.5
 
@@ -521,7 +523,7 @@ export class Combat {
       return this._flush()
     }
 
-    this._time = Math.max(this._time, next.at)
+    this._advanceTime(next.at)
 
     if (next.kind === "move") this._step(next.fighter)
     else this._startTurn(next.fighter)
@@ -626,8 +628,6 @@ export class Combat {
     for (const id of Object.keys(fighter.cooldowns)) {
       fighter.cooldowns[id] = Math.max(0, fighter.cooldowns[id] - 1)
     }
-
-    this._gainEnergy(fighter.team, 1)
 
     if (fighter.controller === "ai") {
       this._playAi(fighter)
@@ -815,8 +815,32 @@ export class Combat {
     return null
   }
 
+  /**
+   * Move the clock forward. Divine energy flows with time: every team still
+   * in the fight gains 1 every ENERGY_PERIOD (it cannot be farmed by
+   * multiplying short turns).
+   */
+  private _advanceTime(to: number) {
+    const from = this._time
+    this._time = Math.max(from, to)
+    const gained =
+      Math.floor(this._time / ENERGY_PERIOD) - Math.floor(from / ENERGY_PERIOD)
+    if (gained <= 0) return
+    const inFight = new Set(this.aliveFighters.map((f) => f.team))
+    for (const team of this.teams) {
+      if (inFight.has(team.index)) this._gainEnergy(team.index, gained)
+    }
+  }
+
+  /**
+   * Passing ends the turn just after the next *opponent* (never after an
+   * ally: allies could otherwise hand the turn to each other forever).
+   */
   private _pass(fighter: Fighter) {
-    const others = this.aliveFighters.filter((f) => f !== fighter)
+    const enemies = this.aliveFighters.filter((f) => this.isEnemy(fighter, f))
+    const others = enemies.length
+      ? enemies
+      : this.aliveFighters.filter((f) => f !== fighter)
     const nextOther = Math.min(...others.map((f) => f.nextActionAt))
     const max = this.baseDelay(fighter) * this.delayMultiplier(fighter)
     const delay = Math.min(max, Math.max(1, nextOther + 1 - this._time))

@@ -107,7 +107,9 @@ describe("FightScene", () => {
             s.combat.fightersAt(p).some((f) => f.team !== me.team),
           ) ?? (action.target === "ally" ? targets[0] : undefined)
         if (!target) continue
-        const index = s.combat.actionsOf(me).indexOf(action)
+        const index = s.combat
+          .actionsOf(me)
+          .findIndex((a) => a.id === action.id)
         if (index < 9) key(String(index + 1))
         else internals._selectAction(action.id)
         if (action.target !== "self") {

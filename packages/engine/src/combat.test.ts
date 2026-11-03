@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test"
 import { Board } from "./board"
-import { Combat, MIN_ENEMY_SPAWN_DISTANCE, type CombatOptions } from "./combat"
+import {
+  Combat,
+  ENERGY_PERIOD,
+  MIN_ENEMY_SPAWN_DISTANCE,
+  type CombatOptions,
+} from "./combat"
 import { MAX_FIGHTERS_PER_CELL } from "./content"
 import { equals, keyOf, manhattan, type Point } from "./geometry"
 import type { Fighter, FightEvent } from "./types"
@@ -163,6 +168,36 @@ describe("timeline", () => {
     expect(eva.nextActionAt).toBeCloseTo(gorr.nextActionAt + 1)
     combat.run()
     expect(combat.activeFighter).toBe(gorr)
+  })
+
+  test("passing hands the turn to the next opponent, never to an ally", () => {
+    const combat = setup([
+      [
+        ["eva", { x: 0, y: 0 }],
+        ["brutus", { x: 0, y: 1 }],
+      ],
+      [["gorr", { x: 8, y: 8 }]],
+    ])
+    const [eva, brutus, gorr] = combat.fighters
+    turnOf(combat, eva)
+    brutus.nextActionAt = combat.time + 2 // the ally is next...
+    gorr.nextActionAt = combat.time + 10 // ...but eva waits for the opponent
+    combat.pass()
+    expect(eva.nextActionAt).toBeCloseTo(gorr.nextActionAt + 1)
+  })
+
+  test("allies cannot stall the opponent by passing to each other", () => {
+    const combat = new Combat({
+      seed: 3,
+      teams: [
+        { controller: "human", fighters: ["eva", "brutus"] },
+        { controller: "ai", fighters: ["nyx", "nerea"] },
+      ],
+    })
+    combat.run()
+    // the human team gets a turn early, before the AI could farm energy
+    expect(combat.activeFighter?.team).toBe(0)
+    expect(combat.time).toBeLessThan(40)
   })
 
   test("passing never costs more than an action", () => {
@@ -535,14 +570,20 @@ describe("actions", () => {
 })
 
 describe("divine actions", () => {
-  test("energy grows each turn and pays for divine actions", () => {
+  test("energy flows with time (not with turns) and pays for divine actions", () => {
     const combat = setup([
       [["eva", { x: 0, y: 0 }]],
       [["gorr", { x: 8, y: 8 }]],
     ])
     const [eva, gorr] = combat.fighters
-    turnOf(combat, eva)
-    expect(combat.teams[0].energy).toBe(2)
+    // start: 1 energy each; +1 per ENERGY_PERIOD of timeline time
+    eva.nextActionAt = ENERGY_PERIOD * 2 + 1
+    gorr.nextActionAt = 500
+    combat.run()
+    expect(combat.activeFighter).toBe(eva)
+    expect(combat.teams[0].energy).toBe(3)
+    expect(combat.teams[1].energy).toBe(3)
+    combat.teams[0].energy = 2
     expect(combat.useDivine("timeWarp", gorr.position).ok).toBe(false)
     combat.teams[0].energy = 3
     const before = gorr.nextActionAt
