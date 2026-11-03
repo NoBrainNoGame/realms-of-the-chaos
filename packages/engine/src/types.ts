@@ -103,6 +103,8 @@ export interface CharacterPreset {
   stats: Stats
   /** Action ids, in action bar order (personal actions first). */
   actions: string[]
+  /** Reference preset of a generated character (same kit and looks). */
+  kit?: string
 }
 
 // ─── Divine (player) actions ────────────────────────────────────────────────
@@ -129,6 +131,8 @@ export interface Fighter {
   readonly controller: Controller
   readonly locomotion: Locomotion
   hp: number
+  /** Max hit points lost for good (erosion: part of every wound). */
+  erosion: number
   position: Point
   alive: boolean
   /** Timeline time of the next action turn. */
@@ -147,6 +151,8 @@ export interface Team {
   readonly controller: Controller
   /** Divine energy used by player actions. */
   energy: number
+  /** Progress towards the next energy point, from 0 to 1. */
+  energyProgress: number
 }
 
 // ─── Events emitted by the engine (consumed by the view) ────────────────────

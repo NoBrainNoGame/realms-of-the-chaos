@@ -69,7 +69,7 @@ const actionList: ActionDefinition[] = [
     target: "any",
     affects: "all",
     timeCost: 1.2,
-    effects: [{ type: "damage", kind: "magical", power: 9 }],
+    effects: [{ type: "damage", kind: "magical", power: 10 }],
   },
   {
     id: "frost",
@@ -147,7 +147,7 @@ const actionList: ActionDefinition[] = [
     lineOfSight: true,
     target: "ally",
     timeCost: 1,
-    effects: [{ type: "heal", power: 10 }],
+    effects: [{ type: "heal", power: 8 }],
   },
   {
     id: "aegis",
@@ -205,8 +205,8 @@ const actionList: ActionDefinition[] = [
     area: { shape: "diamond", max: 1 },
     target: "enemy",
     affects: "enemies",
-    timeCost: 1.3,
-    effects: [{ type: "damage", kind: "physical", power: 7 }],
+    timeCost: 1.1,
+    effects: [{ type: "damage", kind: "physical", power: 9 }],
   },
   {
     id: "tremor",
@@ -310,7 +310,7 @@ const characterList: CharacterPreset[] = [
     title: "Mage",
     affinity: "magic",
     stats: {
-      health: 8,
+      health: 9.5,
       speed: 4,
       physicalAttack: 2,
       physicalDefense: 3,
@@ -327,7 +327,7 @@ const characterList: CharacterPreset[] = [
     affinity: "precision",
     locomotion: "swimmer",
     stats: {
-      health: 7,
+      health: 6,
       speed: 6,
       physicalAttack: 7,
       physicalDefense: 3,
@@ -359,8 +359,8 @@ const characterList: CharacterPreset[] = [
     title: "Soigneuse",
     affinity: "faith",
     stats: {
-      health: 8,
-      speed: 5,
+      health: 8.75,
+      speed: 6,
       physicalAttack: 2,
       physicalDefense: 4,
       magicalAttack: 6,
@@ -376,7 +376,7 @@ const characterList: CharacterPreset[] = [
     affinity: "shadow",
     locomotion: "swimmer",
     stats: {
-      health: 7,
+      health: 6.75,
       speed: 8,
       physicalAttack: 7,
       physicalDefense: 3,
@@ -392,8 +392,8 @@ const characterList: CharacterPreset[] = [
     title: "Golem",
     affinity: "strength",
     stats: {
-      health: 16,
-      speed: 3,
+      health: 17,
+      speed: 4,
       physicalAttack: 7,
       physicalDefense: 9,
       magicalAttack: 1,
@@ -409,7 +409,7 @@ const characterList: CharacterPreset[] = [
     affinity: "magic",
     locomotion: "aquatic",
     stats: {
-      health: 8,
+      health: 6,
       speed: 6,
       physicalAttack: 5,
       physicalDefense: 4,
@@ -426,7 +426,7 @@ const characterList: CharacterPreset[] = [
     affinity: "strength",
     locomotion: "aquatic",
     stats: {
-      health: 11,
+      health: 7.25,
       speed: 6,
       physicalAttack: 8,
       physicalDefense: 5,
@@ -554,7 +554,7 @@ export function comboAction(
       if (damages)
         combo.effects.push({ type: "damage", kind: "magical", power: 5 })
       combo.effects = combo.effects.map((e) =>
-        e.type === "heal" ? { ...e, power: e.power + 5 } : e,
+        e.type === "heal" ? { ...e, power: e.power + 3 } : e,
       )
       if (!damages && !combo.effects.some((e) => e.type === "heal")) {
         combo.effects.push({ type: "damage", kind: "magical", power: 4 })
@@ -572,14 +572,15 @@ export function comboAction(
       combo.launch.max += combo.launch.max > 1 ? 2 : 1
       break
     case "faith":
-      combo.effects.push({ type: "selfHeal", power: 8 })
+      combo.effects.push({ type: "selfHeal", power: 5 })
       break
     case "shadow":
       combo.timeCost = Math.round(base.timeCost * 0.6 * 100) / 100
       break
   }
 
-  const named = NAMED_COMBOS[`${owner.id}:${partner.id}`]
+  const named =
+    NAMED_COMBOS[`${owner.kit ?? owner.id}:${partner.kit ?? partner.id}`]
   if (named) Object.assign(combo, named(base))
   return combo
 }

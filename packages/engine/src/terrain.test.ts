@@ -84,7 +84,7 @@ describe("height in combat", () => {
     const [eva] = combat.fighters
     const flat = combat.stepDelay(eva, { x: 1, y: 0 }, { x: 0, y: 0 })
     const climb = combat.stepDelay(eva, { x: 0, y: 0 }, { x: 1, y: 0 })
-    expect(flat).toBeCloseTo(combat.baseDelay(eva) * STEP_DELAY_RATIO)
+    expect(flat).toBeCloseTo(combat.baseStepDelay(eva) * STEP_DELAY_RATIO)
     expect(climb).toBeCloseTo(flat * 2)
   })
 

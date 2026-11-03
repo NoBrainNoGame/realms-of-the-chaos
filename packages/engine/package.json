@@ -8,6 +8,7 @@
   },
   "scripts": {
     "test": "bun test",
-    "typecheck": "tsc --noEmit -p ."
+    "typecheck": "tsc --noEmit -p .",
+    "balance": "bun scripts/balance.ts"
   }
 }

@@ -62,3 +62,36 @@ export function zoneCells(center: Point, spec: ZoneSpec): Point[] {
 
   return cells
 }
+
+/**
+ * Distance of `p` from `center` measured in the zone's shape, or null when
+ * `p` is not on the shape at all (e.g. off the cross of a line zone).
+ */
+export function zoneDistance(
+  center: Point,
+  p: Point,
+  shape: ZoneShape,
+): number | null {
+  const ax = Math.abs(p.x - center.x)
+  const ay = Math.abs(p.y - center.y)
+  switch (shape) {
+    case "point":
+      return ax === 0 && ay === 0 ? 0 : null
+    case "square":
+      return Math.max(ax, ay)
+    case "diamond":
+      return ax + ay
+    case "line":
+      return ax !== 0 && ay !== 0 ? null : ax + ay
+    case "diagonal":
+      return ax !== ay ? null : ax
+  }
+}
+
+/** Whether `p` belongs to the zone (same cells as zoneCells). */
+export function inZone(center: Point, p: Point, spec: ZoneSpec): boolean {
+  const distance = zoneDistance(center, p, spec.shape)
+  if (distance === null) return false
+  const max = spec.shape === "point" ? 0 : spec.max
+  return distance >= (spec.min ?? 0) && distance <= max
+}

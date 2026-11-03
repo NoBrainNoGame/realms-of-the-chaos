@@ -127,7 +127,7 @@ describe("timeline", () => {
   test("faster fighters get more turns", () => {
     const combat = setup([
       [["nyx", { x: 0, y: 0 }]], // speed 8
-      [["gorr", { x: 1, y: 0 }]], // speed 3
+      [["gorr", { x: 1, y: 0 }]], // speed 4
     ])
     const turns: Record<string, number> = {}
     for (let i = 0; i < 30 && combat.state !== "ended"; i++) {
@@ -137,7 +137,7 @@ describe("timeline", () => {
       const enemy = combat.fighters.find((f) => f !== active)!
       expect(combat.useAction("kick", enemy.position).ok).toBe(true)
     }
-    expect(turns.nyx).toBeGreaterThan(turns.gorr * 2)
+    expect(turns.nyx).toBeGreaterThan(turns.gorr * 1.6)
   })
 
   test("passing hands the turn over without skipping anyone", () => {
@@ -279,7 +279,7 @@ describe("movement", () => {
       combat.advance()
       times.push(combat.time)
     }
-    const ground = combat.baseDelay(eva) * 0.4
+    const ground = combat.baseStepDelay(eva) * 0.4
     // first step is immediate, then each step waits for the previous cell's cost
     expect(times[1] - times[0]).toBeCloseTo(ground * 2) // entered water
     expect(times[2] - times[1]).toBeCloseTo(ground * 2) // entered water again
@@ -368,7 +368,7 @@ describe("actions", () => {
     if (!result.ok) return
     const damage = ofType(result.events, "damaged")[0]
     expect(damage.fighterId).toBe(gorr.id)
-    expect(gorr.hp).toBe(combat.maxHp(gorr) - damage.amount)
+    expect(gorr.hp).toBe(combat.baseMaxHp(gorr) - damage.amount)
     expect(combat.activeFighter).toBeNull()
     expect(eva.nextActionAt).toBeCloseTo(start + combat.baseDelay(eva))
   })

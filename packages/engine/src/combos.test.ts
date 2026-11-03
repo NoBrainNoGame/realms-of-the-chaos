@@ -82,7 +82,7 @@ describe("combo definitions", () => {
     const blade = comboAction(CHARACTERS.nyx, CHARACTERS.merlin)
     expect(power(blade.effects, "magical")).toBe(5)
     const heal = comboAction(CHARACTERS.lyra, CHARACTERS.merlin)
-    expect(heal.effects).toContainEqual({ type: "heal", power: 15 })
+    expect(heal.effects).toContainEqual({ type: "heal", power: 11 })
   })
 
   test("strength hits 30% harder and pushes further, for the same cost", () => {
@@ -100,7 +100,7 @@ describe("combo definitions", () => {
 
   test("faith heals the launcher, shadow is faster", () => {
     expect(comboAction(CHARACTERS.eva, CHARACTERS.lyra).effects).toContainEqual(
-      { type: "selfHeal", power: 8 },
+      { type: "selfHeal", power: 5 },
     )
     expect(comboAction(CHARACTERS.brutus, CHARACTERS.nyx).timeCost).toBeCloseTo(
       ACTIONS.shieldBash.timeCost * 0.6,

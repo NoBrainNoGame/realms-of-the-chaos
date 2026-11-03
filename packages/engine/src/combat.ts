@@ -15,7 +15,7 @@ import {
   manhattan,
 } from "./geometry"
 import { createRng, type Rng } from "./random"
-import { POINT, zoneCells } from "./zones"
+import { POINT, inZone, zoneCells } from "./zones"
 import {
   ACTIONS,
   comboAction,
@@ -31,6 +31,7 @@ import { decide, decideDivine } from "./ai"
 import type {
   ActionDefinition,
   AffectFilter,
+  CharacterPreset,
   CommandResult,
   Controller,
   Effect,
@@ -44,8 +45,8 @@ import type {
 export interface TeamSetup {
   name?: string
   controller: Controller
-  /** Character preset ids. */
-  fighters: string[]
+  /** Character preset ids (or full presets, e.g. generated characters). */
+  fighters: (string | CharacterPreset)[]
   /**
    * Scales the fighters' stats (difficulty, arcade waves). Health, attack
    * and defense are multiplied, speed by the square root.
@@ -107,8 +108,18 @@ export const COLLISION_DAMAGE = 3
 export const FALL_DAMAGE = 5
 /** Levels raised or lowered by the earthquake divine power. */
 export const EARTHQUAKE_DELTA = 2
+/** Share of the damage taken that lowers max hit points for good. */
+export const EROSION = 0.15
+/** Hit points per point of the health stat. */
+export const HP_PER_HEALTH = 7
+/** Speed at which walking and acting have the same base time. */
+export const REFERENCE_SPEED = 5
 /** Timeline time for each team to gain 1 divine energy. */
-export const ENERGY_PERIOD = 12
+export const ENERGY_PERIOD = 25
+/** Energy rate bonus per fallen ally (+50 % each). */
+export const ENERGY_CATCH_UP = 0.5
+/** Energy a team gains instantly when one of its fighters falls. */
+export const DEATH_ENERGY = 1
 /** Delay multiplier while a swimmer treads deep water. */
 export const SWIM_FATIGUE = 1.5
 
@@ -132,6 +143,7 @@ export class Combat {
   private _winnerTeam: number | null = null
   private _events: FightEvent[] = []
   private _log: Command[] = []
+  private _presets = new Map<string, CharacterPreset>()
   private _regions = new Map<Locomotion, Set<string>>()
 
   constructor(options: CombatOptions) {
@@ -146,12 +158,15 @@ export class Combat {
       name: setup.name ?? `Équipe ${index + 1}`,
       controller: setup.controller,
       energy: 1,
+      energyProgress: 0,
     }))
 
     options.teams.forEach((setup, team) => {
-      setup.fighters.forEach((presetId, i) => {
-        const preset = CHARACTERS[presetId]
-        if (!preset) throw new Error(`Unknown character "${presetId}"`)
+      setup.fighters.forEach((entry, i) => {
+        const preset = typeof entry === "string" ? CHARACTERS[entry] : entry
+        if (!preset) throw new Error(`Unknown character "${entry}"`)
+        const presetId = preset.id
+        this._presets.set(presetId, preset)
 
         const duplicates = this.fighters.filter(
           (f) => f.presetId === presetId,
@@ -174,6 +189,7 @@ export class Combat {
           controller: setup.controller,
           locomotion: preset.locomotion ?? "walker",
           hp: 0,
+          erosion: 0,
           position,
           alive: true,
           nextActionAt: 0,
@@ -259,8 +275,19 @@ export class Combat {
     return this.fighters.filter((f) => f.alive && equals(f.position, p))
   }
 
+  /** Character sheet a fighter was created from. */
+  presetOf(fighter: Fighter): CharacterPreset {
+    return this._presets.get(fighter.presetId) ?? CHARACTERS[fighter.presetId]
+  }
+
+  /** Max hit points, reduced by erosion. */
   maxHp(fighter: Fighter) {
-    return Math.round(fighter.stats.health * 10)
+    return Math.max(1, this.baseMaxHp(fighter) - Math.floor(fighter.erosion))
+  }
+
+  /** Max hit points before erosion. */
+  baseMaxHp(fighter: Fighter) {
+    return Math.round(fighter.stats.health * HP_PER_HEALTH)
   }
 
   /** Base time unit of a fighter: faster fighters play more often. */
@@ -276,10 +303,18 @@ export class Combat {
     return statuses * (this.isSwimming(fighter) ? SWIM_FATIGUE : 1)
   }
 
+  /**
+   * Base time of a step. Walking depends less on speed than acting does
+   * (square root): slow fighters are not stuck far from the fight.
+   */
+  baseStepDelay(fighter: Fighter) {
+    return 100 / Math.sqrt(fighter.stats.speed * REFERENCE_SPEED)
+  }
+
   /** Time a step takes: slower in water and when climbing. */
   stepDelay(fighter: Fighter, from: Point, to: Point) {
     return (
-      this.baseDelay(fighter) *
+      this.baseStepDelay(fighter) *
       STEP_DELAY_RATIO *
       this.board.stepCost(from, to, fighter.locomotion) *
       this.delayMultiplier(fighter)
@@ -345,30 +380,29 @@ export class Combat {
     return Math.max(0, Math.min(MAX_HEIGHT_BONUS, diff))
   }
 
+  /** Whether `p` is in the action's launch zone from `origin` (with height). */
+  inLaunchZone(action: ActionDefinition, origin: Point, p: Point) {
+    if (!this.board.inBounds(p)) return false
+    const bonus = this.heightBonus(action, origin, p)
+    return inZone(origin, p, {
+      ...action.launch,
+      max: action.launch.max + bonus,
+    })
+  }
+
   /** Cells where the action can be aimed (launch zone, height, LOS). */
   getLaunchCells(
     fighter: Fighter,
     action: ActionDefinition,
     origin: Point = fighter.position,
   ): Point[] {
-    const zones = Array.from(
-      { length: MAX_HEIGHT_BONUS + 1 },
-      (_, bonus) =>
-        new Set(
-          zoneCells(origin, {
-            ...action.launch,
-            max: action.launch.max + bonus,
-          }).map(keyOf),
-        ),
-    )
     const widest = zoneCells(origin, {
       ...action.launch,
       max: action.launch.max + MAX_HEIGHT_BONUS,
     })
     return widest.filter(
       (p) =>
-        this.board.inBounds(p) &&
-        zones[this.heightBonus(action, origin, p)].has(keyOf(p)) &&
+        this.inLaunchZone(action, origin, p) &&
         (!action.lineOfSight || this.board.hasLineOfSight(origin, p)),
     )
   }
@@ -413,8 +447,27 @@ export class Combat {
     action: ActionDefinition,
     origin: Point = fighter.position,
   ): Point[] {
-    return this.getLaunchCells(fighter, action, origin).filter((p) =>
-      this.targetMatches(fighter, action, p, origin),
+    if (action.target === "emptyCell") {
+      return this.getLaunchCells(fighter, action, origin).filter((p) =>
+        this.targetMatches(fighter, action, p, origin),
+      )
+    }
+    // the target must hold a fighter (or be the origin): only test those
+    // cells, in the same row-major order as the launch zone
+    const seen = new Set<string>()
+    const candidates: Point[] = []
+    for (const p of [origin, ...this.aliveFighters.map((f) => f.position)]) {
+      const key = keyOf(p)
+      if (seen.has(key)) continue
+      seen.add(key)
+      candidates.push(p)
+    }
+    candidates.sort((a, b) => a.y - b.y || a.x - b.x)
+    return candidates.filter(
+      (p) =>
+        this.inLaunchZone(action, origin, p) &&
+        this.targetMatches(fighter, action, p, origin) &&
+        (!action.lineOfSight || this.board.hasLineOfSight(origin, p)),
     )
   }
 
@@ -443,9 +496,9 @@ export class Combat {
     target: Point,
   ): Fighter[] {
     const filter = this.affectFilter(action)
-    const cells = new Set(this.getAreaCells(action, target).map(keyOf))
+    const area = action.area ?? POINT
     return this.aliveFighters.filter((o) => {
-      if (!cells.has(keyOf(o.position))) return false
+      if (!inZone(target, o.position, area)) return false
       if (filter === "all") return true
       return filter === "enemies"
         ? this.isEnemy(fighter, o)
@@ -465,7 +518,7 @@ export class Combat {
       (o) => o !== fighter && !this.isEnemy(fighter, o),
     )
     const combos = partners.map((partner) =>
-      comboAction(CHARACTERS[fighter.presetId], CHARACTERS[partner.presetId]),
+      comboAction(this.presetOf(fighter), this.presetOf(partner)),
     )
     // two identical partners give the same combo once
     const unique = combos.filter(
@@ -816,20 +869,35 @@ export class Combat {
   }
 
   /**
-   * Move the clock forward. Divine energy flows with time: every team still
-   * in the fight gains 1 every ENERGY_PERIOD (it cannot be farmed by
-   * multiplying short turns).
+   * Move the clock forward. Divine energy flows with time (it cannot be
+   * farmed by multiplying short turns): every team still in the fight gains
+   * 1 every ENERGY_PERIOD, faster for each fallen ally (catch-up).
    */
   private _advanceTime(to: number) {
-    const from = this._time
-    this._time = Math.max(from, to)
-    const gained =
-      Math.floor(this._time / ENERGY_PERIOD) - Math.floor(from / ENERGY_PERIOD)
-    if (gained <= 0) return
-    const inFight = new Set(this.aliveFighters.map((f) => f.team))
+    const elapsed = Math.max(0, to - this._time)
+    this._time += elapsed
+    if (elapsed === 0) return
     for (const team of this.teams) {
-      if (inFight.has(team.index)) this._gainEnergy(team.index, gained)
+      const members = this.fighters.filter((f) => f.team === team.index)
+      const fallen = members.filter((f) => !f.alive).length
+      if (fallen === members.length) continue
+      if (team.energy >= MAX_ENERGY) {
+        team.energyProgress = 0
+        continue
+      }
+      team.energyProgress += elapsed * this.energyRate(team.index)
+      const gained = Math.floor(team.energyProgress)
+      if (gained > 0) {
+        team.energyProgress -= gained
+        this._gainEnergy(team.index, gained)
+      }
     }
+  }
+
+  /** Energy points a team gains per unit of timeline time. */
+  energyRate(team: number) {
+    const fallen = this.fighters.filter((f) => f.team === team && !f.alive)
+    return (1 + ENERGY_CATCH_UP * fallen.length) / ENERGY_PERIOD
   }
 
   /**
@@ -1046,6 +1114,9 @@ export class Combat {
     }
 
     target.hp = Math.max(0, target.hp - (amount - absorbed))
+    // erosion: part of every wound can never be healed (fights always end)
+    target.erosion += (amount - absorbed) * EROSION
+    target.hp = Math.min(target.hp, this.maxHp(target))
     this._emit({
       type: "damaged",
       fighterId: target.id,
@@ -1061,6 +1132,10 @@ export class Combat {
       target.destination = null
       target.statuses = []
       this._emit({ type: "died", fighterId: target.id })
+      // catch-up: the team that loses a fighter gets energy right away
+      if (this.aliveFighters.some((f) => f.team === target.team)) {
+        this._gainEnergy(target.team, DEATH_ENERGY)
+      }
       this._checkVictory()
     }
   }

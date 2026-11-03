@@ -119,7 +119,7 @@ describe("water in combat", () => {
     expect(combat.stepDelay(nerea, { x: 1, y: 2 }, { x: 2, y: 2 })).toBeCloseTo(
       land,
     )
-    expect(land).toBeCloseTo(combat.baseDelay(nerea) * STEP_DELAY_RATIO)
+    expect(land).toBeCloseTo(combat.baseStepDelay(nerea) * STEP_DELAY_RATIO)
     nerea.position = { x: 4, y: 2 }
     expect(combat.isSwimming(nerea)).toBe(false)
     expect(combat.delayMultiplier(nerea)).toBe(1)
@@ -131,7 +131,7 @@ describe("water in combat", () => {
       Board.fromAscii(LAKE),
     )
     const [eva] = combat.fighters
-    const land = combat.baseDelay(eva) * STEP_DELAY_RATIO
+    const land = combat.baseStepDelay(eva) * STEP_DELAY_RATIO
     expect(combat.stepDelay(eva, { x: 4, y: 2 }, { x: 3, y: 2 })).toBeCloseTo(
       land * MOVE_COST.swim * SWIM_FATIGUE,
     )

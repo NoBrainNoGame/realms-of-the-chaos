@@ -19,7 +19,7 @@ const STATUS_VALUE: Record<StatusId, (value: number, turns: number) => number> =
     poisoned: (value, turns) => -value * turns * 0.6,
     slowed: () => -6,
     hasted: () => 6,
-    shielded: (value) => value * 0.5,
+    shielded: (value) => value * 0.7,
     enraged: () => 7,
   }
 
@@ -67,9 +67,17 @@ export function scoreAction(
             effect.value ?? 0,
             effect.turns,
           )
-          // a shield is only worth it on a hurt ally
-          if (effect.status === "shielded" && o.hp > combat.maxHp(o) * 0.7)
-            value = 0
+          // a shield is worth it on a hurt or threatened ally
+          if (effect.status === "shielded") {
+            const threatened = combat.aliveFighters.some(
+              (e) =>
+                combat.isEnemy(o, e) &&
+                manhattan(e.position, o.position) <= BUFF_RANGE,
+            )
+            const hurt = o.hp < combat.maxHp(o) * 0.7
+            if (!hurt && !threatened) value = 0
+            else if (!hurt) value *= 0.8
+          }
           // offensive buffs are wasted far from the fight
           if (effect.status === "enraged" || effect.status === "hasted") {
             const position = o === fighter ? origin : o.position
