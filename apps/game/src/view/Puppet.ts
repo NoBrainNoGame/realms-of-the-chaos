@@ -897,7 +897,7 @@ function buildRig(style: Style, front: boolean): Rig {
 // ─── Golem ──────────────────────────────────────────────────────────────────
 
 const GOLEM_HIP = -12
-const GOLEM_SHOULDER = -38
+const GOLEM_SHOULDER = -30
 const GOLEM_HEAD_Y = -45
 
 /**
@@ -957,8 +957,8 @@ function buildGolemRig(s: GolemStyle, front: boolean): Rig {
   // the striking arm is on the gaze side, like a humanoid's weapon arm
   const strike = golemArm(front)
   const other = golemArm(!front)
-  strike.shoulder.position.set(15, GOLEM_SHOULDER)
-  other.shoulder.position.set(-15, GOLEM_SHOULDER)
+  strike.shoulder.position.set(12, GOLEM_SHOULDER)
+  other.shoulder.position.set(-12, GOLEM_SHOULDER)
   const behind = front ? strike.shoulder : other.shoulder
   const before = front ? other.shoulder : strike.shoulder
 
