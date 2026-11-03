@@ -23,6 +23,8 @@ function expectViewInSync(s: FightScene) {
   for (const fighter of s.combat.fighters) {
     const view = internals._views.get(fighter.id)
     expect(view.hp).toBe(fighter.hp)
+    // erosion is mirrored by the view (HP bar)
+    expect(view.maxHp).toBe(s.combat.maxHp(fighter))
     if (fighter.alive) {
       expect(internals._cells.get(fighter.id)).toEqual(fighter.position)
       expect(view.water).toBe(waterState(s.combat.board, fighter.position))

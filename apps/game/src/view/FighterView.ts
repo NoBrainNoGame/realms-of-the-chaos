@@ -2,7 +2,7 @@ import * as booyah from "@ghom/booyah"
 import { Container, Graphics } from "pixi.js"
 import { OutlineFilter } from "pixi-filters"
 
-import type { Fighter, StatusId } from "@realms/engine"
+import { EROSION, type Fighter, type StatusId } from "@realms/engine"
 import ViewChip from "./ViewChip"
 import { Puppet, type Facing, type PuppetAction } from "./Puppet"
 import { COLORS, PUPPET_SCALE, TEAM_COLORS } from "./theme"
@@ -49,12 +49,16 @@ export default class FighterView extends ViewChip {
   private _shadow!: Graphics
   private _water: WaterState = "dry"
 
+  private _erosion: number
+
   constructor(
     public readonly fighter: Fighter,
-    private readonly _maxHp: number,
+    /** Max hit points before erosion. */
+    private readonly _baseMaxHp: number,
   ) {
     super()
     this._hp = fighter.hp
+    this._erosion = fighter.erosion
   }
 
   get hp() {
@@ -62,8 +66,19 @@ export default class FighterView extends ViewChip {
   }
 
   set hp(value: number) {
-    this._hp = Math.max(0, Math.min(this._maxHp, value))
+    this._hp = Math.max(0, Math.min(this.maxHp, value))
     this._drawHp()
+  }
+
+  /** Max hit points shown, reduced by erosion (same rule as the engine). */
+  get maxHp() {
+    return Math.max(1, this._baseMaxHp - Math.floor(this._erosion))
+  }
+
+  /** Lose hit points; part of the wound erodes max hit points for good. */
+  wound(amount: number) {
+    this._erosion += amount * EROSION
+    this.hp = this._hp - amount
   }
 
   get puppet() {
@@ -290,15 +305,20 @@ export default class FighterView extends ViewChip {
 
   private _drawHp() {
     if (!this._hpBar) return
-    const ratio = this._hp / this._maxHp
-    this._hpBar
+    const ratio = this._hp / this._baseMaxHp
+    const eroded = 1 - this.maxHp / this._baseMaxHp
+    const health = this._hp / this.maxHp
+    const g = this._hpBar
       .clear()
       .rect(-1, -1, HP_WIDTH + 2, 6)
       .fill(0x000000)
       .rect(0, 0, HP_WIDTH, 4)
       .fill(COLORS.hpBack)
       .rect(0, 0, Math.ceil(HP_WIDTH * ratio), 4)
-      .fill(ratio > 0.5 ? COLORS.heal : ratio > 0.25 ? 0xfcc419 : COLORS.hp)
+      .fill(health > 0.5 ? COLORS.heal : health > 0.25 ? 0xfcc419 : COLORS.hp)
+    // erosion: the end of the bar that can never be healed back
+    const width = Math.round(HP_WIDTH * eroded)
+    if (width > 0) g.rect(HP_WIDTH - width, 0, width, 4).fill(COLORS.eroded)
   }
 
   private _drawStatuses() {

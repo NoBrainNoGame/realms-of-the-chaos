@@ -155,7 +155,7 @@ describe("fighters on the board", () => {
     })
     const fighter = combat.fighters[0]
     return {
-      view: mount(new FighterView(fighter, combat.maxHp(fighter))),
+      view: mount(new FighterView(fighter, combat.baseMaxHp(fighter))),
       fighter,
       combat,
     }

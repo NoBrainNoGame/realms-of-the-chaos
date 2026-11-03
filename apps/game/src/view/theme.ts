@@ -21,6 +21,8 @@ export const COLORS = {
   muted: 0x9d92b8,
   hp: 0xe03131,
   hpBack: 0x3a1420,
+  /** Max hit points lost for good (erosion). */
+  eroded: 0x6b6470,
   heal: 0x51cf66,
   energy: 0xb197fc,
   reachable: 0x4dabf7,

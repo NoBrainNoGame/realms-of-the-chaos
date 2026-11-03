@@ -172,7 +172,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
     this._world.addChild(this._entities, this._effects, this._hits)
 
     for (const fighter of this.combat.fighters) {
-      const view = new FighterView(fighter, this.combat.maxHp(fighter))
+      const view = new FighterView(fighter, this.combat.baseMaxHp(fighter))
       this._activateChildChip(view, { context: { container: this._entities } })
       this._views.set(fighter.id, view)
       this._cells.set(fighter.id, fighter.position)
@@ -402,7 +402,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
         const at = this._center(event.fighterId, -view.headHeight - 6)
         return new booyah.Sequence([
           new booyah.Lambda(() => {
-            view.hp -= event.amount
+            view.wound(event.amount)
             hitFx(this._fx, cell, event.critical)
             if (this._lastActive) this._refreshCard()
           }),
