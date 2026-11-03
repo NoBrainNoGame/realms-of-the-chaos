@@ -434,7 +434,10 @@ export default class Hud extends ViewChip<HudEvents> {
     hp.position.set(64, 48)
     lines.push(portrait, name, title, hp)
 
-    const s = fighter.stats
+    // stats may be scaled by difficulty: show them rounded
+    const s = Object.fromEntries(
+      Object.entries(fighter.stats).map(([k, v]) => [k, Math.round(v)]),
+    ) as typeof fighter.stats
     const stats = text(
       [
         `Vitesse ${s.speed}   Chance ${s.luck}`,

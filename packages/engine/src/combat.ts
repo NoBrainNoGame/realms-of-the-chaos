@@ -36,6 +36,7 @@ import type {
   Effect,
   Fighter,
   FightEvent,
+  Stats,
   StatusId,
   Team,
 } from "./types"
@@ -45,7 +46,26 @@ export interface TeamSetup {
   controller: Controller
   /** Character preset ids. */
   fighters: string[]
+  /**
+   * Scales the fighters' stats (difficulty, arcade waves). Health, attack
+   * and defense are multiplied, speed by the square root.
+   */
+  statMultiplier?: number
+  /** Starting hit points per fighter (defaults to full health). */
+  hp?: (number | undefined)[]
 }
+
+/** A serialized player command (online play, replays). */
+export type Command =
+  | { type: "moveTo"; fighterId: string; destination: Point }
+  | { type: "useAction"; fighterId: string; actionId: string; target: Point }
+  | { type: "pass"; fighterId: string }
+  | {
+      type: "useDivine"
+      fighterId: string
+      divineId: string
+      target: Point | null
+    }
 
 export interface CombatOptions {
   teams: TeamSetup[]
@@ -53,6 +73,24 @@ export interface CombatOptions {
   seed?: number
   /** Explicit start positions per team (otherwise random placement). */
   positions?: Point[][]
+}
+
+/**
+ * Stats scaled by a difficulty multiplier: health, attacks and defenses are
+ * multiplied, speed only by the square root (so turns don't become absurdly
+ * frequent), luck is unchanged.
+ */
+export function scaleStats(stats: Stats, multiplier: number): Stats {
+  if (multiplier === 1) return { ...stats }
+  return {
+    health: stats.health * multiplier,
+    speed: stats.speed * Math.sqrt(multiplier),
+    physicalAttack: stats.physicalAttack * multiplier,
+    physicalDefense: stats.physicalDefense * multiplier,
+    magicalAttack: stats.magicalAttack * multiplier,
+    magicalDefense: stats.magicalDefense * multiplier,
+    luck: stats.luck,
+  }
 }
 
 export type CombatState = "running" | "awaitingInput" | "ended"
@@ -91,6 +129,7 @@ export class Combat {
   private _activeFighter: Fighter | null = null
   private _winnerTeam: number | null = null
   private _events: FightEvent[] = []
+  private _log: Command[] = []
   private _regions = new Map<Locomotion, Set<string>>()
 
   constructor(options: CombatOptions) {
@@ -124,7 +163,7 @@ export class Combat {
           presetId,
           name: duplicates ? `${preset.name} ${duplicates + 1}` : preset.name,
           team,
-          stats: { ...preset.stats },
+          stats: scaleStats(preset.stats, setup.statMultiplier ?? 1),
           actions: preset.actions.map((id) => {
             const action = ACTIONS[id]
             if (!action) throw new Error(`Unknown action "${id}"`)
@@ -132,7 +171,7 @@ export class Combat {
           }),
           controller: setup.controller,
           locomotion: preset.locomotion ?? "walker",
-          hp: preset.stats.health * 10,
+          hp: 0,
           position,
           alive: true,
           nextActionAt: 0,
@@ -144,6 +183,20 @@ export class Combat {
         })
       })
     })
+
+    // starting hit points (full, or carried over between arcade waves)
+    let index = 0
+    for (const setup of options.teams) {
+      for (let i = 0; i < setup.fighters.length; i++) {
+        const fighter = this.fighters[index++]
+        const max = this.maxHp(fighter)
+        const start = setup.hp?.[i]
+        fighter.hp =
+          start === undefined
+            ? max
+            : Math.max(1, Math.min(max, Math.round(start)))
+      }
+    }
 
     for (const fighter of this.fighters) {
       fighter.nextActionAt =
@@ -205,7 +258,7 @@ export class Combat {
   }
 
   maxHp(fighter: Fighter) {
-    return fighter.stats.health * 10
+    return Math.round(fighter.stats.health * 10)
   }
 
   /** Base time unit of a fighter: faster fighters play more often. */
@@ -634,14 +687,29 @@ export class Combat {
   moveTo(destination: Point): CommandResult {
     const fighter = this._checkInput()
     if (typeof fighter === "string") return this._result(fighter)
-    return this._result(this._moveTo(fighter, destination) ?? undefined)
+    return this._logged(
+      {
+        type: "moveTo",
+        fighterId: fighter.id,
+        destination: { ...destination },
+      },
+      this._moveTo(fighter, destination),
+    )
   }
 
   /** Use an action. Ends the turn and adds its cost to the timeline. */
   useAction(actionId: string, target: Point): CommandResult {
     const fighter = this._checkInput()
     if (typeof fighter === "string") return this._result(fighter)
-    return this._result(this._useAction(fighter, actionId, target) ?? undefined)
+    return this._logged(
+      {
+        type: "useAction",
+        fighterId: fighter.id,
+        actionId,
+        target: { ...target },
+      },
+      this._useAction(fighter, actionId, target),
+    )
   }
 
   /** End the turn: plays again just after the next fighter. */
@@ -649,16 +717,75 @@ export class Combat {
     const fighter = this._checkInput()
     if (typeof fighter === "string") return this._result(fighter)
     this._pass(fighter)
-    return this._result()
+    return this._logged({ type: "pass", fighterId: fighter.id }, null)
   }
 
   /** Divine (player) action of the active fighter's team. Free. */
   useDivine(divineId: string, target: Point | null = null): CommandResult {
     const fighter = this._checkInput()
     if (typeof fighter === "string") return this._result(fighter)
-    return this._result(
-      this._useDivine(fighter.team, divineId, target) ?? undefined,
+    return this._logged(
+      {
+        type: "useDivine",
+        fighterId: fighter.id,
+        divineId,
+        target: target && { ...target },
+      },
+      this._useDivine(fighter.team, divineId, target),
     )
+  }
+
+  /**
+   * Run a serialized command (network, replays). It must come from the
+   * fighter whose turn it is.
+   */
+  execute(command: Command): CommandResult {
+    const active = this._activeFighter
+    if (
+      this._state === "awaitingInput" &&
+      active &&
+      active.id !== command.fighterId
+    ) {
+      return this._result("Ce n'est pas le tour de ce personnage")
+    }
+    switch (command.type) {
+      case "moveTo":
+        return this.moveTo(command.destination)
+      case "useAction":
+        return this.useAction(command.actionId, command.target)
+      case "pass":
+        return this.pass()
+      case "useDivine":
+        return this.useDivine(command.divineId, command.target)
+    }
+  }
+
+  /** Every accepted command, in order: enough to replay the fight. */
+  get log(): readonly Command[] {
+    return this._log
+  }
+
+  /**
+   * Rebuild a fight from its options and its command log. The engine is
+   * deterministic, so the result is identical to the original fight.
+   */
+  static replay(options: CombatOptions, commands: readonly Command[]): Combat {
+    const combat = new Combat(options)
+    for (const [index, command] of commands.entries()) {
+      combat.run()
+      const result = combat.execute(command)
+      if (!result.ok) {
+        throw new Error(`Replay failed at command ${index}: ${result.reason}`)
+      }
+    }
+    combat.run()
+    return combat
+  }
+
+  private _logged(command: Command, error: string | null): CommandResult {
+    if (error) return this._result(error)
+    this._log.push(command)
+    return this._result()
   }
 
   private _moveTo(fighter: Fighter, destination: Point): string | null {
