@@ -360,6 +360,12 @@ function arm(style: Style, hand: Hand, front: boolean, shade: boolean): Arm {
     .roundRect(-2.6, -1.8, 5.2, UPPER_ARM + 3, 2.4)
     .fill(sleeve)
     .stroke(LINE)
+  // armor: the pauldron belongs to the arm (it follows its depth)
+  if (style.body.kind === "armor") {
+    const plate = shade ? style.body.shade : style.body.color
+    upper.circle(0, 0.5, 4.6).fill(plate).stroke(LINE)
+    upper.ellipse(-1, -1, 2, 1.2).fill({ color: 0xffffff, alpha: 0.25 })
+  }
   const elbow = new Container()
   elbow.position.set(0, UPPER_ARM)
   const forearm = new Graphics()
@@ -576,8 +582,6 @@ function torso(style: Style, front: boolean) {
       if (belt) g.rect(-10, -18, 20, 3).fill(belt)
       if (trim)
         g.poly([-10, -13, 10, -13, 8, -8, -8, -8]).fill(trim).stroke(LINE)
-      g.circle(-8, -32, 4.5).fill(shade).stroke(LINE)
-      g.circle(8, -32, 4.5).fill(color).stroke(LINE)
       break
   }
 
@@ -822,8 +826,10 @@ function buildRig(style: Style, front: boolean): Rig {
 
   const weapon = arm(style, "weapon", front, front)
   const off = arm(style, "off", front, !front)
-  weapon.shoulder.position.set(8, SHOULDER)
-  off.shoulder.position.set(-8.5, SHOULDER)
+  // the arm behind the body sticks out of the torso, like a real arm seen
+  // from three quarters; the one in front overlaps it
+  weapon.shoulder.position.set(front ? 11 : 8, SHOULDER)
+  off.shoulder.position.set(front ? -8.5 : -11, SHOULDER)
   const behind = front ? weapon.shoulder : off.shoulder
   const before = front ? off.shoulder : weapon.shoulder
 
