@@ -289,6 +289,8 @@ interface Rig {
   /** Rest angle of each held item (0 = upright, + = tilted forward). */
   itemFar: number
   itemNear: number
+  /** Stance of the weapon arm added to every pose (a shield on guard). */
+  guard: { arm: number; elbow: number }
   torso: Container
   head: Container
   headBack: Container
@@ -352,8 +354,8 @@ interface Arm {
 type Hand = "weapon" | "off"
 
 function arm(style: Style, hand: Hand, front: boolean, shade: boolean): Arm {
-  const sleeve = shade ? darken(style.sleeves) : style.sleeves
-  const skin = shade ? darken(style.hands) : style.hands
+  const sleeve = shade ? darken(style.sleeves, 0.82) : style.sleeves
+  const skin = shade ? darken(style.hands, 0.82) : style.hands
 
   const shoulder = new Container()
   const upper = new Graphics()
@@ -453,9 +455,9 @@ function arm(style: Style, hand: Hand, front: boolean, shade: boolean): Arm {
          * from us: we see its wooden back, rim and strap, in perspective.
          */
         const wood = shade ? darken(0x7f4f24) : 0x7f4f24
-        strapped.ellipse(0, 0, 6, 8.5).fill(wood).stroke(LINE)
+        strapped.ellipse(0, 0, 5, 8).fill(wood).stroke(LINE)
         strapped
-          .ellipse(0, 0, 6, 8.5)
+          .ellipse(0, 0, 5, 8)
           .stroke({ width: 1.3, color: 0xadb5bd, alignment: 1 })
         for (const x of [-2, 2]) {
           strapped
@@ -463,8 +465,10 @@ function arm(style: Style, hand: Hand, front: boolean, shade: boolean): Arm {
             .lineTo(x, 7.5)
             .stroke({ width: 0.8, color: darken(wood), alpha: 0.8 })
         }
-        strapped.rect(-4, -1.5, 8, 3).fill(0x5c3a1a).stroke(LINE)
-        strapped.position.set(3.5, 4)
+        strapped.rect(-3.5, -1.5, 7, 3).fill(0x5c3a1a).stroke(LINE)
+        // held in front of the fist, upright (the guard raises the forearm)
+        strapped.position.set(1.5, FOREARM + 3)
+        strapped.rotation = 1.6
       } else {
         // back view: the shield arm faces us, so does the painted face
         strapped.circle(0, 0, 8.5).fill(0x1c7ed6).stroke({
@@ -828,7 +832,7 @@ function buildRig(style: Style, front: boolean): Rig {
   const off = arm(style, "off", front, !front)
   // the arm behind the body sticks out of the torso, like a real arm seen
   // from three quarters; the one in front overlaps it
-  weapon.shoulder.position.set(front ? 11 : 8, SHOULDER)
+  weapon.shoulder.position.set(front ? 12 : 8, SHOULDER)
   off.shoulder.position.set(front ? -8.5 : -11, SHOULDER)
   const behind = front ? weapon.shoulder : off.shoulder
   const before = front ? off.shoulder : weapon.shoulder
@@ -854,6 +858,12 @@ function buildRig(style: Style, front: boolean): Rig {
     gripNear: weapon.holds ? weapon.grip : null,
     itemFar: itemRest(style.weapon, "off"),
     itemNear: itemRest(style.weapon, "weapon"),
+    // a shield is held on guard, in front: the arm shows between the body
+    // and the shield instead of hanging hidden behind them
+    guard:
+      style.weapon === "swordShield"
+        ? { arm: -0.5, elbow: -1.1 }
+        : { arm: 0, elbow: 0 },
     torso: t,
     head: hd.container,
     headBack: hd.behind,
@@ -981,6 +991,7 @@ function buildGolemRig(s: GolemStyle, front: boolean): Rig {
     gripNear: null,
     itemFar: 0,
     itemNear: 0,
+    guard: { arm: 0, elbow: 0 },
     torso,
     head,
     headBack: new Container(),
@@ -1422,13 +1433,15 @@ export class Puppet extends Container {
     rig.legFar.rotation = pose.legFar
     rig.legNear.rotation = pose.legNear
     rig.armFar.rotation = pose.armFar
-    rig.armNear.rotation = pose.armNear
+    const armNear = pose.armNear + rig.guard.arm
+    const elbowNear = pose.elbowNear + rig.guard.elbow
+    rig.armNear.rotation = armNear
     rig.elbowFar.rotation = pose.elbowFar
-    rig.elbowNear.rotation = pose.elbowNear
+    rig.elbowNear.rotation = elbowNear
     // held items keep their own angle (upright), or point forward to thrust
     if (rig.gripNear) {
       const angle = rig.itemNear + (Math.PI / 2 - rig.itemNear) * pose.thrust
-      rig.gripNear.rotation = angle - pose.armNear - pose.elbowNear
+      rig.gripNear.rotation = angle - armNear - elbowNear
     }
     if (rig.gripFar) {
       rig.gripFar.rotation = rig.itemFar - pose.armFar - pose.elbowFar
