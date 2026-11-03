@@ -79,6 +79,7 @@ describe("URL parameters", () => {
       spectate: false,
       debug: false,
       gallery: false,
+      anim: null,
       speed: 1,
       playerTeam: DEFAULT_PLAYER_TEAM,
       enemyTeam: DEFAULT_ENEMY_TEAM,

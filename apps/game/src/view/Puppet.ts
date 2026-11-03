@@ -75,19 +75,26 @@ interface Style {
   }
   weapon: Weapon
   cape?: number
+  /** How the character looks in deep water (swimmers and aquatics). */
+  swim?: SwimKind
 }
 
-/** Stone golem (Gorr): hunched, long arms, mossy head, glowing eyes. */
+/**
+ * Deep water forms: a crawl stroke with the head out (swimmers), a mermaid
+ * floating upright with a tail (Néréa), only a dorsal fin (Squalor).
+ */
+type SwimKind = "crawl" | "mermaid" | "fin"
+
+/** Mineral golem (Gorr): smooth massive stone, long arms, glowing eyes. */
 interface GolemStyle {
   kind: "golem"
   scale: number
   stone: number
   stoneDark: number
   stoneLight: number
-  moss: number
-  mossDark: number
   eyes: number
   eyesLight: number
+  swim?: undefined
 }
 
 const SKIN = 0xf2c39b
@@ -137,6 +144,7 @@ export const STYLES: Record<string, Style | GolemStyle> = {
     head: { kind: "hood", color: 0x2f9e44, shade: 0x1e6b30, hair: 0xd9480f },
     weapon: "bow",
     cape: 0x1e6b30,
+    swim: "crawl",
   },
   brutus: {
     scale: 1.05,
@@ -199,6 +207,7 @@ export const STYLES: Record<string, Style | GolemStyle> = {
     head: { kind: "mask", color: 0x5f3dc4, shade: 0x3b2483, eyes: 0xff6b6b },
     weapon: "daggers",
     cape: 0x3b2483,
+    swim: "crawl",
   },
   nerea: {
     scale: 0.95,
@@ -223,6 +232,7 @@ export const STYLES: Record<string, Style | GolemStyle> = {
       hair: 0xc3fae8,
     },
     weapon: "trident",
+    swim: "mermaid",
   },
   squalor: {
     scale: 1.05,
@@ -247,6 +257,7 @@ export const STYLES: Record<string, Style | GolemStyle> = {
       eyes: 0xffd43b,
     },
     weapon: "claws",
+    swim: "fin",
   },
   gorr: {
     kind: "golem",
@@ -255,8 +266,6 @@ export const STYLES: Record<string, Style | GolemStyle> = {
     stone: 0x868e96,
     stoneDark: 0x5c636a,
     stoneLight: 0xadb5bd,
-    moss: 0x82c91e,
-    mossDark: 0x5c940d,
     eyes: 0x3bc9db,
     eyesLight: 0x99e9f2,
   },
@@ -269,8 +278,17 @@ interface Rig {
   body: Container
   legFar: Container
   legNear: Container
+  /** Shoulder of the off hand, and of the weapon arm (it strikes). */
   armFar: Container
   armNear: Container
+  elbowFar: Container
+  elbowNear: Container
+  /** Grips that hold an item keep its own angle (null: rigid hand). */
+  gripFar: Container | null
+  gripNear: Container | null
+  /** Rest angle of each held item (0 = upright, + = tilted forward). */
+  itemFar: number
+  itemNear: number
   torso: Container
   head: Container
   headBack: Container
@@ -309,134 +327,176 @@ function leg(style: Style, shade: boolean) {
   return c
 }
 
-/**
- * An arm. `far` is the off hand (sword of a sword and shield, nothing for
- * the others); `shade` darkens it when it is on the side away from the
- * viewer.
- */
-function arm(style: Style, far: boolean, front: boolean, shade = far) {
-  const c = new Container()
-  const g = new Graphics()
-  const sleeve = shade ? darken(style.sleeves) : style.sleeves
-  const hand = shade ? darken(style.hands) : style.hands
-  g.roundRect(-2.5, -1, 5, 12, 2.2).fill(sleeve).stroke(LINE)
-  g.circle(0, 13, 2.7).fill(hand).stroke(LINE)
+// ─── Arms ───────────────────────────────────────────────────────────────────
 
-  const glows: Sprite[] = []
+/** Upper arm and forearm lengths (shoulder → elbow → wrist). */
+const UPPER_ARM = 7.5
+const FOREARM = 7
+
+/**
+ * An articulated arm: shoulder → upper arm → elbow → forearm → hand. A held
+ * item hangs from the `grip` (in the hand), with its own angle: the puppet
+ * keeps it upright (a staff, a bow) or points it (a thrust) whatever the
+ * arm does. "Up" in the grip is the item's natural direction (-y).
+ */
+interface Arm {
+  shoulder: Container
+  elbow: Container
+  grip: Container
+  glows: Sprite[]
+  /** Whether the grip holds an item that keeps its own angle. */
+  holds: boolean
+}
+
+/** What a hand holds: the weapon arm, or the off hand. */
+type Hand = "weapon" | "off"
+
+function arm(style: Style, hand: Hand, front: boolean, shade: boolean): Arm {
+  const sleeve = shade ? darken(style.sleeves) : style.sleeves
+  const skin = shade ? darken(style.hands) : style.hands
+
+  const shoulder = new Container()
+  const upper = new Graphics()
+    .roundRect(-2.6, -1.8, 5.2, UPPER_ARM + 3, 2.4)
+    .fill(sleeve)
+    .stroke(LINE)
+  const elbow = new Container()
+  elbow.position.set(0, UPPER_ARM)
+  const forearm = new Graphics()
+    .roundRect(-2.3, -1.6, 4.6, FOREARM + 1.8, 2.2)
+    .fill(sleeve)
+    .stroke(LINE)
+  const grip = new Container()
+  grip.position.set(0, FOREARM)
+  const fist = new Graphics().circle(0, 0, 2.7).fill(skin).stroke(LINE)
+
   const item = new Graphics()
+  /** Strapped to the forearm (a shield), drawn over it. */
+  const strapped = new Graphics()
+  const glows: Sprite[] = []
+  let holds = false
 
   switch (style.weapon) {
     case "staff":
     case "crystalStaff":
-      if (!far) {
-        item.roundRect(-1.2, -34, 2.6, 56, 1).fill(0x8d5a2b).stroke(LINE)
-        if (style.weapon === "staff") {
-          item.circle(0, -37, 4.2).fill(0x74c0fc).stroke(LINE)
-          item.circle(-1.2, -38.2, 1.4).fill(0xffffff)
-          glows.push(glow(0x74c0fc, 12, 0, -37))
-        } else {
-          item
-            .poly([0, -44, 4, -37, 0, -30, -4, -37])
-            .fill(0x69db7c)
-            .stroke(LINE)
-          item
-            .poly([0, -44, 1.5, -37, 0, -32])
-            .fill({ color: 0xffffff, alpha: 0.5 })
-          glows.push(glow(0x69db7c, 12, 0, -37))
-        }
-        // front view: the arm is behind the robe, hold the staff beside it
-        item.position.set(front ? 5 : 0.5, 13)
+      if (hand !== "weapon") break
+      holds = true
+      // held a third of the way down: the shaft goes through the fist
+      item.roundRect(-1.3, -34, 2.6, 52, 1).fill(0x8d5a2b).stroke(LINE)
+      if (style.weapon === "staff") {
+        item.circle(0, -37, 4.2).fill(0x74c0fc).stroke(LINE)
+        item.circle(-1.2, -38.2, 1.4).fill(0xffffff)
+        glows.push(glow(0x74c0fc, 12, 0, -37))
+      } else {
+        item.poly([0, -45, 4, -38, 0, -31, -4, -38]).fill(0x69db7c).stroke(LINE)
+        item
+          .poly([0, -45, 1.5, -38, 0, -33])
+          .fill({ color: 0xffffff, alpha: 0.5 })
+        glows.push(glow(0x69db7c, 12, 0, -38))
       }
       break
-    case "bow":
-      if (!far) {
+
+    case "trident":
+      if (hand !== "weapon") break
+      holds = true
+      item.roundRect(-1.1, -36, 2.3, 54, 1).fill(0xfab005).stroke(LINE)
+      item.poly([-6, -38, 6, -38, 6, -36, -6, -36]).fill(0xfcc419).stroke(LINE)
+      for (const x of [-5, 0, 5]) {
         item
-          .moveTo(2, -10)
-          .quadraticCurveTo(13, 5, 2, 21)
-          .stroke({ width: 3.2, color: OUTLINE })
-        item
-          .moveTo(2, -10)
-          .quadraticCurveTo(13, 5, 2, 21)
-          .stroke({ width: 1.8, color: 0xc08a4a })
-        item
-          .moveTo(2, -10)
-          .lineTo(2, 21)
-          .stroke({ width: 0.8, color: 0xe9ecef })
-        item.position.set(1, 8)
-      }
-      break
-    case "swordShield":
-      if (far) {
-        item
-          .poly([-1.6, 0, 1.6, 0, 1.6, -20, 0, -23, -1.6, -20])
-          .fill(0xe9ecef)
+          .poly([x - 1.2, -37, x + 1.2, -37, x, -45])
+          .fill(0xfcc419)
           .stroke(LINE)
-        item.rect(-4.5, 0, 9, 2.2).fill(0xfab005).stroke(LINE)
-        item.roundRect(-1.2, 2, 2.4, 5, 1).fill(0x7f4f24).stroke(LINE)
-        item.position.set(0, 11)
+      }
+      glows.push(glow(0x66d9e8, 8, 0, -40))
+      break
+
+    case "bow":
+      if (hand !== "weapon") break
+      holds = true
+      // gripped in the middle; the limbs curve back towards the archer
+      item
+        .moveTo(-4, -16)
+        .quadraticCurveTo(7, 0, -4, 16)
+        .stroke({ width: 3.4, color: OUTLINE })
+      item
+        .moveTo(-4, -16)
+        .quadraticCurveTo(7, 0, -4, 16)
+        .stroke({ width: 2, color: 0xc08a4a })
+      item
+        .moveTo(-4, -16)
+        .lineTo(-4, 16)
+        .stroke({ width: 0.8, color: 0xe9ecef })
+      break
+
+    case "swordShield":
+      if (hand === "off") {
+        holds = true
+        // hilt in the fist, blade above it
+        item.roundRect(-1.1, -1, 2.2, 6, 1).fill(0x7f4f24).stroke(LINE)
+        item.circle(0, 5.5, 1.6).fill(0xfab005).stroke(LINE)
+        item.rect(-4.5, -3.2, 9, 2.2).fill(0xfab005).stroke(LINE)
+        item
+          .poly([-1.7, -3.2, 1.7, -3.2, 1.7, -22, 0, -25, -1.7, -22])
+          .fill(shade ? 0xced4da : 0xf1f3f5)
+          .stroke(LINE)
+        item.rect(-0.3, -21, 0.6, 17).fill({ color: 0x868e96, alpha: 0.6 })
       } else if (front) {
-        item
-          .circle(0, 0, 8.5)
-          .fill(0x1c7ed6)
-          .stroke({ width: 1.6, color: OUTLINE })
-        item
+        strapped.circle(0, 0, 8.5).fill(0x1c7ed6).stroke({
+          width: 1.6,
+          color: OUTLINE,
+        })
+        strapped
           .circle(0, 0, 8.5)
           .stroke({ width: 1.5, color: 0xfab005, alignment: 1 })
-        item.circle(0, 0, 2.5).fill(0xfab005).stroke(LINE)
-        item.circle(-3, -3, 2).fill({ color: 0xffffff, alpha: 0.25 })
-        item.position.set(3, 13)
+        strapped.circle(0, 0, 2.5).fill(0xfab005).stroke(LINE)
+        strapped.circle(-3, -3, 2).fill({ color: 0xffffff, alpha: 0.25 })
+        strapped.position.set(3.5, 4)
       } else {
-        // seen from the back: the wooden back of the shield sticks out
-        item
+        // seen from the back: the wooden back of the shield
+        strapped
           .ellipse(0, 0, 4.5, 8.5)
           .fill(0x7f4f24)
           .stroke({ width: 1.6, color: OUTLINE })
-        item.rect(-1, -6, 2, 12).fill(0x5c3a1a)
-        item.position.set(6, 12)
+        strapped.rect(-1, -6, 2, 12).fill(0x5c3a1a)
+        strapped.position.set(4, 4)
       }
       break
+
     case "daggers":
+      holds = true
+      item.roundRect(-1, -1, 2, 4.5, 0.8).fill(0x343a40).stroke(LINE)
       item
-        .poly([0, 0, 9, -5, 10, -3, 1, 2])
+        .poly([-1.5, -1, 1.5, -1, 0.6, -10, 0, -12, -0.6, -10])
         .fill(shade ? 0xadb5bd : 0xe9ecef)
         .stroke(LINE)
-      item.position.set(1, 13)
       break
-    case "trident":
-      if (!far) {
-        item.roundRect(-1.1, -36, 2.4, 58, 1).fill(0xfab005).stroke(LINE)
-        // three prongs
-        item
-          .poly([-6, -38, 6, -38, 6, -36, -6, -36])
-          .fill(0xfcc419)
-          .stroke(LINE)
-        for (const x of [-5, 0, 5]) {
-          item
-            .poly([x - 1.2, -37, x + 1.2, -37, x, -45])
-            .fill(0xfcc419)
-            .stroke(LINE)
-        }
-        glows.push(glow(0x66d9e8, 8, 0, -40))
-        item.position.set(front ? 5 : 0.5, 13)
-      }
-      break
+
     case "claws":
+      // the claws are part of the hand
       for (const dx of [-2, 0, 2]) {
-        item
-          .poly([dx - 0.7, 14, dx + 0.7, 14, dx + 1.5, 18.5])
+        fist
+          .poly([dx - 0.7, 1.5, dx + 0.7, 1.5, dx + 1.5, 6])
           .fill(0xf8f9fa)
           .stroke({ width: 0.8, color: OUTLINE })
       }
       break
   }
 
-  // glows belong to the held item (the staff's orb), not to the arm
-  const held = new Container()
-  held.position.copyFrom(item.position)
-  item.position.set(0, 0)
-  held.addChild(item, ...glows)
-  c.addChild(g, held)
-  return { container: c, glows }
+  // the fist closes over what it holds
+  grip.addChild(item, ...glows, fist)
+  elbow.addChild(forearm, grip, strapped)
+  shoulder.addChild(upper, elbow)
+  return { shoulder, elbow, grip, glows, holds }
+}
+
+/**
+ * Natural angle of a held item, relative to the body (0 = straight up,
+ * positive = tilted forward). The pose can then point it forward (thrust).
+ */
+function itemRest(weapon: Weapon, hand: Hand) {
+  if (weapon === "daggers") return 1.15
+  if (weapon === "swordShield" && hand === "off") return 2.4
+  return 0
 }
 
 function torso(style: Style, front: boolean) {
@@ -736,51 +796,31 @@ function buildRig(style: Style, front: boolean): Rig {
   root.addChild(body)
 
   /*
-   * Which side is closer to the viewer. Facing SE (front view, looking to
-   * the right), the character's left flank faces us: the screen-left limbs
-   * are in front and the right ones (towards the gaze) behind the body.
+   * Which side faces the viewer. Facing SE (front view, looking to the
+   * right), the character shows its left flank: the screen-left limbs are
+   * near, the gaze-side ones (+x) far, behind everything (legs included).
    * Facing NE (back view), it is the other way round. The weapon arm stays
-   * on the gaze side ("near" in poses: it is the one that strikes), so in
-   * the front view it is held a little behind the body, like an archer's
-   * bow arm or a shield arm stretched towards the target.
+   * on the gaze side: in the front view it is held behind the body, like an
+   * archer's bow arm or a shield arm stretched towards the target.
    */
   const legFar = leg(style, true)
   const legNear = leg(style, false)
   legFar.position.set(front ? 3.5 : -3.5, HIP)
   legNear.position.set(front ? -3 : 3, HIP)
 
-  // `far`: the off hand, on the screen-left; `near`: the weapon arm
-  const far = arm(style, true, front, !front)
-  const near = arm(style, false, front, front)
-  far.container.position.set(-8.5, SHOULDER)
-  near.container.position.set(8, SHOULDER)
+  const weapon = arm(style, "weapon", front, front)
+  const off = arm(style, "off", front, !front)
+  weapon.shoulder.position.set(8, SHOULDER)
+  off.shoulder.position.set(-8.5, SHOULDER)
+  const behind = front ? weapon.shoulder : off.shoulder
+  const before = front ? off.shoulder : weapon.shoulder
 
   const t = torso(style, front)
   const hd = head(style, front)
   hd.container.position.set(1, HEAD_Y)
   hd.behind.position.copyFrom(hd.container.position)
 
-  if (front)
-    // front view: the weapon arm (gaze side) behind, the off hand in front
-    body.addChild(
-      legFar,
-      legNear,
-      near.container,
-      hd.behind,
-      t,
-      hd.container,
-      far.container,
-    )
-  else
-    // back view: the off hand behind, the weapon arm in front
-    body.addChild(
-      far.container,
-      legFar,
-      legNear,
-      t,
-      hd.container,
-      near.container,
-    )
+  body.addChild(behind, legFar, legNear, hd.behind, t, hd.container, before)
 
   root.scale.set(style.scale)
   return {
@@ -788,12 +828,18 @@ function buildRig(style: Style, front: boolean): Rig {
     body,
     legFar,
     legNear,
-    armFar: far.container,
-    armNear: near.container,
+    armFar: off.shoulder,
+    armNear: weapon.shoulder,
+    elbowFar: off.elbow,
+    elbowNear: weapon.elbow,
+    gripFar: off.holds ? off.grip : null,
+    gripNear: weapon.holds ? weapon.grip : null,
+    itemFar: itemRest(style.weapon, "off"),
+    itemNear: itemRest(style.weapon, "weapon"),
     torso: t,
     head: hd.container,
     headBack: hd.behind,
-    glows: [...far.glows, ...near.glows, ...hd.glows],
+    glows: [...off.glows, ...weapon.glows, ...hd.glows],
     hip: HIP,
     headY: HEAD_Y,
     armSwing: 1,
@@ -803,132 +849,105 @@ function buildRig(style: Style, front: boolean): Rig {
 // ─── Golem ──────────────────────────────────────────────────────────────────
 
 const GOLEM_HIP = -12
-const GOLEM_SHOULDER = -37
-const GOLEM_HEAD_Y = -44
+const GOLEM_SHOULDER = -38
+const GOLEM_HEAD_Y = -45
 
+/**
+ * Gorr, a mineral organism: smooth massive stone, a head sunk between the
+ * shoulders, long two-part arms ending in round fists, glowing eyes and a
+ * faint crystal core. Simple shapes, easy to read and to draw.
+ */
 function buildGolemRig(s: GolemStyle, front: boolean): Rig {
   const root = new Container()
   const body = new Container()
   root.addChild(body)
   const glows: Sprite[] = []
 
-  // short, stubby legs
   const golemLeg = (dark: boolean) => {
     const c = new Container()
-    const g = new Graphics()
-    g.roundRect(-4.5, -1, 9, 10, 3)
-      .fill(dark ? s.stoneDark : s.stone)
-      .stroke(LINE)
-    g.roundRect(-5.5, 7, 12, 6, 2.5)
-      .fill(dark ? darken(s.stoneDark) : s.stoneDark)
-      .stroke(LINE)
-    c.addChild(g)
+    const color = dark ? s.stoneDark : s.stone
+    c.addChild(
+      new Graphics()
+        .roundRect(-5.5, -2, 11, 11, 5)
+        .fill(color)
+        .stroke(LINE)
+        .roundRect(-6.5, 7, 14, 6.5, 3.2)
+        .fill(dark ? darken(s.stoneDark) : s.stoneDark)
+        .stroke(LINE),
+    )
     return c
   }
   const legFar = golemLeg(true)
   const legNear = golemLeg(false)
-  // same sides as the humanoids: facing SE, the gaze side is the far one
-  legFar.position.set(front ? 6 : -7, GOLEM_HIP)
-  legNear.position.set(front ? -7 : 6, GOLEM_HIP)
+  legFar.position.set(front ? 6.5 : -6.5, GOLEM_HIP)
+  legNear.position.set(front ? -6.5 : 6.5, GOLEM_HIP)
 
-  // long arms reaching the ground, huge fists
   const golemArm = (dark: boolean) => {
-    const c = new Container()
-    const g = new Graphics()
-    const main = dark ? s.stoneDark : s.stone
-    g.roundRect(-5, -2, 10, 17, 4).fill(main).stroke(LINE)
-    g.roundRect(-5.5, 13, 11, 13, 4)
-      .fill(dark ? darken(s.stoneDark) : s.stoneDark)
+    const color = dark ? s.stoneDark : s.stone
+    const shoulder = new Container()
+    const elbow = new Container()
+    elbow.position.set(0, 12)
+    const upper = new Graphics()
+      .roundRect(-5.5, -4, 11, 18, 5.5)
+      .fill(color)
       .stroke(LINE)
-    g.circle(0, 29, 7).fill(main).stroke(LINE)
-    g.moveTo(-3, 26)
-      .lineTo(-3, 31)
-      .stroke({ width: 1, color: OUTLINE, alpha: 0.5 })
-    g.moveTo(1, 26)
-      .lineTo(1, 32)
-      .stroke({ width: 1, color: OUTLINE, alpha: 0.5 })
+    const forearm = new Graphics()
+      .roundRect(-6, -2, 12, 14, 6)
+      .fill(color)
+      .stroke(LINE)
+      .circle(0, 14, 7.5)
+      .fill(color)
+      .stroke(LINE)
     if (!dark) {
-      g.ellipse(-1.5, 4, 2.5, 4).fill({ color: s.stoneLight, alpha: 0.7 })
-      g.ellipse(-2.5, 27, 2, 1.5).fill({ color: 0xffffff, alpha: 0.18 })
+      upper.ellipse(-2, 2, 2.2, 4).fill({ color: s.stoneLight, alpha: 0.7 })
+      forearm.ellipse(-3, 11.5, 2.4, 1.8).fill({ color: 0xffffff, alpha: 0.2 })
     }
-    c.addChild(g)
-    return c
+    elbow.addChild(forearm)
+    shoulder.addChild(upper, elbow)
+    return { shoulder, elbow }
   }
-  const armFar = golemArm(true)
-  const armNear = golemArm(false)
-  armFar.position.set(front ? 15 : -15, GOLEM_SHOULDER)
-  armNear.position.set(front ? -15 : 15, GOLEM_SHOULDER)
+  // the striking arm is on the gaze side, like a humanoid's weapon arm
+  const strike = golemArm(front)
+  const other = golemArm(!front)
+  strike.shoulder.position.set(15, GOLEM_SHOULDER)
+  other.shoulder.position.set(-15, GOLEM_SHOULDER)
+  const behind = front ? strike.shoulder : other.shoulder
+  const before = front ? other.shoulder : strike.shoulder
 
-  // wide boulder torso with light stone plates, moss and cracks
+  // a smooth boulder, shaded on the left, lit on the right
   const torso = new Container()
   const t = new Graphics()
-  t.poly([-16, -42, 14, -44, 19, -27, 13, -11, -12, -11, -18, -25])
-    .fill(s.stone)
-    .stroke(LINE)
-  t.poly([-16, -42, -6, -43, -8, -11, -12, -11, -18, -25]).fill(s.stoneDark)
-  t.ellipse(5, -33, 6, 4).fill(s.stoneLight)
-  t.ellipse(-3, -19, 4.5, 3).fill(s.stoneLight)
-  t.moveTo(9, -24)
-    .lineTo(5, -19)
-    .lineTo(7, -14)
-    .stroke({ width: 1, color: OUTLINE, alpha: 0.55 })
-  t.moveTo(-10, -36)
-    .lineTo(-6, -30)
-    .stroke({ width: 1, color: OUTLINE, alpha: 0.55 })
+  t.roundRect(-18, -48, 36, 39, 15).fill(s.stone).stroke(LINE)
+  t.roundRect(-18, -48, 13, 39, 13).fill(s.stoneDark)
+  t.roundRect(-18, -48, 36, 39, 15).stroke(LINE)
+  t.ellipse(6, -40, 8, 3.5).fill({ color: s.stoneLight, alpha: 0.7 })
   if (front) {
-    // mossy belly
-    t.ellipse(4, -17, 5, 2.4).fill(s.mossDark)
-    t.ellipse(5, -18, 3, 1.4).fill(s.moss)
+    // faint crystal core
+    t.poly([2, -33, 6, -28, 2, -23, -2, -28]).fill(s.eyesLight).stroke(LINE)
   } else {
-    // mossy back and a ridge of stones
-    t.poly([-14, -42, 12, -43, 10, -36, -12, -35]).fill(s.mossDark)
-    for (const [x, y] of [
-      [-6, -38],
-      [0, -31],
-      [5, -24],
-    ]) {
-      t.circle(x, y, 3.2).fill(s.stoneLight).stroke(LINE)
-    }
+    // smooth back ridge
+    t.ellipse(0, -30, 4, 12).fill({ color: s.stoneDark, alpha: 0.5 })
   }
-  // shoulder boulders
-  t.circle(-14, -38, 7.5).fill(s.stoneDark).stroke(LINE)
-  t.circle(13, -39, 7.5).fill(s.stone).stroke(LINE)
-  t.ellipse(12, -44, 6, 2.6).fill(s.moss)
   torso.addChild(t)
 
-  // block head sunk between the shoulders, moss cap, glowing eyes
+  // the head sits low between the shoulders
   const head = new Container()
   const h = new Graphics()
-  h.poly([-9, -5, -2, -10, 8, -9, 11, -2, 9, 7, -6, 8, -10, 1])
-    .fill(s.stone)
-    .stroke(LINE)
-  h.poly([-9, -5, -4, -9, -5, 8, -6, 8, -10, 1]).fill(s.stoneDark)
-  // moss cap with stripes, like the icon
-  h.poly([-10, -3, -3, -11, 9, -10, 12, -3, 8, -5, 3, -4, -2, -6, -6, -3])
-    .fill(s.moss)
-    .stroke(LINE)
-  for (const x of [-5, 0, 5]) {
-    h.moveTo(x, -9)
-      .lineTo(x + 1, -4)
-      .stroke({ width: 1.6, color: s.mossDark })
-  }
+  h.ellipse(0, 0, 10, 8.5).fill(s.stone).stroke(LINE)
+  h.ellipse(-5, 0.5, 5, 7.5).fill(s.stoneDark)
+  h.ellipse(0, 0, 10, 8.5).stroke(LINE)
+  h.ellipse(3, -5, 4, 1.6).fill({ color: s.stoneLight, alpha: 0.7 })
   if (front) {
-    h.roundRect(1.5, -1.5, 3.4, 2.6, 0.8).fill(s.eyes)
-    h.roundRect(6.4, -1.5, 3.4, 2.6, 0.8).fill(s.eyes)
-    h.rect(2.3, -1, 1.4, 1.2).fill(s.eyesLight)
-    h.rect(7.2, -1, 1.4, 1.2).fill(s.eyesLight)
-    h.moveTo(2, 4)
-      .lineTo(9, 3.5)
-      .stroke({ width: 1.2, color: OUTLINE, alpha: 0.6 })
-    glows.push(glow(s.eyes, 6, 3.2, -0.3), glow(s.eyes, 6, 8.1, -0.3))
-  } else {
-    h.poly([-8, -4, 10, -5, 9, 2, -7, 3]).fill(s.mossDark)
+    h.roundRect(1, -1.5, 3.4, 2.6, 1.2).fill(s.eyes)
+    h.roundRect(5.8, -1.5, 3.4, 2.6, 1.2).fill(s.eyes)
+    h.rect(1.8, -1, 1.2, 1).fill(s.eyesLight)
+    h.rect(6.6, -1, 1.2, 1).fill(s.eyesLight)
+    glows.push(glow(s.eyes, 6, 2.7, -0.2), glow(s.eyes, 6, 7.5, -0.2))
   }
   head.addChild(h, ...glows)
   head.position.set(3, GOLEM_HEAD_Y)
 
-  // the shaded (far) limbs behind the body, the light (near) ones in front
-  body.addChild(legFar, legNear, armFar, torso, head, armNear)
+  body.addChild(behind, legFar, legNear, torso, head, before)
 
   root.scale.set(s.scale)
   return {
@@ -936,8 +955,14 @@ function buildGolemRig(s: GolemStyle, front: boolean): Rig {
     body,
     legFar,
     legNear,
-    armFar,
-    armNear,
+    armFar: other.shoulder,
+    armNear: strike.shoulder,
+    elbowFar: other.elbow,
+    elbowNear: strike.elbow,
+    gripFar: null,
+    gripNear: null,
+    itemFar: 0,
+    itemNear: 0,
     torso,
     head,
     headBack: new Container(),
@@ -948,13 +973,152 @@ function buildGolemRig(s: GolemStyle, front: boolean): Rig {
   }
 }
 
+// ─── Deep water forms ───────────────────────────────────────────────────────
+
+/** How deep an upright swimmer floats (local pixels): chest out of water. */
+const SWIM_SINK = 27
+
+interface SwimForm {
+  root: Container
+  /** Floats upright (the normal rig, sunk to the chest, is shown too). */
+  upright: boolean
+  update(time: number, moving: boolean): void
+}
+
+/**
+ * What a swimmer looks like in deep water, drawn around the surface (y = 0,
+ * positive y under water, faded): Squalor is only a dorsal fin, the
+ * swimmers crawl with their head out, Néréa floats with her tail.
+ */
+function buildSwimForm(style: Style, front: boolean): SwimForm | null {
+  const root = new Container()
+  const under = (color: number) => ({ color, alpha: 0.32 })
+
+  switch (style.swim) {
+    case "fin": {
+      const body = new Graphics()
+        .ellipse(-5, 7, 22, 6)
+        .fill(under(style.body.shade))
+        .poly([-25, 7, -33, 1, -32, 13])
+        .fill(under(style.body.shade))
+      const fin = new Graphics()
+        .poly([-7, 1, 7, 1, 3, -4, -3, -17])
+        .fill(style.skin)
+        .stroke(LINE)
+        .poly([-7, 1, -2, 1, -3, -17])
+        .fill(style.skinShade)
+      const wake = new Graphics()
+      root.addChild(body, wake, fin)
+      return {
+        root,
+        upright: false,
+        update(time, moving) {
+          fin.y = Math.sin(time / 260) * 1.2
+          fin.x = Math.sin(time / 700) * 1.5
+          wake.clear()
+          const length = moving ? 3 : 1
+          for (let i = 0; i < length; i++) {
+            const x = -10 - i * 7 + ((time / 40) % 7)
+            wake
+              .moveTo(x, -1)
+              .quadraticCurveTo(x - 3, 1, x - 6, 0.5)
+              .stroke({ width: 1, color: 0xe7f5ff, alpha: 0.7 - i * 0.2 })
+          }
+        },
+      }
+    }
+
+    case "crawl": {
+      const body = new Graphics()
+        .ellipse(-6, 6, 15, 5)
+        .fill(under(style.body.color))
+      const legs = new Graphics()
+      const hd = head(style, front)
+      const headBox = new Container()
+      headBox.addChild(hd.behind, hd.container)
+      headBox.scale.set(0.8)
+      headBox.position.set(9, -5)
+      const strokeArm = () => {
+        const c = new Container()
+        c.addChild(
+          new Graphics()
+            .roundRect(-2.4, -1, 4.8, 12, 2.2)
+            .fill(style.sleeves)
+            .stroke(LINE)
+            .circle(0, 12, 2.6)
+            .fill(style.hands)
+            .stroke(LINE),
+        )
+        c.position.set(4, -1)
+        return c
+      }
+      const armA = strokeArm()
+      const armB = strokeArm()
+      root.addChild(body, legs, armB, headBox, armA)
+      return {
+        root,
+        upright: false,
+        update(time, moving) {
+          const phase = time / (moving ? 170 : 340)
+          for (const [arm, offset] of [
+            [armA, 0],
+            [armB, Math.PI],
+          ] as const) {
+            arm.rotation = phase + offset
+            // only the half of the stroke above the surface is crisp
+            arm.alpha = Math.cos(arm.rotation) < 0 ? 1 : 0.3
+          }
+          headBox.y = -5 + Math.sin(phase * 2) * 0.8
+          const kick = Math.sin(phase * 3) * 2
+          legs
+            .clear()
+            .roundRect(-24, 4 + kick, 9, 3, 1.5)
+            .fill(under(style.legs))
+            .roundRect(-24, 7 - kick, 9, 3, 1.5)
+            .fill(under(style.legs))
+        },
+      }
+    }
+
+    case "mermaid": {
+      // the upright rig shows head and chest; the tail flicks at the surface
+      const body = new Graphics()
+        .ellipse(-6, 7, 12, 5)
+        .fill(under(style.body.color))
+      const tail = new Graphics()
+        .poly([0, 0, -9, -6, -7, 0, -9, 6])
+        .fill(style.body.trim ?? style.body.color)
+        .stroke(LINE)
+      tail.position.set(-16, 1)
+      root.addChild(body, tail)
+      return {
+        root,
+        upright: true,
+        update(time) {
+          tail.rotation = Math.sin(time / 260) * 0.4
+          tail.y = 1 + Math.sin(time / 260) * 1.5
+        },
+      }
+    }
+
+    default:
+      return null
+  }
+}
+
 // ─── Puppet ─────────────────────────────────────────────────────────────────
 
 export interface Pose {
   legFar: number
   legNear: number
+  /** Shoulder angles (0 = arm down, negative = raised forward). */
   armFar: number
   armNear: number
+  /** Elbow bends (negative = forearm forward). */
+  elbowFar: number
+  elbowNear: number
+  /** How much the weapon points forward (0 = held upright, 1 = thrust). */
+  thrust: number
   bodyY: number
   bodyRot: number
   headY: number
@@ -979,6 +1143,9 @@ export function computePose(
     legNear: 0,
     armFar: 0.08 + breathe * 0.04,
     armNear: -0.08 - breathe * 0.04,
+    elbowFar: -0.3,
+    elbowNear: -0.35 - breathe * 0.03,
+    thrust: 0,
     bodyY: 0,
     bodyRot: 0,
     headY: breathe * 0.6,
@@ -987,20 +1154,23 @@ export function computePose(
   }
 
   if (swimming) {
-    // breaststroke: both arms sweep forward and back, the body bobs
+    // treading water, upright: calm sculling arms, a gentle bob
     const phase = time / (walking ? 140 : 320)
-    pose.armNear = -1.2 + Math.sin(phase) * 1.1
-    pose.armFar = -1.2 + Math.sin(phase + 0.6) * 1.1
-    pose.legFar = Math.sin(phase * 2) * 0.4
+    pose.armNear = -0.35 + Math.sin(phase) * 0.25
+    pose.armFar = -0.3 + Math.sin(phase + 1) * 0.25
+    pose.elbowNear = -0.7
+    pose.elbowFar = -0.7
+    pose.legFar = Math.sin(phase * 2) * 0.3
     pose.legNear = -pose.legFar
-    pose.bodyY = Math.sin(phase) * 1.5
-    pose.bodyRot = 0.12
+    pose.bodyY = Math.sin(phase) * 1.2
   } else if (walking) {
     const phase = time / 85
     pose.legFar = Math.sin(phase) * 0.55
     pose.legNear = -pose.legFar
     pose.armFar = -Math.sin(phase) * 0.45 * armSwing
     pose.armNear = Math.sin(phase) * 0.45 * armSwing
+    pose.elbowFar = -0.45 - Math.max(0, Math.sin(phase)) * 0.3
+    pose.elbowNear = -0.45 - Math.max(0, -Math.sin(phase)) * 0.3
     pose.bodyY = -Math.abs(Math.sin(phase)) * 1.8
   }
 
@@ -1008,27 +1178,40 @@ export function computePose(
     const p = Math.max(0, Math.min(1, action.progress))
     const bell = Math.sin(p * Math.PI)
     switch (action.kind) {
-      case "melee":
+      case "melee": {
+        // wind up (arm back, elbow bent), then strike forward, arm extended
+        const windUp = p < 0.35 ? p / 0.35 : 1 - (p - 0.35) / 0.65
         pose.armNear =
           p < 0.35 ? 1.3 * (p / 0.35) : 1.3 - 3 * ((p - 0.35) / 0.65)
+        pose.elbowNear = -1.5 * windUp
+        pose.thrust = p < 0.35 ? 0 : Math.sin(((p - 0.35) / 0.65) * Math.PI)
         pose.armFar = -0.6 * bell
         pose.bodyRot = 0.18 * bell
         pose.legNear = -0.35 * bell
         break
+      }
       case "shoot":
+        // bow arm straight towards the target, the other draws the string
         pose.armNear = -1.45 * Math.min(1, p * 4)
+        pose.elbowNear = 0
         pose.armFar = -1.2 + 0.9 * Math.max(0, (p - 0.6) / 0.4)
+        pose.elbowFar =
+          p < 0.6 ? 2.5 * Math.min(1, p * 4) : 2.5 * (1 - (p - 0.6) / 0.4)
         pose.bodyRot = -0.05 * bell
         break
       case "cast":
         pose.armNear = -2.5 * bell
         pose.armFar = -2.2 * bell
+        pose.elbowNear = -0.3 * bell
+        pose.elbowFar = -0.3 * bell
         pose.bodyY -= 2 * bell
         pose.glowBoost = 1 + 2.5 * bell
         break
       case "roar":
         pose.armNear = -2.6 * bell
         pose.armFar = -2.6 * bell
+        pose.elbowNear = -0.7 * bell
+        pose.elbowFar = -0.7 * bell
         pose.bodyRot = -0.12 * bell
         pose.headY -= 2 * bell
         pose.glowBoost = 1 + 1.5 * bell
@@ -1037,6 +1220,8 @@ export function computePose(
         pose.bodyRot = -0.3 * bell
         pose.armNear = 0.6 * bell
         pose.armFar = 0.6 * bell
+        pose.elbowNear = -0.8 * bell
+        pose.elbowFar = -0.8 * bell
         break
     }
   }
@@ -1050,6 +1235,10 @@ export const isMirrored = (facing: Facing) => facing === "SW" || facing === "NW"
 export class Puppet extends Container {
   private _front: Rig
   private _back: Rig
+  private _swimFront: SwimForm | null
+  private _swimBack: SwimForm | null
+  /** Hides what is under the surface of an upright swimmer. */
+  private _waterMask: Graphics
   private _facing: Facing = "SE"
   private _time = Math.random() * 10_000
   private _walk = 0
@@ -1070,7 +1259,21 @@ export class Puppet extends Container {
         : buildRig(style, front)
     this._front = build(true)
     this._back = build(false)
+    const swim = (front: boolean) =>
+      style.kind === "golem" ? null : buildSwimForm(style, front)
+    this._swimFront = swim(true)
+    this._swimBack = swim(false)
+    this._waterMask = new Graphics().rect(-90, -300, 180, 300).fill(0xffffff)
+    this._waterMask.visible = false
+    // the rigs first: front, then back
     this.addChild(this._front.root, this._back.root)
+    for (const form of [this._swimFront, this._swimBack]) {
+      if (form) {
+        form.root.scale.set(style.scale)
+        this.addChild(form.root)
+      }
+    }
+    this.addChild(this._waterMask)
     this.setFacing("SE")
   }
 
@@ -1081,6 +1284,16 @@ export class Puppet extends Container {
   /** Visible rig (front or back view). */
   get rig() {
     return isBackFacing(this._facing) ? this._back : this._front
+  }
+
+  /** Deep water form of the current view (swimmers and aquatics). */
+  get swimForm() {
+    return isBackFacing(this._facing) ? this._swimBack : this._swimFront
+  }
+
+  /** Whether the character changes shape in deep water. */
+  get hasSwimForm() {
+    return this._swimFront !== null
   }
 
   /** Approximate head height, for UI placement. */
@@ -1103,19 +1316,22 @@ export class Puppet extends Container {
     return this._swimming
   }
 
-  /** Swim animation (the fighter is in water up to the chest). */
+  /** Deep water: swim form, or treading water upright. */
   setSwimming(swimming: boolean) {
     this._swimming = swimming
+    this._refreshViews()
   }
 
   setFacing(facing: Facing) {
     this._facing = facing
-    this._front.root.visible = !isBackFacing(facing)
-    this._back.root.visible = isBackFacing(facing)
     const scale = STYLES[this.presetId].scale
     for (const rig of [this._front, this._back]) {
       rig.root.scale.x = (isMirrored(facing) ? -1 : 1) * scale
     }
+    for (const form of [this._swimFront, this._swimBack]) {
+      if (form) form.root.scale.x = (isMirrored(facing) ? -1 : 1) * scale
+    }
+    this._refreshViews()
   }
 
   /** Walk cycle for the given duration (ms). */
@@ -1125,6 +1341,7 @@ export class Puppet extends Container {
 
   act(kind: PuppetAction, duration: number) {
     this._action = { kind, elapsed: 0, duration }
+    this._refreshViews()
   }
 
   /** Recursively tint every graphic (hit flash). */
@@ -1138,12 +1355,38 @@ export class Puppet extends Container {
     visit(this)
   }
 
+  /**
+   * Which views are shown: in deep water, the swim form replaces the body
+   * (except while acting: the swimmer rises to strike), or completes the
+   * upright body sunk to the chest.
+   */
+  private _refreshViews() {
+    const back = isBackFacing(this._facing)
+    const form = this._swimming ? this.swimForm : null
+    const formOnly = !!form && !form.upright && !this._action
+    for (const [rig, isBack] of [
+      [this._front, false],
+      [this._back, true],
+    ] as const) {
+      rig.root.visible = isBack === back && !formOnly
+      const sunk = !!form && !formOnly
+      rig.root.y = sunk ? SWIM_SINK : 0
+      rig.root.mask = sunk ? this._waterMask : null
+    }
+    this._waterMask.visible = !!form && !formOnly
+    if (this._swimFront) this._swimFront.root.visible = form === this._swimFront
+    if (this._swimBack) this._swimBack.root.visible = form === this._swimBack
+  }
+
   update(dt: number) {
     this._time += dt
     this._walk = Math.max(0, this._walk - dt)
     if (this._action) {
       this._action.elapsed += dt
-      if (this._action.elapsed >= this._action.duration) this._action = null
+      if (this._action.elapsed >= this._action.duration) {
+        this._action = null
+        this._refreshViews()
+      }
     }
 
     const rig = this.rig
@@ -1162,6 +1405,16 @@ export class Puppet extends Container {
     rig.legNear.rotation = pose.legNear
     rig.armFar.rotation = pose.armFar
     rig.armNear.rotation = pose.armNear
+    rig.elbowFar.rotation = pose.elbowFar
+    rig.elbowNear.rotation = pose.elbowNear
+    // held items keep their own angle (upright), or point forward to thrust
+    if (rig.gripNear) {
+      const angle = rig.itemNear + (Math.PI / 2 - rig.itemNear) * pose.thrust
+      rig.gripNear.rotation = angle - pose.armNear - pose.elbowNear
+    }
+    if (rig.gripFar) {
+      rig.gripFar.rotation = rig.itemFar - pose.armFar - pose.elbowFar
+    }
     rig.body.rotation = pose.bodyRot
     rig.body.pivot.set(0, rig.hip)
     rig.body.position.set(0, rig.hip + pose.bodyY)
@@ -1174,5 +1427,6 @@ export class Puppet extends Container {
         (0.55 + 0.25 * Math.sin(this._time / 260)) *
         Math.min(2.5, pose.glowBoost)
     }
+    if (this._swimming) this.swimForm?.update(this._time, this._walk > 0)
   }
 }

@@ -173,8 +173,44 @@ describe("fighters on the board", () => {
     view.clearStatuses()
   })
 
+  test("swimmers and aquatics change shape in deep water", () => {
+    for (const preset of ["eva", "nyx", "squalor", "nerea"]) {
+      const { view } = fighterView(preset)
+      const puppet = view.puppet
+      expect(puppet.hasSwimForm).toBe(true)
+      view.setWater("swimming")
+      // they handle their own waterline
+      expect(puppet.y).toBe(0)
+      expect(puppet.mask).toBeFalsy()
+      puppet.update(50)
+      const form = puppet.swimForm!
+      expect(form.root.visible).toBe(true)
+      if (form.upright) {
+        // Néréa floats upright, sunk to the chest, her tail at the surface
+        expect(puppet.rig.root.visible).toBe(true)
+        expect(puppet.rig.root.mask).toBeTruthy()
+      } else {
+        // a fin, or a crawl stroke: the body is hidden...
+        expect(puppet.rig.root.visible).toBe(false)
+        // ...except while acting: the swimmer rises to strike
+        puppet.act("melee", 100)
+        expect(puppet.rig.root.visible).toBe(true)
+        puppet.update(120)
+        expect(puppet.rig.root.visible).toBe(false)
+      }
+      puppet.walk(300)
+      for (let t = 0; t < 300; t += 16) puppet.update(16)
+      view.setWater("dry")
+      expect(form.root.visible).toBe(false)
+      expect(puppet.rig.root.visible).toBe(true)
+      expect(puppet.rig.root.y).toBe(0)
+    }
+    expect(fighterView("brutus").view.puppet.hasSwimForm).toBe(false)
+  })
+
   test("water: wading sinks the feet, swimming hides the body up to the chest", () => {
-    const { view } = fighterView()
+    // a walker (no swim form): sunk and cut at the surface
+    const { view } = fighterView("brutus")
     view.setWater("wading")
     expect(view.water).toBe("wading")
     expect(view.puppet.y).toBe(WATER_DEPTH.wading)

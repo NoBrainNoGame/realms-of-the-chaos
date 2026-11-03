@@ -164,9 +164,12 @@ export default class FighterView extends ViewChip {
    */
   setWater(state: WaterState) {
     this._water = state
-    this._puppet.y = WATER_DEPTH[state]
-    this._puppet.mask = state === "dry" ? null : this._waterMask
-    this._waterMask.visible = state !== "dry"
+    // swimmers and aquatics change shape in deep water and handle their
+    // own waterline; the others sink and are cut at the surface
+    const ownShape = state === "swimming" && this._puppet.hasSwimForm
+    this._puppet.y = ownShape ? 0 : WATER_DEPTH[state]
+    this._puppet.mask = state === "dry" || ownShape ? null : this._waterMask
+    this._waterMask.visible = state !== "dry" && !ownShape
     this._ripple.visible = state !== "dry"
     this._ripple.scale.set(state === "swimming" ? 1.4 : 1)
     this._shadow.visible = state === "dry"

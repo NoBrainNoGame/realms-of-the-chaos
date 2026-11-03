@@ -7,7 +7,7 @@ import { Puppet, type Facing, type PuppetAction } from "./Puppet"
 import { FONT } from "./theme"
 
 const FACINGS: Facing[] = ["SE", "SW", "NE", "NW"]
-const ACTIONS: (PuppetAction | "walk" | "idle")[] = [
+const ACTIONS: (PuppetAction | "walk" | "idle" | "swim")[] = [
   "idle",
   "walk",
   "melee",
@@ -15,6 +15,7 @@ const ACTIONS: (PuppetAction | "walk" | "idle")[] = [
   "cast",
   "roar",
   "hit",
+  "swim",
 ]
 
 /**
@@ -27,6 +28,15 @@ interface GalleryEvents extends booyah.BaseCompositeEvents {
 
 export default class Gallery extends ViewChip<GalleryEvents> {
   private _puppets: Puppet[] = []
+  /** Animations shown in turn (a single one with `?anim=`). */
+  private readonly _actions: typeof ACTIONS
+
+  constructor(only: string | null = null) {
+    super()
+    const chosen = ACTIONS.find((a) => a === only)
+    this._actions = chosen ? [chosen] : ACTIONS
+  }
+
   private _time = 0
   private _label!: Text
 
@@ -78,11 +88,13 @@ export default class Gallery extends ViewChip<GalleryEvents> {
     const previous = Math.floor(this._time / 1500)
     this._time += dt
     const index = Math.floor(this._time / 1500)
-    const action = ACTIONS[index % ACTIONS.length]
+    const action = this._actions[index % this._actions.length]
     this._label.text = `Animation : ${action}`
-    if (index !== previous) {
+    if (index !== previous || this._time === dt) {
       for (const p of this._puppets) {
-        if (action === "walk") p.walk(1500)
+        // only swimmers and aquatics ever reach deep water
+        p.setSwimming(action === "swim" && p.hasSwimForm)
+        if (action === "walk" || action === "swim") p.walk(1500)
         else if (action !== "idle") p.act(action, 900)
       }
     }

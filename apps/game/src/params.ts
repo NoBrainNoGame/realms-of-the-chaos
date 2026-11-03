@@ -9,6 +9,8 @@ import { CHARACTERS } from "@realms/engine"
  * - `?enemies=gorr,nyx`      enemy roster
  * - `?debug`                 exposes `window.game` and `window.runner` in the console
  * - `?gallery`               shows every puppet in its 4 facings (art check)
+ * - `?anim=swim`             with the gallery: loops a single animation
+ *                            (idle, walk, melee, shoot, cast, roar, hit, swim)
  * - `?mode=skirmish`         opens a screen directly: title, skirmish, local,
  *                            arcade, gallery or fight
  *
@@ -31,6 +33,8 @@ export interface Params {
   spectate: boolean
   debug: boolean
   gallery: boolean
+  /** Gallery: the only animation to loop. */
+  anim: string | null
   speed: number
   playerTeam: string[]
   enemyTeam: string[]
@@ -70,6 +74,7 @@ export function parseParams(search: URLSearchParams): Params {
     spectate: search.has("spectate"),
     debug: search.has("debug"),
     gallery: search.has("gallery"),
+    anim: search.get("anim"),
     speed: SPEEDS.includes(speed) ? speed : 1,
     playerTeam: roster("team", DEFAULT_PLAYER_TEAM),
     enemyTeam: roster("enemies", DEFAULT_ENEMY_TEAM),
