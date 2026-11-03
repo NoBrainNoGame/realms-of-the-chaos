@@ -309,11 +309,16 @@ function leg(style: Style, shade: boolean) {
   return c
 }
 
-function arm(style: Style, far: boolean, front: boolean) {
+/**
+ * An arm. `far` is the off hand (sword of a sword and shield, nothing for
+ * the others); `shade` darkens it when it is on the side away from the
+ * viewer.
+ */
+function arm(style: Style, far: boolean, front: boolean, shade = far) {
   const c = new Container()
   const g = new Graphics()
-  const sleeve = far ? darken(style.sleeves) : style.sleeves
-  const hand = far ? darken(style.hands) : style.hands
+  const sleeve = shade ? darken(style.sleeves) : style.sleeves
+  const hand = shade ? darken(style.hands) : style.hands
   g.roundRect(-2.5, -1, 5, 12, 2.2).fill(sleeve).stroke(LINE)
   g.circle(0, 13, 2.7).fill(hand).stroke(LINE)
 
@@ -339,7 +344,8 @@ function arm(style: Style, far: boolean, front: boolean) {
             .fill({ color: 0xffffff, alpha: 0.5 })
           glows.push(glow(0x69db7c, 12, 0, -37))
         }
-        item.position.set(0.5, 13)
+        // front view: the arm is behind the robe, hold the staff beside it
+        item.position.set(front ? 5 : 0.5, 13)
       }
       break
     case "bow":
@@ -392,7 +398,7 @@ function arm(style: Style, far: boolean, front: boolean) {
     case "daggers":
       item
         .poly([0, 0, 9, -5, 10, -3, 1, 2])
-        .fill(far ? 0xadb5bd : 0xe9ecef)
+        .fill(shade ? 0xadb5bd : 0xe9ecef)
         .stroke(LINE)
       item.position.set(1, 13)
       break
@@ -411,7 +417,7 @@ function arm(style: Style, far: boolean, front: boolean) {
             .stroke(LINE)
         }
         glows.push(glow(0x66d9e8, 8, 0, -40))
-        item.position.set(0.5, 13)
+        item.position.set(front ? 5 : 0.5, 13)
       }
       break
     case "claws":
@@ -424,7 +430,12 @@ function arm(style: Style, far: boolean, front: boolean) {
       break
   }
 
-  c.addChild(g, item, ...glows)
+  // glows belong to the held item (the staff's orb), not to the arm
+  const held = new Container()
+  held.position.copyFrom(item.position)
+  item.position.set(0, 0)
+  held.addChild(item, ...glows)
+  c.addChild(g, held)
   return { container: c, glows }
 }
 
@@ -724,13 +735,23 @@ function buildRig(style: Style, front: boolean): Rig {
   const body = new Container()
   root.addChild(body)
 
+  /*
+   * Which side is closer to the viewer. Facing SE (front view, looking to
+   * the right), the character's left flank faces us: the screen-left limbs
+   * are in front and the right ones (towards the gaze) behind the body.
+   * Facing NE (back view), it is the other way round. The weapon arm stays
+   * on the gaze side ("near" in poses: it is the one that strikes), so in
+   * the front view it is held a little behind the body, like an archer's
+   * bow arm or a shield arm stretched towards the target.
+   */
   const legFar = leg(style, true)
   const legNear = leg(style, false)
-  legFar.position.set(-3.5, HIP)
-  legNear.position.set(3, HIP)
+  legFar.position.set(front ? 3.5 : -3.5, HIP)
+  legNear.position.set(front ? -3 : 3, HIP)
 
-  const far = arm(style, true, front)
-  const near = arm(style, false, front)
+  // `far`: the off hand, on the screen-left; `near`: the weapon arm
+  const far = arm(style, true, front, !front)
+  const near = arm(style, false, front, front)
   far.container.position.set(-8.5, SHOULDER)
   near.container.position.set(8, SHOULDER)
 
@@ -739,25 +760,26 @@ function buildRig(style: Style, front: boolean): Rig {
   hd.container.position.set(1, HEAD_Y)
   hd.behind.position.copyFrom(hd.container.position)
 
-  // back view: the near arm (weapon) goes behind the torso and head
   if (front)
+    // front view: the weapon arm (gaze side) behind, the off hand in front
     body.addChild(
       legFar,
       legNear,
-      far.container,
+      near.container,
       hd.behind,
       t,
       hd.container,
-      near.container,
+      far.container,
     )
   else
+    // back view: the off hand behind, the weapon arm in front
     body.addChild(
-      near.container,
+      far.container,
       legFar,
       legNear,
       t,
-      far.container,
       hd.container,
+      near.container,
     )
 
   root.scale.set(style.scale)
@@ -805,8 +827,9 @@ function buildGolemRig(s: GolemStyle, front: boolean): Rig {
   }
   const legFar = golemLeg(true)
   const legNear = golemLeg(false)
-  legFar.position.set(-7, GOLEM_HIP)
-  legNear.position.set(6, GOLEM_HIP)
+  // same sides as the humanoids: facing SE, the gaze side is the far one
+  legFar.position.set(front ? 6 : -7, GOLEM_HIP)
+  legNear.position.set(front ? -7 : 6, GOLEM_HIP)
 
   // long arms reaching the ground, huge fists
   const golemArm = (dark: boolean) => {
@@ -833,8 +856,8 @@ function buildGolemRig(s: GolemStyle, front: boolean): Rig {
   }
   const armFar = golemArm(true)
   const armNear = golemArm(false)
-  armFar.position.set(-15, GOLEM_SHOULDER)
-  armNear.position.set(15, GOLEM_SHOULDER)
+  armFar.position.set(front ? 15 : -15, GOLEM_SHOULDER)
+  armNear.position.set(front ? -15 : 15, GOLEM_SHOULDER)
 
   // wide boulder torso with light stone plates, moss and cracks
   const torso = new Container()
@@ -904,8 +927,8 @@ function buildGolemRig(s: GolemStyle, front: boolean): Rig {
   head.addChild(h, ...glows)
   head.position.set(3, GOLEM_HEAD_Y)
 
-  if (front) body.addChild(legFar, legNear, armFar, torso, head, armNear)
-  else body.addChild(armNear, legFar, legNear, torso, head, armFar)
+  // the shaded (far) limbs behind the body, the light (near) ones in front
+  body.addChild(legFar, legNear, armFar, torso, head, armNear)
 
   root.scale.set(s.scale)
   return {
