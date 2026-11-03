@@ -1,10 +1,17 @@
 {
   "compilerOptions": {
+    "target": "ESNext",
+    "module": "Preserve",
+    "moduleResolution": "bundler",
+    "lib": ["DOM", "DOM.Iterable", "ESNext"],
+    "types": ["bun"],
     "strict": true,
-    "esModuleInterop": true,
-    "lib": ["DOM", "ESNext"],
-    "moduleResolution": "Node",
-    "resolveJsonModule": true,
-    "module": "esnext"
-  }
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": false,
+    "noEmit": true
+  },
+  "include": ["src"]
 }
