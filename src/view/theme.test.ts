@@ -1,0 +1,109 @@
+import { describe, expect, test } from "bun:test"
+import {
+  ELEVATION_HEIGHT,
+  TILE_HEIGHT,
+  TILE_WIDTH,
+  cellNoise,
+  diamond,
+  mix,
+  shade,
+  toScreen,
+} from "./theme"
+import {
+  parseParams,
+  DEFAULT_ENEMY_TEAM,
+  DEFAULT_PLAYER_TEAM,
+  MAX_ROSTER,
+} from "../params"
+
+describe("isometric projection", () => {
+  test("x goes down-right, y goes down-left", () => {
+    expect(toScreen({ x: 1, y: 0 })).toEqual({
+      x: TILE_WIDTH / 2,
+      y: TILE_HEIGHT / 2,
+    })
+    expect(toScreen({ x: 0, y: 1 })).toEqual({
+      x: -TILE_WIDTH / 2,
+      y: TILE_HEIGHT / 2,
+    })
+  })
+
+  test("elevation raises the point", () => {
+    expect(toScreen({ x: 0, y: 0 }, 2).y).toBe(-2 * ELEVATION_HEIGHT)
+    expect(toScreen({ x: 0, y: 0 }, -1).y).toBe(ELEVATION_HEIGHT)
+  })
+
+  test("diamond is centered and inset shrinks it", () => {
+    expect(diamond()).toEqual([0, -16, 32, 0, 0, 16, -32, 0])
+    const inset = diamond(8)
+    expect(inset[2]).toBe(24)
+    expect(inset[1]).toBe(-12)
+  })
+})
+
+describe("colors", () => {
+  test("mix blends channels", () => {
+    expect(mix(0x000000, 0xffffff, 0)).toBe(0x000000)
+    expect(mix(0x000000, 0xffffff, 1)).toBe(0xffffff)
+    expect(mix(0xff0000, 0x0000ff, 0.5)).toBe(0x800080)
+  })
+
+  test("shade darkens and clamps", () => {
+    expect(shade(0x804020, 0.5)).toBe(0x402010)
+    expect(shade(0xffffff, 2)).toBe(0xffffff)
+  })
+
+  test("cell noise is deterministic, in [0, 1) and varies", () => {
+    const a = cellNoise({ x: 3, y: 4 }, 42, 1)
+    expect(cellNoise({ x: 3, y: 4 }, 42, 1)).toBe(a)
+    const values = new Set<number>()
+    for (let x = 0; x < 9; x++) {
+      for (let y = 0; y < 9; y++) {
+        const v = cellNoise({ x, y }, 1)
+        expect(v).toBeGreaterThanOrEqual(0)
+        expect(v).toBeLessThan(1)
+        values.add(Math.floor(v * 10))
+      }
+    }
+    expect(values.size).toBeGreaterThan(6)
+  })
+})
+
+describe("URL parameters", () => {
+  const parse = (query: string) => parseParams(new URLSearchParams(query))
+
+  test("defaults", () => {
+    expect(parse("")).toEqual({
+      seed: null,
+      spectate: false,
+      debug: false,
+      gallery: false,
+      speed: 1,
+      playerTeam: DEFAULT_PLAYER_TEAM,
+      enemyTeam: DEFAULT_ENEMY_TEAM,
+    })
+  })
+
+  test("flags and values", () => {
+    const p = parse("?seed=42&spectate&debug&gallery&speed=0.25")
+    expect(p).toMatchObject({
+      seed: 42,
+      spectate: true,
+      debug: true,
+      gallery: true,
+      speed: 0.25,
+    })
+  })
+
+  test("invalid seed and speed fall back", () => {
+    expect(parse("?seed=abc&speed=3")).toMatchObject({ seed: null, speed: 1 })
+    expect(parse("?seed=")).toMatchObject({ seed: null })
+  })
+
+  test("rosters ignore unknown characters, are case-insensitive and capped", () => {
+    expect(parse("?team=Eva, nobody ,GORR").playerTeam).toEqual(["eva", "gorr"])
+    expect(parse("?enemies=zzz").enemyTeam).toEqual(DEFAULT_ENEMY_TEAM)
+    const long = parse(`?team=${Array(10).fill("eva").join(",")}`)
+    expect(long.playerTeam).toHaveLength(MAX_ROSTER)
+  })
+})
