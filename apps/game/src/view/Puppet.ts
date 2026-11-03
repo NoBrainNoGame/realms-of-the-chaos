@@ -354,7 +354,7 @@ interface Arm {
  * Shield stance: arm slightly bent, the forearm across the flank, the
  * shield held close to the body and upright.
  */
-const SHIELD_GUARD = { arm: -0.05, elbow: -1.25 }
+const SHIELD_GUARD = { arm: 0, elbow: -0.45 }
 const SHIELD_UPRIGHT = -(SHIELD_GUARD.arm + SHIELD_GUARD.elbow)
 
 /** What a hand holds: the weapon arm, or the off hand. */
@@ -457,12 +457,11 @@ function arm(style: Style, hand: Hand, front: boolean, shade: boolean): Arm {
         item.rect(-0.3, -21, 0.6, 17).fill({ color: 0x868e96, alpha: 0.6 })
       } else {
         /*
-         * The shield is held close against the gaze-side flank, parallel to
-         * the body. Front view: it faces where the chest faces, so we see
-         * its painted face, slightly foreshortened. Back view: its wooden
-         * back (rim, planks, strap).
+         * Front view: the shield arm is the gaze side (the left arm), the
+         * shield's face points away from us: we see its wooden back. Back
+         * view: the painted face.
          */
-        if (front) {
+        if (!front) {
           strapped.ellipse(0, 0, 6.5, 8.5).fill(0x1c7ed6).stroke({
             width: 1.6,
             color: OUTLINE,
@@ -475,21 +474,21 @@ function arm(style: Style, hand: Hand, front: boolean, shade: boolean): Arm {
             .ellipse(-2.5, -3, 1.6, 2)
             .fill({ color: 0xffffff, alpha: 0.25 })
         } else {
-          const wood = 0x7f4f24
-          strapped.ellipse(0, 0, 6.5, 8.5).fill(wood).stroke(LINE)
+          const wood = shade ? darken(0x7f4f24, 0.82) : 0x7f4f24
+          strapped.ellipse(0, 0, 5, 8).fill(wood).stroke(LINE)
           strapped
-            .ellipse(0, 0, 6.5, 8.5)
+            .ellipse(0, 0, 5, 8)
             .stroke({ width: 1.3, color: 0xadb5bd, alignment: 1 })
-          for (const x of [-2.5, 2.5]) {
+          for (const x of [-2, 2]) {
             strapped
-              .moveTo(x, -7.5)
-              .lineTo(x, 7.5)
+              .moveTo(x, -7)
+              .lineTo(x, 7)
               .stroke({ width: 0.8, color: darken(wood), alpha: 0.8 })
           }
-          strapped.rect(-4.5, -1.5, 9, 3).fill(0x5c3a1a).stroke(LINE)
+          strapped.rect(-3.5, -1.5, 7, 3).fill(0x5c3a1a).stroke(LINE)
         }
         // strapped to the forearm, kept upright against the body
-        strapped.position.set(2, FOREARM + 1)
+        strapped.position.set(1, FOREARM - 1)
         strapped.rotation = SHIELD_UPRIGHT
       }
       break
@@ -842,13 +841,8 @@ function buildRig(style: Style, front: boolean): Rig {
   const off = arm(style, "off", front, !front)
   // the arm behind the body sticks out of the torso, like a real arm seen
   // from three quarters; the one in front overlaps it
-  weapon.shoulder.position.set(
-    front ? (style.weapon === "swordShield" ? 8 : 12) : 8,
-    SHOULDER,
-  )
+  weapon.shoulder.position.set(front ? 11 : 8, SHOULDER)
   off.shoulder.position.set(front ? -8.5 : -11, SHOULDER)
-  // a shield is held across the flank, in front of the body in both views
-  const shielded = style.weapon === "swordShield"
   const behind = front ? weapon.shoulder : off.shoulder
   const before = front ? off.shoulder : weapon.shoulder
 
@@ -857,10 +851,7 @@ function buildRig(style: Style, front: boolean): Rig {
   hd.container.position.set(1, HEAD_Y)
   hd.behind.position.copyFrom(hd.container.position)
 
-  if (shielded && front)
-    body.addChild(legFar, legNear, hd.behind, t, hd.container, behind, before)
-  else
-    body.addChild(behind, legFar, legNear, hd.behind, t, hd.container, before)
+  body.addChild(behind, legFar, legNear, hd.behind, t, hd.container, before)
 
   root.scale.set(style.scale)
   return {
