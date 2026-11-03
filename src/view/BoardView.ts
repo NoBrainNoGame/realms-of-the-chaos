@@ -99,6 +99,7 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
   private _hitLayer!: Container
   private _time = 0
   private _waves: Wave[] = []
+  private _islets: { node: Container; baseY: number; phase: number }[] = []
   private _offsets = new Map<string, number>()
 
   constructor(
@@ -154,6 +155,9 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
         node.alpha = 0.55 + 0.35 * Math.sin(this._time / 450 + i * 1.3)
       }
       i++
+    }
+    for (const islet of this._islets) {
+      islet.node.y = islet.baseY + Math.sin(this._time / 900 + islet.phase) * 4
     }
     this._updateWaves()
   }
@@ -303,6 +307,7 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
         .lineTo(0, groundY + H)
         .lineTo(W, groundY)
         .stroke({ width: 1, color: 0x000000, alpha: 0.25 })
+      this._drawVines(g, cell, groundY)
       this._drawDecor(g, cell, groundY, parts)
     }
 
@@ -403,7 +408,45 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     }
   }
 
-  /** Grass, flowers, pebbles, mushrooms, rocks and chaos crystals. */
+  /** Vines and moss hanging from the visible front edges of the island. */
+  private _drawVines(g: Graphics, cell: Cell, topY: number) {
+    const { width, height } = this._board
+    const rand = (salt: number) => cellNoise(cell, this._seed, salt)
+    const faces: { side: -1 | 1 }[] = []
+    if (cell.y === height - 1) faces.push({ side: -1 }) // left face is visible
+    if (cell.x === width - 1) faces.push({ side: 1 }) // right face is visible
+
+    for (const { side } of faces) {
+      const strands = 1 + Math.floor(rand(300 + side) * 3)
+      for (let i = 0; i < strands; i++) {
+        const t = 0.15 + rand(310 + i * 7 + side) * 0.7
+        // point on the top edge of that face
+        let x = side * W * (1 - t)
+        let y = topY + H * t + 3
+        const length = 10 + rand(320 + i * 7 + side) * 22
+        const sway = (rand(330 + i * 7 + side) - 0.5) * 4
+        g.moveTo(x, y)
+        const points: [number, number][] = []
+        for (let k = 1; k <= 4; k++) {
+          const nx = x + Math.sin(k * 1.3 + sway) * 1.5
+          const ny = y + length / 4
+          g.quadraticCurveTo((x + nx) / 2 + sway * 0.3, (y + ny) / 2, nx, ny)
+          points.push([nx, ny])
+          x = nx
+          y = ny
+        }
+        g.stroke({ width: 1.3, color: 0x2b5d1f, alpha: 0.95 })
+        points.forEach(([px, py], k) => {
+          const dir = k % 2 === 0 ? 1 : -1
+          g.ellipse(px + dir * 1.6, py - 2, 1.6, 0.9).fill(
+            k % 2 ? 0x4f8a2f : 0x3f7a25,
+          )
+        })
+      }
+    }
+  }
+
+  /** Grass, flowers, bushes, mushrooms, reeds, pebbles and chaos crystals. */
   private _drawDecor(g: Graphics, cell: Cell, topY: number, parts: CellParts) {
     const rand = (salt: number) => cellNoise(cell, this._seed, salt)
     // a point on the tile top, away from the center where fighters stand
@@ -414,73 +457,159 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       return { x: (u - v) * W * 0.5, y: topY + (u + v) * H * 0.5 }
     }
     const e = cell.elevation
+    const shore = this._board
+      .neighbors(cell)
+      .some((n) => this._board.get(n)?.terrain === "water")
 
     if (e >= 0) {
       const top = GROUND_TOP[e] ?? GROUND_TOP[0]
-      const dark = shade(top, 0.7)
-      const light = shade(top, 1.3)
-      const tufts = 2 + Math.floor(rand(1) * 4)
+      const dark = shade(top, 0.72)
+      const light = shade(top, 1.28)
+
+      // a light grain on the grass
+      for (let i = 0; i < 7; i++) {
+        const p = spot(200 + i * 2)
+        g.circle(p.x, p.y, 0.8).fill({
+          color: i % 2 ? dark : light,
+          alpha: 0.5,
+        })
+      }
+
+      // tufts of curved blades
+      const tufts = 1 + Math.floor(rand(1) * 3)
       for (let i = 0; i < tufts; i++) {
         const p = spot(10 + i * 3)
-        g.moveTo(p.x, p.y)
-          .lineTo(p.x - 2, p.y - 4)
-          .stroke({ width: 1, color: dark })
-        g.moveTo(p.x, p.y)
-          .lineTo(p.x, p.y - 5)
-          .stroke({ width: 1, color: light })
-        g.moveTo(p.x, p.y)
-          .lineTo(p.x + 2, p.y - 4)
-          .stroke({ width: 1, color: dark })
-      }
-      if (rand(2) < 0.4 && e <= 2) {
-        const colors = [0xf783ac, 0xffe066, 0xffffff, 0xb197fc]
-        const count = 1 + Math.floor(rand(3) * 3)
-        for (let i = 0; i < count; i++) {
-          const p = spot(40 + i * 3)
-          g.circle(p.x, p.y - 1, 1.6).fill(
-            colors[Math.floor(rand(50 + i) * colors.length)],
-          )
-          g.circle(p.x, p.y - 1, 0.6).fill(0xfab005)
+        const blades = 4 + Math.floor(rand(20 + i) * 3)
+        for (let b = 0; b < blades; b++) {
+          const dx = (b - (blades - 1) / 2) * 1.2
+          const h = 3 + rand(30 + i * 5 + b) * 3.5
+          const lean = (rand(40 + i * 5 + b) - 0.5) * 4
+          g.moveTo(p.x + dx, p.y)
+            .quadraticCurveTo(
+              p.x + dx + lean * 0.2,
+              p.y - h * 0.6,
+              p.x + dx + lean,
+              p.y - h,
+            )
+            .stroke({ width: 1.1, color: b % 2 ? dark : light })
         }
       }
-      if (rand(4) < 0.1 && e <= 1) {
+
+      // little flowers with petals and a stem
+      if (rand(2) < 0.38 && e <= 2) {
+        const colors = [0xf783ac, 0xffe066, 0xffffff, 0xb197fc, 0xff8787]
+        const color = colors[Math.floor(rand(3) * colors.length)]
+        const count = 1 + Math.floor(rand(4) * 3)
+        for (let i = 0; i < count; i++) {
+          const p = spot(50 + i * 3)
+          g.moveTo(p.x, p.y)
+            .lineTo(p.x, p.y - 3)
+            .stroke({ width: 0.8, color: dark })
+          for (let k = 0; k < 5; k++) {
+            const a = (k / 5) * Math.PI * 2
+            g.circle(
+              p.x + Math.cos(a) * 1.2,
+              p.y - 4 + Math.sin(a) * 0.9,
+              0.9,
+            ).fill(color)
+          }
+          g.circle(p.x, p.y - 4, 0.7).fill(0xfab005)
+        }
+      }
+
+      // round bush, sometimes with berries
+      if (rand(5) < 0.14) {
+        const p = spot(90)
+        const leaf = shade(top, 0.8)
+        g.ellipse(p.x, p.y, 6, 2.2).fill({ color: 0x000000, alpha: 0.2 })
+        g.circle(p.x - 2.5, p.y - 3, 3.2).fill(shade(leaf, 0.85))
+        g.circle(p.x + 2.5, p.y - 3, 3.2).fill(shade(leaf, 0.9))
+        g.circle(p.x, p.y - 5, 3.6).fill(leaf)
+        g.circle(p.x - 1, p.y - 6.5, 1.4).fill({ color: 0xffffff, alpha: 0.18 })
+        if (rand(6) < 0.5) {
+          for (const [bx, by] of [
+            [-2, -3],
+            [2, -4],
+            [0, -6],
+          ]) {
+            g.circle(p.x + bx, p.y + by, 0.8).fill(0xe03131)
+          }
+        }
+      }
+
+      // mushrooms
+      if (rand(7) < 0.09 && e <= 1) {
         const p = spot(60)
-        g.rect(p.x - 0.8, p.y - 4, 1.6, 4).fill(0xf1f3f5)
+        const cap = rand(8) < 0.5 ? 0xe03131 : 0xa0522d
+        g.roundRect(p.x - 0.9, p.y - 3.5, 1.8, 3.5, 0.6).fill(0xf1f3f5)
         g.poly([
-          p.x - 3.2,
-          p.y - 4,
-          p.x - 2.2,
-          p.y - 6.6,
+          p.x - 3,
+          p.y - 3.2,
+          p.x - 2,
+          p.y - 5.4,
           p.x,
-          p.y - 7.6,
-          p.x + 2.2,
-          p.y - 6.6,
-          p.x + 3.2,
-          p.y - 4,
-        ]).fill(0xe03131)
-        g.circle(p.x - 1, p.y - 5, 0.6).fill(0xffffff)
+          p.y - 6.2,
+          p.x + 2,
+          p.y - 5.4,
+          p.x + 3,
+          p.y - 3.2,
+        ]).fill(cap)
+        g.circle(p.x - 1, p.y - 4.8, 0.5).fill(0xffffff)
+        g.circle(p.x + 1.2, p.y - 4.2, 0.4).fill(0xffffff)
+      }
+
+      // reeds and cattails along the shores
+      if (shore && rand(9) < 0.7) {
+        const p = spot(100)
+        for (let i = 0; i < 3; i++) {
+          const x = p.x + (i - 1) * 1.8
+          const h = 7 + rand(110 + i) * 4
+          g.moveTo(x, p.y)
+            .lineTo(x + (i - 1) * 0.8, p.y - h)
+            .stroke({ width: 1, color: 0x5c940d })
+          if (i !== 1)
+            g.ellipse(x + (i - 1) * 0.8, p.y - h + 1.5, 0.9, 2).fill(0x7f4f24)
+        }
+      }
+    } else {
+      // dry pit: cracked dirt
+      for (let i = 0; i < 2; i++) {
+        const p = spot(120 + i * 3)
+        g.moveTo(p.x - 4, p.y)
+          .lineTo(p.x - 1, p.y - 1)
+          .lineTo(p.x + 1, p.y + 1)
+          .lineTo(p.x + 4, p.y)
+          .stroke({ width: 1, color: 0x000000, alpha: 0.3 })
       }
     }
 
-    if (rand(5) < (e < 0 ? 0.6 : 0.3)) {
-      const p = spot(70)
-      const size = e >= 2 ? 3.5 : 2
-      g.ellipse(p.x, p.y, size, size * 0.6).fill(0x868e96)
-      g.ellipse(
-        p.x - size * 0.3,
-        p.y - size * 0.25,
-        size * 0.4,
-        size * 0.25,
-      ).fill({
-        color: 0xffffff,
-        alpha: 0.4,
-      })
+    // pebbles
+    if (rand(11) < (e < 0 ? 0.7 : 0.3)) {
+      const count = 1 + Math.floor(rand(12) * 2)
+      for (let i = 0; i < count; i++) {
+        const p = spot(70 + i * 3)
+        const size = e >= 2 ? 3.2 : 1.8 + rand(13 + i)
+        g.ellipse(p.x, p.y + 0.5, size, size * 0.45).fill({
+          color: 0x000000,
+          alpha: 0.2,
+        })
+        g.ellipse(p.x, p.y, size, size * 0.6).fill(0x868e96)
+        g.ellipse(
+          p.x - size * 0.3,
+          p.y - size * 0.25,
+          size * 0.4,
+          size * 0.25,
+        ).fill({
+          color: 0xffffff,
+          alpha: 0.4,
+        })
+      }
     }
 
-    if (e >= 2 && rand(6) < (e === 3 ? 0.45 : 0.15)) {
+    if (e >= 2 && rand(14) < (e === 3 ? 0.45 : 0.15)) {
       // chaos crystal (lore: fragments of the shattered worlds)
       const p = spot(80)
-      const color = rand(7) < 0.5 ? 0xb197fc : 0x63e6be
+      const color = rand(15) < 0.5 ? 0xb197fc : 0x63e6be
       const crystal = new Graphics()
         .poly([
           p.x - 3,
@@ -507,7 +636,11 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     }
   }
 
-  /** Rocky underside of the floating island, with a magical underglow. */
+  /**
+   * Underside of the floating island: rocky roots hanging under every
+   * front edge cell (aligned on the grid), a dark core, a magical glow, and
+   * small floating islets drifting around.
+   */
   private _drawUnderside() {
     const container = new Container()
     const { width, height } = this._board
@@ -517,84 +650,113 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     const L = { x: left.x - W, y: left.y + COLUMN_BOTTOM }
     const F = { x: front.x, y: front.y + H + COLUMN_BOTTOM }
     const R = { x: right.x + W, y: right.y + COLUMN_BOTTOM }
-    const tip = { x: F.x, y: F.y + 170 }
+    const noise = (x: number, salt: number) =>
+      cellNoise({ x, y: salt }, this._seed)
 
     const glow = new Sprite(softCircle())
     glow.anchor.set(0.5)
     glow.tint = 0x7048e8
-    glow.alpha = 0.35
+    glow.alpha = 0.3
     glow.blendMode = "add"
-    glow.scale.set(((R.x - L.x) * 1.3) / 64, 260 / 64)
-    glow.position.set(F.x, F.y + 60)
+    glow.scale.set(((R.x - L.x) * 1.5) / 64, 300 / 64)
+    glow.position.set(F.x, F.y + 90)
     container.addChild(glow)
 
-    const jagged = (a: Point, b: Point, salt: number) => {
-      const points: number[] = []
-      const steps = 9
-      for (let i = 1; i <= steps; i++) {
-        const t = i / steps
-        const n = cellNoise({ x: i, y: salt }, this._seed)
-        const wobble = i < steps ? n - 0.5 : 0
-        points.push(
-          a.x + (b.x - a.x) * t + wobble * 18,
-          a.y + (b.y - a.y) * t + wobble * 22,
-        )
-      }
-      return points
+    // dark core holding the roots together
+    const core = new Graphics()
+    const tip = { x: F.x + (noise(1, 1) - 0.5) * 30, y: F.y + 150 }
+    // strata bands narrowing towards the tip
+    const bands = 4
+    for (let b = 0; b < bands; b++) {
+      const k = 1 - b / bands
+      const toward = (p: { x: number; y: number }) => ({
+        x: tip.x + (p.x - tip.x) * k,
+        y: tip.y + (p.y - tip.y) * k,
+      })
+      const [l, f, r] = [L, F, R].map(toward)
+      const color = STRATA[Math.min(STRATA.length - 1, 3 + b)]
+      core.poly([l.x, l.y, f.x, f.y, tip.x, tip.y]).fill(shade(color, 0.72))
+      core.poly([f.x, f.y, r.x, r.y, tip.x, tip.y]).fill(shade(color, 0.92))
     }
+    // a few cracks
+    for (let i = 0; i < 4; i++) {
+      const t = 0.2 + noise(i, 3) * 0.6
+      const start = { x: L.x + (R.x - L.x) * t, y: F.y + 10 + noise(i, 4) * 30 }
+      core
+        .moveTo(start.x, start.y)
+        .lineTo(start.x + (noise(i, 5) - 0.5) * 12, start.y + 18)
+        .lineTo(start.x + (noise(i, 6) - 0.5) * 16, start.y + 34)
+        .stroke({ width: 1, color: 0x000000, alpha: 0.3 })
+    }
+    container.addChild(core)
 
-    const rock = new Graphics()
-    for (let layer = 0; layer < 3; layer++) {
-      const k = 1 - layer * 0.22
-      const t = { x: tip.x, y: F.y + (tip.y - F.y) * k }
-      const l = {
-        x: F.x + (L.x - F.x) * k,
-        y: L.y + (F.y - L.y) * (1 - k) * 0.3,
+    // one rocky root under each front edge cell
+    const roots = new Graphics()
+    const root = (cell: Point, side: -1 | 1) => {
+      const base = toScreen(cell)
+      const ox = base.x
+      const oy = base.y + COLUMN_BOTTOM
+      // the visible bottom edge of the face: from the outer corner to the front corner
+      const outer = { x: ox + side * W, y: oy }
+      const inner = { x: ox, y: oy + H }
+      const depth = 26 + noise(cell.x * 13 + cell.y * 7, 2 + side) * 70
+      const tipPoint = {
+        x: (outer.x + inner.x) / 2 + (noise(cell.x + cell.y * 9, 5) - 0.5) * 10,
+        y: (outer.y + inner.y) / 2 + depth,
       }
-      const r = {
-        x: F.x + (R.x - F.x) * k,
-        y: R.y + (F.y - R.y) * (1 - k) * 0.3,
+      const bands = 4
+      for (let b = 0; b < bands; b++) {
+        const t0 = b / bands
+        const t1 = (b + 1) / bands
+        const lerp = (a: { x: number; y: number }, t: number) => ({
+          x: a.x + (tipPoint.x - a.x) * t,
+          y: a.y + (tipPoint.y - a.y) * t,
+        })
+        const o0 = lerp(outer, t0)
+        const i0 = lerp(inner, t0)
+        const o1 = lerp(outer, t1)
+        const i1 = lerp(inner, t1)
+        const color = STRATA[Math.min(STRATA.length - 1, 3 + b)]
+        roots
+          .poly([o0.x, o0.y, i0.x, i0.y, i1.x, i1.y, o1.x, o1.y])
+          .fill(side < 0 ? shade(color, 0.78) : color)
       }
-      rock
-        .poly([
-          l.x,
-          l.y,
-          F.x,
-          F.y,
-          r.x,
-          r.y,
-          ...jagged(r, t, layer * 2),
-          ...jagged(t, l, layer * 2 + 1),
-        ])
-        .fill(shade(STRATA[STRATA.length - 1], 1 - layer * 0.18))
+      roots
+        .moveTo(inner.x, inner.y)
+        .lineTo(tipPoint.x, tipPoint.y)
+        .stroke({ width: 1, color: 0x000000, alpha: 0.25 })
     }
-    // stalactite-like drips
-    for (let i = 0; i < 6; i++) {
-      const n = cellNoise({ x: i, y: 99 }, this._seed)
-      const x = L.x + (R.x - L.x) * (0.15 + i * 0.14)
-      const y = F.y + 40 + n * 40
-      rock
-        .poly([x - 8, y, x + 8, y, x, y + 26 + n * 20])
-        .fill(shade(STRATA[5], 0.85))
-    }
-    container.addChild(rock)
+    for (let x = 0; x < width; x++) root({ x, y: height - 1 }, -1)
+    for (let y = 0; y < height; y++) root({ x: width - 1, y }, 1)
+    container.addChild(roots)
 
-    // small floating rocks around the island
-    const debris = new Graphics()
+    // small floating islets, gently bobbing
     for (let i = 0; i < 5; i++) {
-      const n = cellNoise({ x: i, y: 7 }, this._seed)
+      const n = noise(i, 7)
       const side = i % 2 === 0 ? -1 : 1
-      const x = F.x + side * (R.x - F.x) * (0.75 + n * 0.5)
-      const y = F.y + 20 + n * 120
-      const s = 6 + n * 8
-      debris
-        .poly([x - s, y, x, y - s * 0.6, x + s, y, x + s * 0.3, y + s * 1.4])
+      const islet = new Graphics()
+      const s = 9 + n * 12
+      const h = s / 2
+      islet
+        .poly([-s, 0, 0, h, 0, h + s * 0.4, -s, s * 0.4])
+        .fill(shade(STRATA[1], 0.78))
+        .poly([s, 0, 0, h, 0, h + s * 0.4, s, s * 0.4])
+        .fill(STRATA[1])
+        .poly([-s, s * 0.4, 0, h + s * 0.4, s, s * 0.4, s * 0.1, s * 1.6])
         .fill(STRATA[4])
-      debris
-        .poly([x - s, y, x, y - s * 0.6, x + s, y, x, y + s * 0.4])
-        .fill(GROUND_TOP[0])
+        .poly([0, -h, s, 0, 0, h, -s, 0])
+        .fill(GROUND_TOP[1])
+        .moveTo(-s, 0)
+        .lineTo(0, -h)
+        .lineTo(s, 0)
+        .stroke({ width: 1, color: 0xffffff, alpha: 0.2 })
+      islet.position.set(
+        F.x + side * (R.x - F.x) * (0.8 + n * 0.45),
+        F.y - 40 + noise(i, 8) * 170,
+      )
+      container.addChild(islet)
+      this._islets.push({ node: islet, baseY: islet.y, phase: n * Math.PI * 2 })
     }
-    container.addChild(debris)
     return container
   }
 }
