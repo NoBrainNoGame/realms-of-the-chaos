@@ -1,11 +1,12 @@
 import { describe, expect, test } from "bun:test"
 
 import { DIVINE_ACTIONS, equals, manhattan, type Point } from "@realms/engine"
-import { mount, tick } from "../test/harness"
-import FightScene, { type SceneOptions, waterState } from "./FightScene"
-import Game from "./Game"
+import { mount } from "../test/harness"
+import FightScene, { classicFight, waterState } from "./FightScene"
 
-const OPTIONS: SceneOptions = {
+type ClassicOptions = Parameters<typeof classicFight>[0]
+
+const OPTIONS: ClassicOptions = {
   seed: 3,
   spectate: true,
   speed: 4,
@@ -13,8 +14,8 @@ const OPTIONS: SceneOptions = {
   enemyTeam: ["gorr", "merlin", "nyx"],
 }
 
-function scene(options: Partial<SceneOptions> = {}) {
-  return mount(new FightScene({ ...OPTIONS, ...options }))
+function scene(options: Partial<ClassicOptions> = {}) {
+  return mount(new FightScene(classicFight({ ...OPTIONS, ...options })))
 }
 
 /** What the view shows must match the engine once animations are done. */
@@ -206,20 +207,5 @@ describe("FightScene", () => {
     internals._hud.emit("pass")
     runUntil(s, () => !internals._pending)
     expect(s.combat.activeFighter).not.toBe(me)
-  })
-
-  test("Game restarts with a new seed", () => {
-    const game = mount(new Game({ ...OPTIONS, seed: 5 }))
-    const first = (game as any)._scene as FightScene
-    first.emit("restart")
-    const second = (game as any)._scene as FightScene
-    expect(second).not.toBe(first)
-    tick(game, 200)
-  })
-
-  test("Game can show the gallery instead of a fight", () => {
-    const game = mount(new Game({ ...OPTIONS, seed: null, gallery: true }))
-    expect((game as any)._scene).toBeNull()
-    tick(game, 100)
   })
 })

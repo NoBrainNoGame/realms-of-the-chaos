@@ -1,11 +1,5 @@
 import * as booyah from "@ghom/booyah"
-import {
-  Container,
-  Graphics,
-  Sprite,
-  Text,
-  type TextStyleOptions,
-} from "pixi.js"
+import { Container, Graphics, Sprite, Text } from "pixi.js"
 
 import {
   CHARACTERS,
@@ -18,143 +12,18 @@ import {
   type Locomotion,
 } from "@realms/engine"
 import ViewChip from "./ViewChip"
-import { characterTexture, iconTexture } from "./textures"
-import { COLORS, FONT, TEAM_COLORS } from "./theme"
+import { characterTexture } from "./textures"
+import { COLORS, TEAM_COLORS } from "./theme"
+import { button, panel, text } from "./ui"
 import { STATUS_COLORS } from "./FighterView"
 
 interface HudEvents extends booyah.BaseCompositeEvents {
   action: [actionId: string]
   pass: []
   divine: [divineId: string]
-  restart: []
+  endAction: [id: string]
   speed: []
-}
-
-const style = (
-  size: number,
-  color = COLORS.text,
-  extra: TextStyleOptions = {},
-): TextStyleOptions => ({
-  fontFamily: FONT,
-  fontSize: size,
-  fill: color,
-  ...extra,
-})
-
-const text = (
-  value: string,
-  size: number,
-  color = COLORS.text,
-  extra: TextStyleOptions = {},
-) => new Text({ text: value, style: style(size, color, extra) })
-
-function panel(width: number, height: number, border = COLORS.panelBorder) {
-  return new Graphics()
-    .roundRect(0, 0, width, height, 6)
-    .fill({ color: COLORS.panel, alpha: 0.92 })
-    .stroke({ width: 2, color: border })
-}
-
-interface Button {
-  view: Container
-  setState(state: { enabled?: boolean; selected?: boolean }): void
-}
-
-function button(options: {
-  width: number
-  height: number
-  label?: string
-  icon?: string
-  hotkey?: string
-  /** Icon on the left, label next to it (wide buttons). */
-  inline?: boolean
-  /** Border color when not selected (combined actions). */
-  accent?: number
-  onTap: () => void
-  onOver?: () => void
-  onOut?: () => void
-}): Button {
-  const view = new Container()
-  const bg = new Graphics()
-  view.addChild(bg)
-  view.eventMode = "static"
-  view.cursor = "pointer"
-
-  if (options.icon) {
-    const icon = new Sprite(iconTexture(options.icon))
-    icon.anchor.set(0.5)
-    if (options.inline) {
-      icon.scale.set(2)
-      icon.position.set(18, options.height / 2)
-    } else {
-      icon.scale.set(4)
-      icon.position.set(
-        options.width / 2,
-        options.height / 2 - (options.label ? 6 : 0),
-      )
-    }
-    view.addChild(icon)
-  }
-  if (options.label) {
-    const label = text(
-      options.label,
-      options.inline ? 12 : options.icon ? 11 : 14,
-    )
-    if (options.inline) {
-      label.anchor.set(0, 0.5)
-      label.position.set(34, options.height / 2)
-    } else {
-      label.anchor.set(0.5)
-      label.position.set(
-        options.width / 2,
-        options.icon ? options.height - 10 : options.height / 2,
-      )
-    }
-    view.addChild(label)
-  }
-  if (options.hotkey) {
-    const key = text(options.hotkey, 11, COLORS.muted)
-    key.position.set(4, 2)
-    view.addChild(key)
-  }
-
-  let enabled = true
-  let selected = false
-  let hovered = false
-  const draw = () => {
-    bg.clear()
-      .roundRect(0, 0, options.width, options.height, 6)
-      .fill({
-        color: selected ? 0x4c3f6b : hovered && enabled ? 0x352b4d : 0x2a2240,
-      })
-      .stroke({
-        width: 2,
-        color: selected ? 0xffe066 : (options.accent ?? COLORS.panelBorder),
-      })
-    view.alpha = enabled ? 1 : 0.4
-  }
-
-  view.on("pointertap", () => enabled && options.onTap())
-  view.on("pointerover", () => {
-    hovered = true
-    draw()
-    options.onOver?.()
-  })
-  view.on("pointerout", () => {
-    hovered = false
-    draw()
-    options.onOut?.()
-  })
-  draw()
-
-  return {
-    view,
-    setState(state) {
-      enabled = state.enabled ?? enabled
-      selected = state.selected ?? selected
-      draw()
-    },
-  }
+  quit: []
 }
 
 /** Water traits shown on the character card. */
@@ -177,6 +46,7 @@ export default class Hud extends ViewChip<HudEvents> {
   private _bannerTime = 0
   private _end!: Container
   private _speed!: Text
+  private _quit!: Text
   private _width = 0
   private _height = 0
 
@@ -209,6 +79,13 @@ export default class Hud extends ViewChip<HudEvents> {
     this._speed.cursor = "pointer"
     this._speed.on("pointertap", () => this.emit("speed"))
 
+    this._quit = text("Menu", 13, COLORS.muted)
+    this._quit.anchor.set(1, 0)
+    this._quit.eventMode = "static"
+    this._quit.cursor = "pointer"
+    this._quit.visible = false
+    this._quit.on("pointertap", () => this.emit("quit"))
+
     const help = text(
       "Clic : se déplacer · 1-4 : actions · Espace : passer · Échap / clic droit : annuler",
       12,
@@ -225,6 +102,7 @@ export default class Hud extends ViewChip<HudEvents> {
       this._log,
       help,
       this._speed,
+      this._quit,
       this._banner,
       this._tooltip,
       this._end,
@@ -258,8 +136,14 @@ export default class Hud extends ViewChip<HudEvents> {
     this._divine.position.set(w - 212, 100)
     this._log.position.set(12, h - 140)
     this._speed.position.set(w - 12, 10)
+    this._quit.position.set(w - 110, 10)
     this._banner.position.set(w / 2, h * 0.3)
     if (this._end.visible) this._centerEnd()
+  }
+
+  /** Shows the Menu button (leave the fight). */
+  setQuittable(quittable: boolean) {
+    this._quit.visible = quittable
   }
 
   setSpeed(speed: number) {
@@ -578,7 +462,13 @@ export default class Hud extends ViewChip<HudEvents> {
     this._banner.alpha = 1
   }
 
-  showEnd(message: string, color: number) {
+  showEnd(
+    message: string,
+    color: number,
+    actions: { id: string; label: string }[] = [
+      { id: "restart", label: "Rejouer" },
+    ],
+  ) {
     this._end.removeChildren().forEach((c) => c.destroy({ children: true }))
     const title = text(message, 40, color, {
       fontWeight: "700",
@@ -586,14 +476,18 @@ export default class Hud extends ViewChip<HudEvents> {
     })
     title.anchor.set(0.5, 0)
     title.position.set(160, 20)
-    const again = button({
-      width: 180,
-      height: 48,
-      label: "Rejouer",
-      onTap: () => this.emit("restart"),
+    this._end.addChild(panel(320, 110 + actions.length * 58), title)
+    actions.forEach((action, i) => {
+      const view = button({
+        width: 220,
+        height: 48,
+        label: action.label,
+        onTap: () => this.emit("endAction", action.id),
+      })
+      view.view.position.set(50, 96 + i * 58)
+      view.view.label = `end:${action.id}`
+      this._end.addChild(view.view)
     })
-    again.view.position.set(70, 100)
-    this._end.addChild(panel(320, 170), title, again.view)
     this._end.visible = true
     this._centerEnd()
   }

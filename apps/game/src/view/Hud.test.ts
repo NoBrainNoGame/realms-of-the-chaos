@@ -148,7 +148,7 @@ describe("Hud", () => {
     hud.setSpeed(2)
     expect(texts(hud.container)).toContain("Vitesse x2")
     const events: string[] = []
-    hud.on("restart", () => events.push("restart"))
+    hud.on("endAction", (id: string) => events.push(id))
     hud.showEnd("Victoire !", 0xffe066)
     const end = hud.container.children.at(-1) as Container
     for (const b of buttons(end)) b.emit("pointertap", {} as any)

@@ -12,6 +12,9 @@ import {
   manhattan,
   type ActionDefinition,
   type Board,
+  type CharacterPreset,
+  type Command,
+  type CombatOptions,
   type Fighter,
   type FightEvent,
   type Point,
@@ -51,15 +54,74 @@ import {
   toScreen,
 } from "./theme"
 
+/** A team of the fight, and who plays it. */
+export interface SceneTeam {
+  name: string
+  /** Played on this device, or by the AI. */
+  controller: "local" | "ai"
+  fighters: (string | CharacterPreset)[]
+  /** Difficulty: scales the fighters' stats. */
+  statMultiplier?: number
+  /** Starting hit points (arcade waves). */
+  hp?: (number | undefined)[]
+}
+
+/** A button of the end screen. */
+export interface EndAction {
+  id: string
+  label: string
+}
+
 export interface SceneOptions {
   seed: number
-  /** AI vs AI. */
-  spectate: boolean
   /** Animation speed multiplier (1, 2 or 4). */
   speed: number
-  playerTeam: string[]
-  enemyTeam: string[]
+  teams: SceneTeam[]
+  /** Buttons of the end screen (default: replay). */
+  endActions?: EndAction[]
+  /** Shows a "Menu" button to leave the fight. */
+  quittable?: boolean
 }
+
+/** A classic fight: your team (or the AI's if spectating) against the AI. */
+export function classicFight(options: {
+  seed: number
+  speed: number
+  spectate: boolean
+  playerTeam: (string | CharacterPreset)[]
+  enemyTeam: (string | CharacterPreset)[]
+}): SceneOptions {
+  return {
+    seed: options.seed,
+    speed: options.speed,
+    teams: [
+      {
+        name: options.spectate ? "Lumière" : "Vous",
+        controller: options.spectate ? "ai" : "local",
+        fighters: options.playerTeam,
+      },
+      { name: "Chaos", controller: "ai", fighters: options.enemyTeam },
+    ],
+  }
+}
+
+/** Engine options of a scene (local teams are the engine's humans). */
+export function combatOptions(options: SceneOptions): CombatOptions {
+  return {
+    seed: options.seed,
+    teams: options.teams.map((team) => ({
+      name: team.name,
+      controller: team.controller === "local" ? "human" : "ai",
+      fighters: team.fighters,
+      statMultiplier: team.statMultiplier,
+      hp: team.hp,
+    })),
+  }
+}
+
+export const DEFAULT_END_ACTIONS: EndAction[] = [
+  { id: "restart", label: "Rejouer" },
+]
 
 type Mode =
   | { type: "move" }
@@ -67,7 +129,10 @@ type Mode =
   | { type: "divine"; id: string }
 
 interface SceneEvents extends booyah.BaseCompositeEvents {
-  restart: []
+  /** A button of the end screen was pressed. */
+  endAction: [id: string]
+  /** The player left the fight (Menu button). */
+  quit: []
 }
 
 /**
@@ -123,28 +188,37 @@ export default class FightScene extends ViewChip<SceneEvents> {
     damaging: boolean
   } | null = null
   /** Command received while an animation was playing. */
-  private _pending: (() => ReturnType<Combat["pass"]>) | null = null
+  private _pending: Command | null = null
+  /** Team of the last local turn (announces turns in local duels). */
+  private _lastInputTeam: number | null = null
   private _worldBase = { x: 0, y: 0 }
   private _shake = { intensity: 0, remaining: 0, duration: 1 }
 
   constructor(private readonly _options: SceneOptions) {
     super()
     this._speed = _options.speed
-    this.combat = new Combat({
-      seed: _options.seed,
-      teams: [
-        {
-          name: _options.spectate ? "Lumière" : "Vous",
-          controller: _options.spectate ? "ai" : "human",
-          fighters: _options.playerTeam,
-        },
-        { name: "Chaos", controller: "ai", fighters: _options.enemyTeam },
-      ],
-    })
+    this.combat = new Combat(combatOptions(_options))
   }
 
+  get options(): Readonly<SceneOptions> {
+    return this._options
+  }
+
+  /** Teams played on this device. */
+  get localTeams(): number[] {
+    return this._options.teams.flatMap((t, i) =>
+      t.controller === "local" ? [i] : [],
+    )
+  }
+
+  /**
+   * Team whose divine powers are shown: the local team playing now, else
+   * the first local team (or the first team when spectating).
+   */
   get playerTeam() {
-    return 0
+    const active = this._activeHuman
+    if (active) return active.team
+    return this.localTeams[0] ?? 0
   }
 
   // ─── Lifecycle ────────────────────────────────────────────────────────────
@@ -225,10 +299,10 @@ export default class FightScene extends ViewChip<SceneEvents> {
     )
     this._subscribe(this._hud, "action", (id) => this._selectAction(id))
     this._subscribe(this._hud, "divine", (id) => this._selectDivine(id))
-    this._subscribe(this._hud, "pass", () =>
-      this._command(() => this.combat.pass()),
-    )
-    this._subscribe(this._hud, "restart", () => this.emit("restart"))
+    this._subscribe(this._hud, "pass", () => this._pass())
+    this._subscribe(this._hud, "endAction", (id) => this.emit("endAction", id))
+    this._subscribe(this._hud, "quit", () => this.emit("quit"))
+    this._hud.setQuittable(!!this._options.quittable)
     this._subscribe(this._hud, "speed", () => this._toggleSpeed())
     this._subscribe(window, "keydown", (e: KeyboardEvent) => this._onKey(e))
   }
@@ -809,6 +883,19 @@ export default class FightScene extends ViewChip<SceneEvents> {
   private _enterInput() {
     this._inputReady = true
     this._mode = { type: "move" }
+    // local duel: announce whose turn it is when the team changes
+    const team = this._activeHuman?.team ?? null
+    if (
+      team !== null &&
+      this.localTeams.length > 1 &&
+      team !== this._lastInputTeam
+    ) {
+      this._hud.banner(
+        `Au tour de ${this.combat.teams[team].name}`,
+        TEAM_COLORS[team],
+      )
+    }
+    this._lastInputTeam = team
     this._refreshAll()
   }
 
@@ -846,14 +933,24 @@ export default class FightScene extends ViewChip<SceneEvents> {
     return null
   }
 
-  private _command(run: () => ReturnType<Combat["pass"]>) {
+  /** Pass the turn of the active local fighter. */
+  private _pass() {
+    const fighter = this._activeHuman
+    if (fighter) this._command({ type: "pass", fighterId: fighter.id })
+  }
+
+  /**
+   * Run a player command (serialized: the engine logs it, and an online
+   * duel will send it to the server instead).
+   */
+  private _command(command: Command) {
     if (!this._activeHuman || !this._inputReady) return
     // an animation of this turn is still playing: run the command right after
     if (this._playing) {
-      this._pending = run
+      this._pending = command
       return
     }
-    const result = run()
+    const result = this.combat.execute(command)
     if (!result.ok) {
       this._hud.banner(result.reason, 0xff8787)
       return
@@ -877,7 +974,12 @@ export default class FightScene extends ViewChip<SceneEvents> {
     if (!action || this.combat.isOnCooldown(fighter, action)) return
     // self actions are used straight away
     if (action.target === "self") {
-      this._command(() => this.combat.useAction(action.id, fighter.position))
+      this._command({
+        type: "useAction",
+        fighterId: fighter.id,
+        actionId: action.id,
+        target: fighter.position,
+      })
       return
     }
     this._mode =
@@ -888,9 +990,15 @@ export default class FightScene extends ViewChip<SceneEvents> {
   }
 
   private _selectDivine(id: string) {
-    if (!this._activeHuman || !this._inputReady) return
+    const fighter = this._activeHuman
+    if (!fighter || !this._inputReady) return
     if (DIVINE_ACTIONS[id].target === "none") {
-      this._command(() => this.combat.useDivine(id))
+      this._command({
+        type: "useDivine",
+        fighterId: fighter.id,
+        divineId: id,
+        target: null,
+      })
       return
     }
     this._mode =
@@ -911,16 +1019,26 @@ export default class FightScene extends ViewChip<SceneEvents> {
 
     switch (this._mode.type) {
       case "move":
-        this._command(() => this.combat.moveTo(p))
+        this._command({ type: "moveTo", fighterId: fighter.id, destination: p })
         break
       case "action": {
         const action = this._mode.action
-        this._command(() => this.combat.useAction(action.id, p))
+        this._command({
+          type: "useAction",
+          fighterId: fighter.id,
+          actionId: action.id,
+          target: p,
+        })
         break
       }
       case "divine": {
         const id = this._mode.id
-        this._command(() => this.combat.useDivine(id, p))
+        this._command({
+          type: "useDivine",
+          fighterId: fighter.id,
+          divineId: id,
+          target: p,
+        })
         this._mode = { type: "move" }
         this._refreshAll()
         break
@@ -934,7 +1052,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
     if (!fighter) return
     if (e.key === " " || e.key === "Enter") {
       e.preventDefault()
-      this._command(() => this.combat.pass())
+      this._pass()
     } else if (e.key === "Escape") {
       this._mode = { type: "move" }
       this._refreshAll()
@@ -972,9 +1090,10 @@ export default class FightScene extends ViewChip<SceneEvents> {
     const fighter = this._activeHuman
     const hovered = this._hovered
 
-    // planned paths of the player's fighters
+    // planned paths of the local fighters
+    const local = this.localTeams
     for (const f of this.combat.aliveFighters) {
-      if (f.team === this.playerTeam && f.path.length) {
+      if (local.includes(f.team) && f.path.length) {
         highlights.push({
           cells: f.path,
           color: COLORS.path,
@@ -1081,15 +1200,19 @@ export default class FightScene extends ViewChip<SceneEvents> {
     this._inputReady = false
     this._hud.setActions(null, this.combat, null)
     const winner = this.combat.winnerTeam
-    if (winner === null) this._hud.showEnd("Match nul", COLORS.text)
-    else if (this._options.spectate)
+    const actions = this._options.endActions ?? DEFAULT_END_ACTIONS
+    const local = this.localTeams
+    if (winner === null) this._hud.showEnd("Match nul", COLORS.text, actions)
+    else if (local.length !== 1)
+      // spectating, or a local duel: name the winner
       this._hud.showEnd(
         `${this.combat.teams[winner].name} gagne !`,
         TEAM_COLORS[winner],
+        actions,
       )
-    else if (winner === this.playerTeam)
-      this._hud.showEnd("Victoire !", 0xffe066)
-    else this._hud.showEnd("Défaite…", 0xff8787)
+    else if (winner === local[0])
+      this._hud.showEnd("Victoire !", 0xffe066, actions)
+    else this._hud.showEnd("Défaite…", 0xff8787, actions)
     this._board.setHighlights([])
   }
 }

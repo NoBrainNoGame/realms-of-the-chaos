@@ -1,3 +1,4 @@
+import * as booyah from "@ghom/booyah"
 import { Graphics, Text } from "pixi.js"
 
 import { CHARACTERS } from "@realms/engine"
@@ -20,7 +21,11 @@ const ACTIONS: (PuppetAction | "walk" | "idle")[] = [
  * Dev page (`?gallery`): every puppet in its 4 facings, cycling through
  * its animations, to check the art without playing.
  */
-export default class Gallery extends ViewChip {
+interface GalleryEvents extends booyah.BaseCompositeEvents {
+  back: []
+}
+
+export default class Gallery extends ViewChip<GalleryEvents> {
   private _puppets: Puppet[] = []
   private _time = 0
   private _label!: Text
@@ -54,7 +59,18 @@ export default class Gallery extends ViewChip {
       style: { fontFamily: FONT, fontSize: 22, fill: 0xffe066 },
     })
     this._label.position.set(10, 10)
-    this._container.addChild(this._label)
+    const back = new Text({
+      text: "← Retour (Échap)",
+      style: { fontFamily: FONT, fontSize: 16, fill: 0x9d92b8 },
+    })
+    back.position.set(320, 14)
+    back.eventMode = "static"
+    back.cursor = "pointer"
+    back.on("pointertap", () => this.emit("back"))
+    this._container.addChild(this._label, back)
+    this._subscribe(window, "keydown", (e: KeyboardEvent) => {
+      if (e.key === "Escape") this.emit("back")
+    })
   }
 
   protected _onTick() {

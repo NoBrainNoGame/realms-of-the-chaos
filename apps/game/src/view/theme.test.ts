@@ -74,6 +74,7 @@ describe("URL parameters", () => {
 
   test("defaults", () => {
     expect(parse("")).toEqual({
+      mode: "title",
       seed: null,
       spectate: false,
       debug: false,
@@ -93,6 +94,16 @@ describe("URL parameters", () => {
       gallery: true,
       speed: 0.25,
     })
+  })
+
+  test("start screen: mode parameter, or a direct fight with fight parameters", () => {
+    expect(parse("?mode=arcade").mode).toBe("arcade")
+    expect(parse("?mode=nope").mode).toBe("title")
+    expect(parse("?gallery").mode).toBe("gallery")
+    expect(parse("?seed=4").mode).toBe("fight")
+    expect(parse("?spectate").mode).toBe("fight")
+    expect(parse("?team=eva").mode).toBe("fight")
+    expect(parse("?seed=4&mode=local").mode).toBe("local")
   })
 
   test("invalid seed and speed fall back", () => {

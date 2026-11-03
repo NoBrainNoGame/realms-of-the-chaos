@@ -9,8 +9,24 @@ import { CHARACTERS } from "@realms/engine"
  * - `?enemies=gorr,nyx`      enemy roster
  * - `?debug`                 exposes `window.game` and `window.runner` in the console
  * - `?gallery`               shows every puppet in its 4 facings (art check)
+ * - `?mode=skirmish`         opens a screen directly: title, skirmish, local,
+ *                            arcade, gallery or fight
+ *
+ * Without `mode`, any fight parameter (seed, spectate, team, enemies) starts
+ * a fight right away, as before the title screen existed.
  */
+export const MODES = [
+  "title",
+  "skirmish",
+  "local",
+  "arcade",
+  "gallery",
+  "fight",
+] as const
+export type StartMode = (typeof MODES)[number]
+
 export interface Params {
+  mode: StartMode
   seed: number | null
   spectate: boolean
   debug: boolean
@@ -38,7 +54,18 @@ export function parseParams(search: URLSearchParams): Params {
   const seed = Number(search.get("seed"))
   const speed = Number(search.get("speed"))
 
+  const requested = search.get("mode") as StartMode | null
+  const mode: StartMode =
+    requested && MODES.includes(requested)
+      ? requested
+      : search.has("gallery")
+        ? "gallery"
+        : ["seed", "spectate", "team", "enemies"].some((k) => search.has(k))
+          ? "fight"
+          : "title"
+
   return {
+    mode,
     seed: search.get("seed") && Number.isFinite(seed) ? seed : null,
     spectate: search.has("spectate"),
     debug: search.has("debug"),

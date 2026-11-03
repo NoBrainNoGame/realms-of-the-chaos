@@ -3,7 +3,7 @@
 > RPG tactique en HTML5 sur grille **isométrique 2D à cases carrées**, avec des tours rythmés par une **timeline**.
 > Alias interne : _« LE JEU VIDÉO PARFAIT DE LA MORT KI TUE »_.
 
-**Statut : prototype jouable.** Un combat complet fonctionne : 3 personnages contre 3 pilotés par l'IA, avec actions, zones, effets d'état, pouvoirs divins et écran de fin. Le moteur de combat est couvert par des tests automatisés, et **équilibré par simulation** : chaque personnage gagne environ la moitié de ses combats en 3 contre 3.
+**Statut : prototype jouable.** Un écran titre mène à trois modes hors ligne : **Escarmouche** (contre l'IA), **Duel local** (deux joueurs sur un écran) et **Arcade** (vagues successives, record). Les combats se jouent jusqu'à 3 contre 3, avec actions, zones, effets d'état, pouvoirs divins et écran de fin. Le moteur de combat est couvert par des tests automatisés, et **équilibré par simulation** : chaque personnage gagne environ la moitié de ses combats en 3 contre 3.
 
 ---
 
@@ -24,17 +24,41 @@ bun run format     # prettier
 
 Turborepo met en cache les résultats : une tâche dont les fichiers n'ont pas changé n'est pas relancée. On peut cibler un paquet avec `bunx turbo run test --filter=@realms/engine`, ou lancer `bun test` directement dans `packages/engine` ou `apps/game`.
 
-Paramètres d'URL (`apps/game/src/params.ts`) :
+Paramètres d'URL (`apps/game/src/params.ts`), surtout utiles en développement. Sans paramètre, le jeu s'ouvre sur l'écran titre.
 
-| Paramètre              | Effet                                                                                  |
-| ---------------------- | -------------------------------------------------------------------------------------- |
-| `?seed=42`             | combat reproductible (même carte, mêmes placements, même hasard)                       |
-| `?spectate`            | IA contre IA                                                                           |
-| `?speed=4`             | vitesse des animations au démarrage (0.25 à 4 ; 0.25 = ralenti pour régler les effets) |
-| `?debug`               | expose le jeu et le runner dans la console (`window.game`, `window.runner`)            |
-| `?gallery`             | galerie des personnages : 4 orientations et toutes les animations                      |
-| `?team=eva,nyx,lyra`   | composition de votre équipe (6 personnages max)                                        |
-| `?enemies=gorr,merlin` | composition de l'équipe adverse                                                        |
+| Paramètre              | Effet                                                                                     |
+| ---------------------- | ----------------------------------------------------------------------------------------- |
+| `?mode=skirmish`       | ouvre directement un écran : `title`, `skirmish`, `local`, `arcade`, `gallery` ou `fight` |
+| `?seed=42`             | combat direct et reproductible (même carte, mêmes placements, même hasard)                |
+| `?spectate`            | combat direct, IA contre IA                                                               |
+| `?speed=4`             | vitesse des animations au démarrage (0.25 à 4 ; 0.25 = ralenti pour régler les effets)    |
+| `?debug`               | expose le jeu et le runner dans la console (`window.game`, `window.runner`)               |
+| `?gallery`             | galerie des personnages : 4 orientations et toutes les animations                         |
+| `?team=eva,nyx,lyra`   | combat direct avec cette équipe (6 personnages max)                                       |
+| `?enemies=gorr,merlin` | combat direct contre cette équipe                                                         |
+
+Sans `mode`, les paramètres de combat (`seed`, `spectate`, `team`, `enemies`) lancent un combat directement, sans passer par l'écran titre.
+
+### Modes de jeu
+
+| Mode            | Déroulement                                                                                                                                                                                                                                                          |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Escarmouche** | Votre équipe (1 à 3 Échos) contre une équipe de l'IA, tirée au hasard et relançable. Trois difficultés : Facile (stats de l'IA ×0,85), Normal, Difficile (×1,2).                                                                                                     |
+| **Duel local**  | Deux joueurs sur le même écran. Le joueur bleu puis le joueur rouge choisissent leur équipe. En combat, un bandeau annonce l'équipe qui joue, et le panneau des pouvoirs divins suit l'équipe active.                                                                |
+| **Arcade**      | Des vagues de plus en plus nombreuses et fortes. Entre deux vagues, un bilan et le choix d'un bonus (soin complet, +10 % de puissance ou une recrue). La partie s'arrête à la première défaite. Le record est gardé dans le navigateur et affiché sur l'écran titre. |
+| _Duel en ligne_ | Bientôt (comptes et serveur, phases 5 et 6).                                                                                                                                                                                                                         |
+| _Chroniques_    | Bientôt (lore, phase 4).                                                                                                                                                                                                                                             |
+
+**Choix d'équipe :**
+
+- les 8 Échos sont animés, avec la fiche détaillée de celui qu'on survole ;
+- on peut prendre plusieurs fois le même Écho ;
+- la carte est tirée au hasard et relançable ;
+- au clavier : flèches, `Espace` pour ajouter ou retirer, `Entrée` pour valider, `Échap` pour revenir, `D` pour la difficulté, `R` pour une autre carte.
+
+**Écran titre et écrans de l'Arcade :** flèches et `Entrée`, ou la souris.
+
+**En combat :** le bouton **Menu** ramène à l'écran titre. L'écran de fin propose de rejouer sur une nouvelle carte, de changer d'équipe ou de revenir au titre.
 
 ### Contrôles
 
@@ -95,9 +119,15 @@ apps/game/
     ├── params.ts          paramètres d'URL
     ├── art/
     │   └── pixelArt.ts    sprites 16×16 et icônes 8×8, stockés en texte (+ test)
+    ├── storage.ts         record d'Arcade (stockage du navigateur, accès protégés)
     ├── view/              ── rendu PixiJS 8 + booyah ──
-    │   ├── Game.ts        chip racine (relance un combat avec une nouvelle seed)
-    │   ├── FightScene.ts  orchestre moteur ↔ animations ↔ entrées du joueur
+    │   ├── Game.ts        routeur d'écrans : titre → choix d'équipe → combat / Arcade
+    │   ├── TitleScreen.ts écran titre : île flottante, titre, menu, record
+    │   ├── TeamPicker.ts  choix d'équipe commun à tous les modes (et réglages)
+    │   ├── ArcadeRun.ts   partie d'Arcade : vagues, bilans, bonus, record, enregistrement
+    │   ├── MessageScreen.ts écran de message avec choix (bilans, fin de partie)
+    │   ├── ui.ts          composants : textes, panneaux, boutons, menus au clavier
+    │   ├── FightScene.ts  orchestre moteur ↔ animations ↔ entrées des joueurs
     │   ├── Backdrop.ts    ciel étoilé, poussières lumineuses
     │   ├── BoardView.ts   île flottante : colonnes de terrain, eau, décors, onde de choc, surbrillances
     │   ├── FighterView.ts pantin, PV, effets d'état, animations
@@ -112,28 +142,34 @@ apps/game/
     │   └── *.test.ts      tests du rendu (Pixi sans navigateur)
     └── test/
         ├── dom.ts         DOM simulé (happy-dom) et faux contexte canvas 2D pour Pixi
-        └── harness.ts     monter et faire « tiquer » des chips booyah dans les tests
+        ├── harness.ts     monter et faire « tiquer » des chips booyah dans les tests
+        └── play.ts        jouer les équipes locales avec l'IA, via de vraies commandes
 ```
 
 ### Tests
 
-`bun run test` lance 297 tests : 191 pour le moteur (**99,7 % des lignes couvertes**) et 106 pour le jeu, dont tous les fichiers sont couverts sauf `index.ts`, qui a besoin d'un vrai WebGL. Les tournois d'équilibrage du moteur prennent une vingtaine de secondes, et Turborepo ne les relance que si le moteur a changé.
+`bun run test` lance 312 tests : 191 pour le moteur (**99,7 % des lignes couvertes**) et 121 pour le jeu, dont tous les fichiers sont couverts sauf `index.ts`, qui a besoin d'un vrai WebGL. Les tournois d'équilibrage du moteur prennent une vingtaine de secondes, et Turborepo ne les relance que si le moteur a changé.
 
 - **Moteur** : règles du plateau et du relief, combat, combos, IA, et des centaines de combats IA complets sur des cartes générées, avec vérification d'invariants. S'y ajoutent le rejeu (un combat reconstruit depuis son journal de commandes est identique), l'Arcade (une partie truquée est refusée) et l'équilibrage (voir plus bas).
-- **Rendu** : grâce à happy-dom et à un faux contexte canvas (`apps/game/src/test/dom.ts`), Pixi construit ses scènes sans navigateur. Sont testés les pantins (4 orientations, toutes les animations), le plateau (onde de choc, surbrillances, événements), les effets, le HUD, et des **parties entières animées**. Une partie IA contre IA et une partie jouée au clavier et à la souris vont jusqu'à l'écran de fin, et on vérifie que l'affichage correspond exactement au moteur (PV, positions, effets d'état).
+- **Rendu** : grâce à happy-dom et à un faux contexte canvas (`apps/game/src/test/dom.ts`), Pixi construit ses scènes sans navigateur. Sont testés les pantins (4 orientations, toutes les animations), le plateau (onde de choc, surbrillances, événements), les effets, le HUD, et des **parties entières animées**. Une partie IA contre IA et une partie jouée au clavier et à la souris vont jusqu'à l'écran de fin, et on vérifie que l'affichage correspond exactement au moteur (PV, positions, effets d'état). Les écrans sont testés aussi :
+  - la navigation du titre ;
+  - les règles du choix d'équipe ;
+  - le routage complet (rejouer, changer d'équipe, quitter) ;
+  - un duel local joué entièrement par les deux équipes ;
+  - deux vagues d'Arcade jouées par l'interface, dont l'enregistrement est **rejoué par le moteur avec le même score**.
 
 ### Boucle de jeu
 
 1. `FightScene` appelle `combat.advance()`. Le moteur traite le prochain événement de la timeline (un pas de déplacement ou un tour d'action), résout immédiatement les tours de l'IA et renvoie une liste de `FightEvent`.
 2. La scène convertit ces événements en animations booyah (`Sequence` / `Parallel`) et les joue. La vue garde son propre état affiché (PV, position), qui peut être en retard sur le moteur le temps d'une animation.
-3. Quand c'est au tour d'un humain (`state === "awaitingInput"`), les commandes `moveTo`, `useAction`, `pass` et `useDivine` renvoient de nouveaux événements, ou un refus avec sa raison.
+3. Quand c'est au tour d'une équipe locale (`state === "awaitingInput"`), la scène envoie des `Command` sérialisées à `combat.execute()`, qui renvoie de nouveaux événements, ou un refus avec sa raison. Le moteur garde ces commandes dans son journal, et le duel en ligne les enverra au serveur par le même chemin.
 
 ### Commandes, rejeu et Arcade
 
 - **Commandes sérialisables :** chaque ordre est aussi un objet `Command` (`moveTo`, `useAction`, `pass`, `useDivine`). `combat.execute(command)` refuse un ordre qui ne vient pas du personnage dont c'est le tour.
 - **Journal et rejeu :** `combat.log` garde les commandes acceptées, et `Combat.replay(options, log)` reconstruit un combat identique, puisque le moteur est déterministe. C'est la base du futur duel en ligne et de la vérification des scores.
 - **Difficulté :** chaque équipe peut recevoir un multiplicateur de stats (`statMultiplier` : PV, attaques et défenses multipliés, vitesse par la racine carrée) et des PV de départ (`hp`).
-- **Arcade (`arcade.ts`) :** la logique existe dans le moteur, l'écran viendra plus tard.
+- **Arcade (`arcade.ts`) :** toute la logique est dans le moteur, l'écran (`ArcadeRun`) ne fait que l'afficher.
   - Des vagues générées depuis la seed de la partie : 2 à 4 ennemis, à 80 % de puissance à la première vague, puis +8 % par vague.
   - Les survivants récupèrent la moitié des PV perdus.
   - Entre deux vagues, on choisit un bonus : soin complet, +10 % de puissance, ou une recrue.
@@ -314,7 +350,8 @@ Déjà en place :
 - jusqu'à 3 personnages par case, disposés en triangle et réduits pour garder le plateau lisible ;
 - dans l'eau, les personnages pataugent (eau jusqu'aux mollets) ou nagent (immergés jusqu'au torse, avec une brasse animée) ;
 - une commande tapée pendant une animation n'est pas perdue : elle s'exécute à la fin de l'animation ;
-- écran de fin avec bouton « Rejouer ».
+- écran de fin : rejouer sur une nouvelle carte, changer d'équipe ou revenir au titre ; bouton Menu pour quitter un combat ;
+- en duel local, un bandeau annonce l'équipe qui joue, et la barre de PV montre l'érosion.
 
 ## Équilibrage
 
@@ -396,11 +433,11 @@ La « coquille vide » du doc avance :
 1. ✅ Des personnages (8)
 2. ✅ Des ennemis et leur IA
 3. ✅ Le moteur de combat, équilibré par simulation
-4. 🚧 Les modes de jeu : la logique de l'Arcade et le rejeu (base du duel en ligne) sont dans le moteur, les écrans restent à faire
+4. 🚧 Les modes de jeu : Escarmouche, Duel local et Arcade sont jouables ; le duel en ligne, l'aventure et le rogue lite restent à faire
 
 En cours (dans l'ordre) :
 
-- [ ] Écran titre, choix d'équipe, et les modes Escarmouche (contre l'IA), Duel local et Arcade
+- [x] Écran titre, choix d'équipe, et les modes Escarmouche (contre l'IA), Duel local et Arcade
 - [ ] Créateur de personnage : stats réparties avec le modèle d'équilibrage, apparence modulaire (corps, tête, habits, couleurs, détails), personnages utilisables dans tous les modes
 - [ ] Lore : le Voile, l'Ombre du Tout, les Ghoms, les Échos, et un écran Chroniques
 - [ ] Comptes (OAuth Discord et Google), base PostgreSQL avec Prisma, profils, équipes favorites, classements
