@@ -77,6 +77,12 @@ export interface ActionDefinition {
   affects?: AffectFilter
   /** Multiplier of the launcher's base delay added to the timeline. */
   timeCost: number
+  /**
+   * Movement action (sprint): the launcher walks right away to a cell at
+   * most `maxSteps` steps away. It costs the time of the walk (the sum of
+   * its step delays) instead of `timeCost`, and ends the turn.
+   */
+  movement?: { maxSteps: number }
   /** Number of own turns before the action can be used again. */
   cooldown?: number
   effects: Effect[]

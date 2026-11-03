@@ -18,6 +18,7 @@ import { createRng, type Rng } from "./random"
 import { POINT, inZone, zoneCells } from "./zones"
 import {
   ACTIONS,
+  COMMON_ACTIONS,
   comboAction,
   BLESSING_HEAL,
   CHARACTERS,
@@ -181,7 +182,10 @@ export class Combat {
           name: duplicates ? `${preset.name} ${duplicates + 1}` : preset.name,
           team,
           stats: scaleStats(preset.stats, setup.statMultiplier ?? 1),
-          actions: preset.actions.map((id) => {
+          actions: [
+            ...preset.actions,
+            ...COMMON_ACTIONS.filter((id) => !preset.actions.includes(id)),
+          ].map((id) => {
             const action = ACTIONS[id]
             if (!action) throw new Error(`Unknown action "${id}"`)
             return action
@@ -390,12 +394,50 @@ export class Combat {
     })
   }
 
+  /**
+   * Paths of a movement action: every cell reachable in at most `maxSteps`
+   * steps (through allies, never through enemies), with its shortest path.
+   */
+  movementPaths(
+    fighter: Fighter,
+    maxSteps: number,
+    origin: Point = fighter.position,
+  ): Map<string, Point[]> {
+    const paths = new Map<string, Point[]>()
+    const seen = new Set([keyOf(origin)])
+    let frontier: { point: Point; path: Point[] }[] = [
+      { point: origin, path: [] },
+    ]
+    for (let step = 0; step < maxSteps; step++) {
+      const next: typeof frontier = []
+      for (const { point, path } of frontier) {
+        for (const neighbor of this.board.neighbors(point)) {
+          const key = keyOf(neighbor)
+          if (seen.has(key)) continue
+          if (!this.board.canStep(point, neighbor, fighter.locomotion)) continue
+          if (!this.canEnter(fighter, neighbor)) continue
+          seen.add(key)
+          const route = [...path, neighbor]
+          paths.set(key, route)
+          next.push({ point: neighbor, path: route })
+        }
+      }
+      frontier = next
+    }
+    return paths
+  }
+
   /** Cells where the action can be aimed (launch zone, height, LOS). */
   getLaunchCells(
     fighter: Fighter,
     action: ActionDefinition,
     origin: Point = fighter.position,
   ): Point[] {
+    if (action.movement) {
+      return [...this.movementPaths(fighter, action.movement.maxSteps, origin)]
+        .map(([, path]) => path[path.length - 1])
+        .sort((a, b) => a.y - b.y || a.x - b.x)
+    }
     const widest = zoneCells(origin, {
       ...action.launch,
       max: action.launch.max + MAX_HEIGHT_BONUS,
@@ -413,6 +455,11 @@ export class Combat {
     target: Point,
     origin: Point = fighter.position,
   ) {
+    if (action.movement) {
+      return this.movementPaths(fighter, action.movement.maxSteps, origin).has(
+        keyOf(target),
+      )
+    }
     const occupants = this.fightersAt(target)
     if (
       action.targetTerrain &&
@@ -447,6 +494,8 @@ export class Combat {
     action: ActionDefinition,
     origin: Point = fighter.position,
   ): Point[] {
+    // movement: every reachable cell is a valid target by construction
+    if (action.movement) return this.getLaunchCells(fighter, action, origin)
     if (action.target === "emptyCell") {
       return this.getLaunchCells(fighter, action, origin).filter((p) =>
         this.targetMatches(fighter, action, p, origin),
@@ -841,6 +890,52 @@ export class Combat {
     return this._result()
   }
 
+  /** Movement action: walk the path right away, pay its time, end the turn. */
+  private _sprint(
+    fighter: Fighter,
+    action: ActionDefinition,
+    target: Point,
+  ): string | null {
+    const path = this.movementPaths(fighter, action.movement!.maxSteps).get(
+      keyOf(target),
+    )
+    if (!path) return "Cible hors de portée"
+    this._emit({
+      type: "actionUsed",
+      fighterId: fighter.id,
+      actionId: action.id,
+      baseActionId: action.id,
+      partnerId: null,
+      target,
+      cells: [...path],
+    })
+    // a planned walk is replaced by the sprint
+    fighter.destination = null
+    fighter.path = []
+    let time = 0
+    for (const next of path) {
+      const from = fighter.position
+      time += this.stepDelay(fighter, from, next)
+      fighter.position = next
+      this._emit({ type: "moved", fighterId: fighter.id, from, to: next })
+    }
+    fighter.nextMoveAt = this._time
+    if (action.cooldown) fighter.cooldowns[action.id] = action.cooldown + 1
+    this._endTurn(fighter, time)
+    return null
+  }
+
+  /** Time a movement action would take along a path (HUD previews). */
+  movementTime(fighter: Fighter, path: readonly Point[]) {
+    let time = 0
+    let from = fighter.position
+    for (const next of path) {
+      time += this.stepDelay(fighter, from, next)
+      from = next
+    }
+    return time
+  }
+
   private _moveTo(fighter: Fighter, destination: Point): string | null {
     if (equals(destination, fighter.position)) {
       fighter.destination = null
@@ -927,6 +1022,8 @@ export class Combat {
     if (!this.getLaunchCells(fighter, action).some((p) => equals(p, target)))
       return "Cible hors de portée"
     if (!this.targetMatches(fighter, action, target)) return "Cible invalide"
+
+    if (action.movement) return this._sprint(fighter, action, target)
 
     const affected = this.getAffectedFighters(fighter, action, target)
 

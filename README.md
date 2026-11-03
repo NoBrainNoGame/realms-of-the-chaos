@@ -62,14 +62,15 @@ Sans `mode`, les paramètres de combat (`seed`, `spectate`, `team`, `enemies`) l
 
 ### Contrôles
 
-| Entrée                        | Effet                                                            |
-| ----------------------------- | ---------------------------------------------------------------- |
-| Clic sur une case             | fixe la destination (gratuit, ne termine pas le tour)            |
-| `1`–`9` ou clic sur une icône | sélectionne une action (combos compris), puis clic sur une cible |
-| `Espace` / `Entrée`           | passe le tour                                                    |
-| `Échap` / clic droit          | annule la sélection                                              |
-| `F`                           | vitesse des animations ×1 / ×2 / ×4                              |
-| Survol                        | infos du personnage, aperçu du chemin ou de la zone d'effet      |
+| Entrée                        | Effet                                                                                         |
+| ----------------------------- | --------------------------------------------------------------------------------------------- |
+| Clic sur une case             | fixe la destination (gratuit, ne termine pas le tour)                                         |
+| `C` ou icône de botte         | **Course** : jusqu'à 3 cases tout de suite, puis clic sur la destination (le tour se termine) |
+| `1`–`9` ou clic sur une icône | sélectionne une action (combos compris), puis clic sur une cible                              |
+| `Espace` / `Entrée`           | passe le tour                                                                                 |
+| `Échap` / clic droit          | annule la sélection                                                                           |
+| `F`                           | vitesse des animations ×1 / ×2 / ×4                                                           |
+| Survol                        | infos du personnage, aperçu du chemin ou de la zone d'effet                                   |
 
 ## Vision
 
@@ -261,7 +262,7 @@ Les effets sont **déclaratifs** : `damage` (physique ou magique), `heal`, `push
 | **Néréa**   | Ondine (aquatique, camp Lumière)     | Trident (portée 1-2), Raz-de-marée (zone : repousse et ralentit), Bulle protectrice (bouclier + soin) |
 | **Squalor** | Homme-requin (aquatique, camp Chaos) | Morsure (saignement), Plongeon (bond dans l'eau qui éclabousse les ennemis autour)                    |
 
-Tout le monde a aussi **Coup de pied**.
+Tout le monde a aussi **Coup de pied** et la **Course** : avancer tout de suite jusqu'à 3 cases, en contournant les obstacles et en traversant les alliés. La Course coûte exactement le temps du trajet et termine le tour : plus besoin de passer plusieurs fois son tour pour avancer. L'IA ne s'en sert pas, ce qui laisse l'équilibrage intact.
 
 Stats après équilibrage (la santé donne `Santé × 7` PV) :
 

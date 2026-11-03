@@ -48,6 +48,18 @@ export const STATUSES: Record<StatusId, StatusDefinition> = {
 const actionList: ActionDefinition[] = [
   // ── common ──
   {
+    id: "sprint",
+    name: "Course",
+    description:
+      "Avance tout de suite jusqu'à 3 cases. Coûte le temps du trajet et termine le tour.",
+    launch: { shape: "diamond", min: 1, max: 3 },
+    lineOfSight: false,
+    target: "any",
+    timeCost: 0,
+    movement: { maxSteps: 3 },
+    effects: [],
+  },
+  {
     id: "kick",
     name: "Coup de pied",
     description: "Attaque physique au corps à corps.",
@@ -466,6 +478,9 @@ export const DIVINE_ACTIONS: Record<string, DivineActionDefinition> = {
     target: "none",
   },
 }
+
+/** Actions every fighter has, after its own ones. */
+export const COMMON_ACTIONS = ["sprint"]
 
 export const MAX_ENERGY = 6
 export const MAX_FIGHTERS_PER_CELL = 3

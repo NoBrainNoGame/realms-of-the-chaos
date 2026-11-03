@@ -123,8 +123,11 @@ describe("visual effects", () => {
 })
 
 describe("action staging", () => {
+  // movement actions (sprint) are staged as steps, without pose or impact
+  const staged = Object.values(ACTIONS).filter((a) => !a.movement)
+
   test("every action has a pose, ranged ones a projectile", () => {
-    for (const action of Object.values(ACTIONS)) {
+    for (const action of staged) {
       expect(ACTION_POSE[action.id]).toBeDefined()
       if (ACTION_POSE[action.id] === "shoot")
         expect(PROJECTILES[action.id]).toBeDefined()
@@ -158,7 +161,7 @@ describe("action staging", () => {
   }
 
   test("every action impact spawns effects; damaging ones sink the zone", () => {
-    for (const action of Object.values(ACTIONS)) {
+    for (const action of staged) {
       const { ctx, spawned, waves } = context()
       const damaging = action.effects.some((e) => e.type === "damage")
       const target = { x: 4, y: 4 }

@@ -435,6 +435,19 @@ export const ICON_ART: Record<string, PixelArt> = {
       "kd......",
     ],
   },
+  sprint: {
+    palette: { k: OUTLINE, b: "#a9744f", B: "#6f4a2e", w: "#e9ecef" },
+    rows: [
+      "....kkk.",
+      "....kbk.",
+      "w...kbk.",
+      ".w..kbbk",
+      "ww.kbbbk",
+      ".w.kBBBk",
+      "w..kkkk.",
+      "........",
+    ],
+  },
   leap: {
     palette: { p: "#9775fa", w: "#e5dbff" },
     rows: [

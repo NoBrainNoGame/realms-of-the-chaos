@@ -189,6 +189,8 @@ export default class FightScene extends ViewChip<SceneEvents> {
   } | null = null
   /** Command received while an animation was playing. */
   private _pending: Command | null = null
+  /** Steps left of a sprint being animated (quicker steps, dust). */
+  private _sprint: { fighterId: string; steps: number } | null = null
   /** Team of the last local turn (announces turns in local duels). */
   private _lastInputTeam: number | null = null
   private _worldBase = { x: 0, y: 0 }
@@ -615,8 +617,18 @@ export default class FightScene extends ViewChip<SceneEvents> {
       case "pushed":
       case "dashed": {
         const view = this._views.get(event.fighterId)!
-        const duration =
-          event.type === "moved" ? 190 : event.type === "pushed" ? 200 : 320
+        const sprinting =
+          event.type === "moved" &&
+          this._sprint?.fighterId === event.fighterId &&
+          this._sprint.steps > 0
+        if (sprinting) this._sprint!.steps--
+        const duration = sprinting
+          ? 130
+          : event.type === "moved"
+            ? 190
+            : event.type === "pushed"
+              ? 200
+              : 320
         const hop =
           event.type === "moved" ? 4 : event.type === "pushed" ? 0 : 36
         return [
@@ -710,6 +722,20 @@ export default class FightScene extends ViewChip<SceneEvents> {
           this.combat
             .actionsOf(launcher)
             .find((a) => a.id === event.actionId) ?? ACTIONS[base]
+        // a sprint is just quick steps: the moves that follow animate it
+        if (action.movement) {
+          // set now: the steps that follow are staged right after this event
+          this._sprint = {
+            fighterId: event.fighterId,
+            steps: event.cells.length,
+          }
+          return [
+            new booyah.Lambda(() => {
+              this._hud.log(`${launcher.name} : ${action.name}`)
+              this._refreshOverlay()
+            }),
+          ]
+        }
         const view = this._views.get(event.fighterId)!
         const origin = this._cells.get(event.fighterId)!
         const pose = ACTION_POSE[base] ?? "melee"
@@ -1056,6 +1082,9 @@ export default class FightScene extends ViewChip<SceneEvents> {
     } else if (e.key === "Escape") {
       this._mode = { type: "move" }
       this._refreshAll()
+    } else if (e.key === "c" || e.key === "C") {
+      const sprint = this.combat.actionsOf(fighter).find((a) => a.movement)
+      if (sprint) this._selectAction(sprint.id)
     } else if (/^[1-9]$/.test(e.key)) {
       const action = this.combat.actionsOf(fighter)[Number(e.key) - 1]
       if (action) this._selectAction(action.id)
@@ -1158,7 +1187,23 @@ export default class FightScene extends ViewChip<SceneEvents> {
             alpha: 0.5,
             outline: true,
           })
-          if (hovered && targets.some((c) => equals(c, hovered))) {
+          if (
+            action.movement &&
+            hovered &&
+            targets.some((c) => equals(c, hovered))
+          ) {
+            // sprint: preview the path
+            const path = this.combat
+              .movementPaths(fighter, action.movement.maxSteps)
+              .get(keyOf(hovered))
+            if (path)
+              highlights.push({
+                cells: path,
+                color: COLORS.path,
+                alpha: 0.7,
+                inset: 18,
+              })
+          } else if (hovered && targets.some((c) => equals(c, hovered))) {
             highlights.push({
               cells: this.combat.getAreaCells(action, hovered),
               color: COLORS.area,

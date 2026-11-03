@@ -3,6 +3,7 @@ import { Container, Graphics, Sprite, Text } from "pixi.js"
 
 import {
   CHARACTERS,
+  STEP_DELAY_RATIO,
   DIVINE_ACTIONS,
   MAX_ENERGY,
   STATUSES,
@@ -87,7 +88,7 @@ export default class Hud extends ViewChip<HudEvents> {
     this._quit.on("pointertap", () => this.emit("quit"))
 
     const help = text(
-      "Clic : se déplacer · 1-4 : actions · Espace : passer · Échap / clic droit : annuler",
+      "Clic : se déplacer · C : course · 1-5 : actions · Espace : passer · Échap / clic droit : annuler",
       12,
       COLORS.muted,
     )
@@ -509,6 +510,14 @@ export function describeAction(
       : `Portée ${action.launch.min ?? 0}-${action.launch.max}${
           action.launch.max > 1 ? " (+1 par niveau au-dessus de la cible)" : ""
         }${action.lineOfSight ? ", ligne de vue" : ""}`
+  if (action.movement) {
+    const step = Math.round(
+      combat.baseStepDelay(fighter) *
+        STEP_DELAY_RATIO *
+        combat.delayMultiplier(fighter),
+    )
+    return `${action.name} (C)\n${action.description}\nJusqu'à ${action.movement.maxSteps} cases, en contournant les obstacles et en traversant les alliés\ncoût : le temps du trajet (environ ${step} par case sur terrain plat)`
+  }
   const cost = Math.round(
     combat.baseDelay(fighter) *
       action.timeCost *

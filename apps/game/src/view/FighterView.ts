@@ -220,16 +220,19 @@ export default class FighterView extends ViewChip {
     hop = 6,
     walk = true,
   ) {
-    let from = { x: 0, y: 0 }
+    // the start is read on the first update: booyah tweens send their first
+    // value *before* calling onActivate, so reading it there would see the
+    // position already overwritten (the fighter jumped to the world origin)
+    let from: { x: number; y: number } | null = null
     return new booyah.Tween({
       from: 0,
       to: 1,
       duration,
       onActivate: () => {
-        from = { x: this._container.x, y: this._container.y }
         if (walk) this._puppet.walk(duration + 60)
       },
       onTick: (t) => {
+        from ??= { x: this._container.x, y: this._container.y }
         this._container.x = booyah.lerp(from.x, to.x, t)
         this._container.y =
           booyah.lerp(from.y, to.y, t) - Math.sin(t * Math.PI) * hop

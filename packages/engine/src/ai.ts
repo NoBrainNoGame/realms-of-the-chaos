@@ -139,7 +139,8 @@ export function bestAction(
     null
 
   for (const action of combat.actionsOf(fighter, origin)) {
-    if (combat.isOnCooldown(fighter, action)) continue
+    // the AI walks with planned paths; sprinting is a player convenience
+    if (action.movement || combat.isOnCooldown(fighter, action)) continue
     for (const target of combat.getValidTargets(fighter, action, origin)) {
       const score = scoreAction(combat, fighter, action, target, origin)
       if (score >= MIN_ACTION_SCORE && (!best || score > best.score)) {
