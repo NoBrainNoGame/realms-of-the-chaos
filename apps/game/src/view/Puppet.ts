@@ -441,6 +441,26 @@ function arm(style: Style, hand: Hand, front: boolean, shade: boolean): Arm {
           .stroke(LINE)
         item.rect(-0.3, -21, 0.6, 17).fill({ color: 0x868e96, alpha: 0.6 })
       } else if (front) {
+        /*
+         * Front view: the shield arm is the gaze side, the left arm. A
+         * shield's face points away from the arm, so here it faces away
+         * from us: we see its wooden back, rim and strap, in perspective.
+         */
+        const wood = shade ? darken(0x7f4f24) : 0x7f4f24
+        strapped.ellipse(0, 0, 6, 8.5).fill(wood).stroke(LINE)
+        strapped
+          .ellipse(0, 0, 6, 8.5)
+          .stroke({ width: 1.3, color: 0xadb5bd, alignment: 1 })
+        for (const x of [-2, 2]) {
+          strapped
+            .moveTo(x, -7.5)
+            .lineTo(x, 7.5)
+            .stroke({ width: 0.8, color: darken(wood), alpha: 0.8 })
+        }
+        strapped.rect(-4, -1.5, 8, 3).fill(0x5c3a1a).stroke(LINE)
+        strapped.position.set(3.5, 4)
+      } else {
+        // back view: the shield arm faces us, so does the painted face
         strapped.circle(0, 0, 8.5).fill(0x1c7ed6).stroke({
           width: 1.6,
           color: OUTLINE,
@@ -451,14 +471,6 @@ function arm(style: Style, hand: Hand, front: boolean, shade: boolean): Arm {
         strapped.circle(0, 0, 2.5).fill(0xfab005).stroke(LINE)
         strapped.circle(-3, -3, 2).fill({ color: 0xffffff, alpha: 0.25 })
         strapped.position.set(3.5, 4)
-      } else {
-        // seen from the back: the wooden back of the shield
-        strapped
-          .ellipse(0, 0, 4.5, 8.5)
-          .fill(0x7f4f24)
-          .stroke({ width: 1.6, color: OUTLINE })
-        strapped.rect(-1, -6, 2, 12).fill(0x5c3a1a)
-        strapped.position.set(4, 4)
       }
       break
 
