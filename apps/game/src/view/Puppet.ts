@@ -897,7 +897,7 @@ function buildRig(style: Style, front: boolean): Rig {
 // ─── Golem ──────────────────────────────────────────────────────────────────
 
 const GOLEM_HIP = -12
-const GOLEM_SHOULDER = -30
+const GOLEM_SHOULDER = -38
 const GOLEM_HEAD_Y = -45
 
 /**
@@ -957,17 +957,20 @@ function buildGolemRig(s: GolemStyle, front: boolean): Rig {
   // the striking arm is on the gaze side, like a humanoid's weapon arm
   const strike = golemArm(front)
   const other = golemArm(!front)
-  strike.shoulder.position.set(12, GOLEM_SHOULDER)
-  other.shoulder.position.set(-12, GOLEM_SHOULDER)
+  strike.shoulder.position.set(15, GOLEM_SHOULDER)
+  other.shoulder.position.set(-15, GOLEM_SHOULDER)
   const behind = front ? strike.shoulder : other.shoulder
   const before = front ? other.shoulder : strike.shoulder
 
   // a smooth boulder, shaded on the left, lit on the right
   const torso = new Container()
+  const boulder = (g: Graphics) => g.roundRect(-18, -48, 36, 39, 15)
+  // the shaded side is clipped to the outline: it never sticks out of it
+  const torsoShade = new Graphics().rect(-18, -48, 13, 39).fill(s.stoneDark)
+  const torsoClip = boulder(new Graphics()).fill(0xffffff)
+  torsoShade.mask = torsoClip
   const t = new Graphics()
-  t.roundRect(-18, -48, 36, 39, 15).fill(s.stone).stroke(LINE)
-  t.roundRect(-18, -48, 13, 39, 13).fill(s.stoneDark)
-  t.roundRect(-18, -48, 36, 39, 15).stroke(LINE)
+  boulder(t).stroke(LINE)
   t.ellipse(6, -40, 8, 3.5).fill({ color: s.stoneLight, alpha: 0.7 })
   if (front) {
     // faint crystal core
@@ -976,14 +979,21 @@ function buildGolemRig(s: GolemStyle, front: boolean): Rig {
     // smooth back ridge
     t.ellipse(0, -30, 4, 12).fill({ color: s.stoneDark, alpha: 0.5 })
   }
-  torso.addChild(t)
+  torso.addChild(
+    boulder(new Graphics()).fill(s.stone),
+    torsoShade,
+    torsoClip,
+    t,
+  )
 
   // the head sits low between the shoulders
   const head = new Container()
+  const skull = (g: Graphics) => g.ellipse(0, 0, 10, 8.5)
+  const headShade = new Graphics().rect(-10, -9, 6, 18).fill(s.stoneDark)
+  const headClip = skull(new Graphics()).fill(0xffffff)
+  headShade.mask = headClip
   const h = new Graphics()
-  h.ellipse(0, 0, 10, 8.5).fill(s.stone).stroke(LINE)
-  h.ellipse(-5, 0.5, 5, 7.5).fill(s.stoneDark)
-  h.ellipse(0, 0, 10, 8.5).stroke(LINE)
+  skull(h).stroke(LINE)
   h.ellipse(3, -5, 4, 1.6).fill({ color: s.stoneLight, alpha: 0.7 })
   if (front) {
     h.roundRect(1, -1.5, 3.4, 2.6, 1.2).fill(s.eyes)
@@ -992,7 +1002,13 @@ function buildGolemRig(s: GolemStyle, front: boolean): Rig {
     h.rect(6.6, -1, 1.2, 1).fill(s.eyesLight)
     glows.push(glow(s.eyes, 6, 2.7, -0.2), glow(s.eyes, 6, 7.5, -0.2))
   }
-  head.addChild(h, ...glows)
+  head.addChild(
+    skull(new Graphics()).fill(s.stone),
+    headShade,
+    headClip,
+    h,
+    ...glows,
+  )
   head.position.set(3, GOLEM_HEAD_Y)
 
   // seen from behind, the head sunk between the shoulders is hidden by
