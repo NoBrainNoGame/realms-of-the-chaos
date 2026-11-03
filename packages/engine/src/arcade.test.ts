@@ -5,6 +5,9 @@ import {
   ARCADE_MAX_TEAM,
   ARCADE_RECOVERY,
   ARCADE_WAVE_GROWTH,
+  type ArcadeBonus,
+  type ArcadeRecord,
+  type ArcadeState,
   applyArcadeBonus,
   arcadeAfterWave,
   arcadeBonusChoices,
@@ -12,9 +15,6 @@ import {
   arcadeWaveOptions,
   startArcade,
   verifyArcadeRun,
-  type ArcadeBonus,
-  type ArcadeRecord,
-  type ArcadeState,
 } from "./arcade"
 import { Combat, type Command } from "./combat"
 import { CHARACTERS } from "./content"

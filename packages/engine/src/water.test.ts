@@ -8,7 +8,7 @@ import {
 } from "./combat"
 import { CHARACTERS } from "./content"
 import { keyOf, type Point } from "./geometry"
-import type { Fighter, FightEvent } from "./types"
+import type { FightEvent, Fighter } from "./types"
 
 function setup(
   fighters: [string, Point][][],

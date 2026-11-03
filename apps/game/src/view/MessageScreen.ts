@@ -1,10 +1,9 @@
-import * as booyah from "@ghom/booyah"
+import type * as booyah from "@ghom/booyah"
 import { Container } from "pixi.js"
-
-import ViewChip from "./ViewChip"
 import Backdrop from "./Backdrop"
 import { COLORS } from "./theme"
-import { Menu, panel, text, type MenuItem } from "./ui"
+import { Menu, type MenuItem, panel, text } from "./ui"
+import ViewChip from "./ViewChip"
 
 export interface MessageOptions {
   title: string

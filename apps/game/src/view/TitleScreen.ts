@@ -1,14 +1,13 @@
-import * as booyah from "@ghom/booyah"
-import { BlurFilter, Container, Sprite } from "pixi.js"
-
+import type * as booyah from "@ghom/booyah"
 import { Board, createRng } from "@realms/engine"
-import ViewChip from "./ViewChip"
+import { BlurFilter, Container, Sprite } from "pixi.js"
+import { arcadeBest } from "../storage"
 import Backdrop from "./Backdrop"
 import BoardView from "./BoardView"
 import { softCircle } from "./effects"
-import { arcadeBest } from "../storage"
 import { COLORS } from "./theme"
-import { Menu, text, type MenuItem } from "./ui"
+import { Menu, type MenuItem, text } from "./ui"
+import ViewChip from "./ViewChip"
 
 /** Phrases shown under the title, one per visit (lore: see docs). */
 export const TAGLINES = [

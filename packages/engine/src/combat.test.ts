@@ -2,13 +2,13 @@ import { describe, expect, test } from "bun:test"
 import { Board } from "./board"
 import {
   Combat,
+  type CombatOptions,
   ENERGY_PERIOD,
   MIN_ENEMY_SPAWN_DISTANCE,
-  type CombatOptions,
 } from "./combat"
 import { MAX_FIGHTERS_PER_CELL } from "./content"
 import { equals, keyOf, manhattan, type Point } from "./geometry"
-import type { Fighter, FightEvent } from "./types"
+import type { FightEvent, Fighter } from "./types"
 
 const open = (w = 9, h = 9) => new Board(w, h)
 

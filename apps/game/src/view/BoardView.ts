@@ -1,37 +1,36 @@
-import * as booyah from "@ghom/booyah"
+import type * as booyah from "@ghom/booyah"
+import {
+  add,
+  type Board,
+  type Cell,
+  keyOf,
+  manhattan,
+  type Point,
+} from "@realms/engine"
 import {
   Container,
+  type FederatedPointerEvent,
   Graphics,
   Polygon,
   Sprite,
-  type FederatedPointerEvent,
 } from "pixi.js"
-
-import {
-  type Board,
-  type Cell,
-  type Point,
-  add,
-  keyOf,
-  manhattan,
-} from "@realms/engine"
-import ViewChip from "./ViewChip"
 import { softCircle } from "./effects"
 import {
+  cellNoise,
+  diamond,
   ELEVATION_HEIGHT,
   FLOOR_LEVEL,
   GROUND_TOP,
+  mix,
   STRATA,
+  shade,
   TILE_DEPTH,
   TILE_HEIGHT,
   TILE_WIDTH,
-  WATER,
-  cellNoise,
-  diamond,
-  mix,
-  shade,
   toScreen,
+  WATER,
 } from "./theme"
+import ViewChip from "./ViewChip"
 
 interface BoardViewEvents extends booyah.BaseCompositeEvents {
   cellOver: [cell: Point]

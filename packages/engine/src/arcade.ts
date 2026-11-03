@@ -3,7 +3,7 @@
  * Everything derives from the run seed and the player's choices, so a run
  * can be replayed and its score verified (see verifyArcadeRun).
  */
-import { Combat, type Command, type CombatOptions } from "./combat"
+import { Combat, type CombatOptions, type Command } from "./combat"
 import { CHARACTERS } from "./content"
 import { createRng } from "./random"
 

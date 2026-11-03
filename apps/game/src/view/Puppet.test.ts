@@ -1,15 +1,15 @@
 import { describe, expect, test } from "bun:test"
-import { Graphics } from "pixi.js"
 import { CHARACTERS } from "@realms/engine"
+import { Graphics } from "pixi.js"
 import {
-  Puppet,
-  STYLES,
   computePose,
+  type Facing,
   facingBetween,
   isBackFacing,
   isMirrored,
-  type Facing,
+  Puppet,
   type PuppetAction,
+  STYLES,
 } from "./Puppet"
 
 const FACINGS: Facing[] = ["SE", "SW", "NE", "NW"]

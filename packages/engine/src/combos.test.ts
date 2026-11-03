@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import { decide } from "./ai"
 import { Board } from "./board"
 import { Combat } from "./combat"
 import {
@@ -8,9 +9,8 @@ import {
   COMBO_COOLDOWN_BONUS,
   comboAction,
 } from "./content"
-import { decide } from "./ai"
 import type { Point } from "./geometry"
-import type { Fighter, FightEvent } from "./types"
+import type { FightEvent, Fighter } from "./types"
 
 function setup(
   fighters: [string, Point][][],

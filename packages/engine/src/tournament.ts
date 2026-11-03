@@ -80,7 +80,11 @@ export function runTournament(options: TournamentOptions): TournamentResult {
         if (event.type !== "actionUsed") continue
         actions++
         const fighter = combat.getFighter(event.fighterId)!
-        const uses = (actionUses[fighter.presetId] ??= {})
+        const uses = entry<Record<string, number>>(
+          actionUses,
+          fighter.presetId,
+          () => ({}),
+        )
         uses[event.baseActionId] = (uses[event.baseActionId] ?? 0) + 1
       }
       fights++
@@ -99,13 +103,21 @@ export function runTournament(options: TournamentOptions): TournamentResult {
           if (won) result.wins++
         }
         const composition = team.map(idOf).sort().join("+")
-        const record = (compositions[composition] ??= { games: 0, wins: 0 })
+        const record = entry(compositions, composition, () => ({
+          games: 0,
+          wins: 0,
+        }))
         record.games++
         if (won) record.wins++
         const opponents = teams[1 - index].map(idOf)
         for (const own of new Set(team.map(idOf))) {
           for (const other of new Set(opponents)) {
-            const cell = ((matrix[own] ??= {})[other] ??= { games: 0, wins: 0 })
+            const row = entry<TournamentResult["matrix"][string]>(
+              matrix,
+              own,
+              () => ({}),
+            )
+            const cell = entry(row, other, () => ({ games: 0, wins: 0 }))
             cell.games++
             if (won) cell.wins++
           }
@@ -128,4 +140,10 @@ export function runTournament(options: TournamentOptions): TournamentResult {
     compositions,
     matrix,
   }
+}
+
+/** The value of `key` in a record, created by `init` when missing. */
+function entry<T>(record: Record<string, T>, key: string, init: () => T): T {
+  if (!(key in record)) record[key] = init()
+  return record[key]
 }

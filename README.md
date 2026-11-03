@@ -16,10 +16,11 @@ bun install
 bun run dev        # serveur de dev du jeu → http://localhost:1234
 bun run test       # tous les tests (moteur, rendu en DOM simulé, parties complètes)
 bun run typecheck  # vérification des types (TypeScript 7)
-bun run check      # typecheck + tests
+bun run check      # Biome + typecheck + tests
 bun run build      # build de production dans apps/game/dist/
 bun run balance    # rapport d'équilibrage complet (≈ 1 min, voir « Équilibrage »)
-bun run format     # prettier
+bun run format     # formatage (Biome)
+bun run lint       # formatage, imports et lint (Biome), sans rien modifier
 ```
 
 Turborepo met en cache les résultats : une tâche dont les fichiers n'ont pas changé n'est pas relancée. On peut cibler un paquet avec `bunx turbo run test --filter=@realms/engine`, ou lancer `bun test` directement dans `packages/engine` ou `apps/game`.
@@ -420,7 +421,7 @@ Le Google Doc n'a pas été mis à jour après plusieurs décisions. **Pour ces 
 | **Relief**            | Hauteurs et creux remplis d'eau, comme dans la version hexagonale            | ✅ De -3 à +3, falaises, chutes ; les rochers ont été remplacés par le relief                                                                                                                          |
 | **Eau**               | « Les profondeurs sont uniquement décoratives »                              | ❌ Plus vrai : l'eau profonde ne se traverse qu'à la nage (nageurs, aquatiques), voir « L'eau »                                                                                                        |
 | **Lore**              | Section « Univers étendu » entièrement barrée                                | —                                                                                                                                                                                                      |
-| **Stack**             | THREE.js, jest, Parcel                                                       | PixiJS 8, `bun test`, Bun (pas de 3D)                                                                                                                                                                  |
+| **Stack**             | THREE.js, jest, Parcel                                                       | PixiJS 8, `bun test`, Bun, Biome (pas de 3D)                                                                                                                                                                  |
 
 ## Notes techniques
 

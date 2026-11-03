@@ -1,11 +1,10 @@
 import * as booyah from "@ghom/booyah"
+import { EROSION, type Fighter, type StatusId } from "@realms/engine"
 import { Container, Graphics } from "pixi.js"
 import { OutlineFilter } from "pixi-filters"
-
-import { EROSION, type Fighter, type StatusId } from "@realms/engine"
-import ViewChip from "./ViewChip"
-import { Puppet, type Facing, type PuppetAction } from "./Puppet"
+import { type Facing, Puppet, type PuppetAction } from "./Puppet"
 import { COLORS, PUPPET_SCALE, TEAM_COLORS } from "./theme"
+import ViewChip from "./ViewChip"
 
 export const STATUS_COLORS: Record<StatusId, number> = {
   poisoned: 0x82c91e,
@@ -100,9 +99,10 @@ export default class FighterView extends ViewChip {
     // everything that follows the ground when a cell sinks
     this._ground = new Container()
 
-    const shadow = (this._shadow = new Graphics()
+    this._shadow = new Graphics()
       .ellipse(0, 0, 11, 4.8)
-      .fill({ color: 0x000000, alpha: 0.35 }))
+      .fill({ color: 0x000000, alpha: 0.35 })
+    const shadow = this._shadow
     this._ring = new Graphics()
       .ellipse(0, 0, 13, 5.8)
       .stroke({ width: 1.6, color: team, alpha: 0.9 })

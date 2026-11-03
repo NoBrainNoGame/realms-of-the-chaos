@@ -1,6 +1,6 @@
 import type { Combat } from "./combat"
 import { BLESSING_HEAL, DIVINE_ACTIONS, MAX_ENERGY } from "./content"
-import { type Point, manhattan } from "./geometry"
+import { manhattan, type Point } from "./geometry"
 import type { ActionDefinition, Fighter, StatusId } from "./types"
 
 export type AiCommand =

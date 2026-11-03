@@ -1,21 +1,20 @@
-import * as booyah from "@ghom/booyah"
-import { Container, Graphics, Sprite } from "pixi.js"
-
+import type * as booyah from "@ghom/booyah"
 import {
   ACTIONS,
   AFFINITIES,
   CHARACTERS,
-  HP_PER_HEALTH,
   createRng,
+  HP_PER_HEALTH,
 } from "@realms/engine"
-import ViewChip from "./ViewChip"
+import { Container, Graphics, Sprite } from "pixi.js"
+import { arcadeBest } from "../storage"
 import Backdrop from "./Backdrop"
-import { Puppet } from "./Puppet"
 import { LOCOMOTION_TRAITS } from "./Hud"
+import { Puppet } from "./Puppet"
 import { characterTexture } from "./textures"
 import { COLORS, TEAM_COLORS } from "./theme"
-import { button, panel, text, type Button } from "./ui"
-import { arcadeBest } from "../storage"
+import { type Button, button, clearChildren, panel, text } from "./ui"
+import ViewChip from "./ViewChip"
 
 export type PickerMode = "skirmish" | "local" | "arcade"
 
@@ -230,7 +229,9 @@ export default class TeamPicker extends ViewChip<PickerEvents> {
     this._layout.addChild(this._heading, this._hint)
 
     const ids = Object.keys(CHARACTERS)
-    ids.forEach((id, i) => this._cards.push(this._createCard(id, i)))
+    for (const [i, id] of ids.entries()) {
+      this._cards.push(this._createCard(id, i))
+    }
 
     this._sheet = new Container()
     this._sheet.position.set(GRID_WIDTH + 24, 70)
@@ -402,7 +403,7 @@ export default class TeamPicker extends ViewChip<PickerEvents> {
   }
 
   private _drawSheet(id: string) {
-    this._sheet.removeChildren().forEach((c) => c.destroy({ children: true }))
+    clearChildren(this._sheet)
     const preset = CHARACTERS[id]
     const s = preset.stats
     const portrait = new Sprite(characterTexture(id))
@@ -462,7 +463,7 @@ export default class TeamPicker extends ViewChip<PickerEvents> {
   }
 
   private _drawSlots() {
-    this._slots.removeChildren().forEach((c) => c.destroy({ children: true }))
+    clearChildren(this._slots)
     const color = this._teamColor()
     this._picks.forEach((team, step) => {
       if (this.mode !== "local" && step > 0) return
@@ -502,7 +503,7 @@ export default class TeamPicker extends ViewChip<PickerEvents> {
   }
 
   private _drawOptions() {
-    this._options.removeChildren().forEach((c) => c.destroy({ children: true }))
+    clearChildren(this._options)
     const items: { label: string; onTap: () => void; id: string }[] = []
     if (this.mode === "skirmish") {
       items.push(

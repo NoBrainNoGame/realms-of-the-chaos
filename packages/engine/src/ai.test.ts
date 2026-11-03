@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
+import { decide, decideDivine, scoreAction } from "./ai"
 import { Board } from "./board"
 import { Combat } from "./combat"
-import { decide, decideDivine, scoreAction } from "./ai"
 import { ACTIONS } from "./content"
 import type { Point } from "./geometry"
 

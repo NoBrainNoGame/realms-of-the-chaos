@@ -1,23 +1,23 @@
-import * as booyah from "@ghom/booyah"
+import type * as booyah from "@ghom/booyah"
 
 import {
   ARCADE_BONUSES,
-  CHARACTERS,
+  type ArcadeBonus,
+  type ArcadeRecord,
+  type ArcadeState,
   applyArcadeBonus,
   arcadeAfterWave,
   arcadeBonusChoices,
   arcadeRecruit,
   arcadeWaveOptions,
+  CHARACTERS,
   startArcade,
-  type ArcadeBonus,
-  type ArcadeRecord,
-  type ArcadeState,
 } from "@realms/engine"
-import ViewChip from "./ViewChip"
+import { submitArcadeScore } from "../storage"
 import FightScene, { type SceneOptions } from "./FightScene"
 import MessageScreen from "./MessageScreen"
-import { submitArcadeScore } from "../storage"
 import { COLORS } from "./theme"
+import ViewChip from "./ViewChip"
 
 interface ArcadeEvents extends booyah.BaseCompositeEvents {
   /** Leave the arcade (back to the title screen). */

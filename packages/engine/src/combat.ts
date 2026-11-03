@@ -1,34 +1,33 @@
+import { decide, decideDivine } from "./ai"
 import {
   Board,
+  type Locomotion,
   MAX_ELEVATION,
   MAX_STEP,
   MIN_ELEVATION,
-  type Locomotion,
   type PathNode,
 } from "./board"
 import {
-  type Point,
-  add,
-  dominantDirection,
-  equals,
-  keyOf,
-  manhattan,
-} from "./geometry"
-import { createRng, type Rng } from "./random"
-import { POINT, inZone, zoneCells } from "./zones"
-import {
   ACTIONS,
-  COMMON_ACTIONS,
-  comboAction,
   BLESSING_HEAL,
   CHARACTERS,
+  COMMON_ACTIONS,
+  comboAction,
   DIVINE_ACTIONS,
   MAX_ENERGY,
   MAX_FIGHTERS_PER_CELL,
   STATUSES,
   TIME_WARP_AMOUNT,
 } from "./content"
-import { decide, decideDivine } from "./ai"
+import {
+  add,
+  dominantDirection,
+  equals,
+  keyOf,
+  manhattan,
+  type Point,
+} from "./geometry"
+import { createRng, type Rng } from "./random"
 import type {
   ActionDefinition,
   AffectFilter,
@@ -36,12 +35,13 @@ import type {
   CommandResult,
   Controller,
   Effect,
-  Fighter,
   FightEvent,
+  Fighter,
   Stats,
   StatusId,
   Team,
 } from "./types"
+import { inZone, POINT, zoneCells } from "./zones"
 
 export interface TeamSetup {
   name?: string

@@ -1,8 +1,8 @@
 import { Texture } from "pixi.js"
 import {
+  artSize,
   CHARACTER_ART,
   ICON_ART,
-  artSize,
   type PixelArt,
 } from "../art/pixelArt"
 

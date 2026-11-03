@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import { Container } from "pixi.js"
-
 import { Board, Combat, keyOf } from "@realms/engine"
+import { Container } from "pixi.js"
 import { mount, tick } from "../test/harness"
 import { tickUntil } from "../test/play"
 import FighterView from "./FighterView"

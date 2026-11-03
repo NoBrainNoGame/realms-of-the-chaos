@@ -4,22 +4,21 @@
  * lightning, screen shake). Purely cosmetic: everything is fire-and-forget.
  */
 import type * as booyah from "@ghom/booyah"
-import type { Container } from "pixi.js"
-
 import { type Point, zoneCells } from "@realms/engine"
+import type { Container } from "pixi.js"
 import type BoardView from "./BoardView"
-import type { PuppetAction } from "./Puppet"
 import {
-  FX,
   burst,
+  FX,
   lightBeam,
   lightFlash,
   lightning,
+  type ProjectileStyle,
   particles,
   slash,
-  type ProjectileStyle,
   type XY,
 } from "./effects"
+import type { PuppetAction } from "./Puppet"
 
 export interface FxContext {
   layer: Container

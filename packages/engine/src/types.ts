@@ -211,4 +211,5 @@ export type FightEvent =
   | { type: "ended"; winnerTeam: number | null }
 
 export type CommandResult =
-  { ok: true; events: FightEvent[] } | { ok: false; reason: string }
+  | { ok: true; events: FightEvent[] }
+  | { ok: false; reason: string }

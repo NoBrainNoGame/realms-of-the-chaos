@@ -1,11 +1,10 @@
 import { describe, expect, test } from "bun:test"
-import { Container, Text } from "pixi.js"
-
-import { ACTIONS, Board, Combat, comboAction, CHARACTERS } from "@realms/engine"
+import { ACTIONS, Board, CHARACTERS, Combat, comboAction } from "@realms/engine"
+import { type Container, Text } from "pixi.js"
 import { mount, tick } from "../test/harness"
-import Hud, { describeAction } from "./Hud"
 import Backdrop from "./Backdrop"
 import Gallery from "./Gallery"
+import Hud, { describeAction } from "./Hud"
 
 function combat() {
   return new Combat({

@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test"
 import {
-  STAT_LIMITS,
   generateCharacter,
   healthFor,
   power,
   presetPower,
+  STAT_LIMITS,
   withinLimits,
 } from "./balance"
 import { Board } from "./board"

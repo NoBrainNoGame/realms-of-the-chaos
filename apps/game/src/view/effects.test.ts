@@ -1,39 +1,38 @@
 import { describe, expect, test } from "bun:test"
 import type * as booyah from "@ghom/booyah"
-import { Container } from "pixi.js"
-
 import { ACTIONS, Board, DIVINE_ACTIONS, type Point } from "@realms/engine"
+import { Container } from "pixi.js"
+import { CHARACTER_ART } from "../art/pixelArt"
 import { mount, runToEnd, tick } from "../test/harness"
 import {
-  FX,
-  Particles,
-  burst,
-  floatingText,
-  lightBeam,
-  lightFlash,
-  lightning,
-  particles,
-  projectile,
-  slash,
-  softCircle,
-} from "./effects"
-import {
   ACTION_POSE,
-  PROJECTILES,
   comboFx,
   deathFx,
   divineFx,
+  type FxContext,
   hitFx,
   impactFx,
   isMelee,
   landingFx,
   leapTakeoffFx,
+  PROJECTILES,
   stepFx,
-  type FxContext,
 } from "./actionFx"
 import BoardView from "./BoardView"
+import {
+  burst,
+  FX,
+  floatingText,
+  lightBeam,
+  lightFlash,
+  lightning,
+  Particles,
+  particles,
+  projectile,
+  slash,
+  softCircle,
+} from "./effects"
 import { artToTexture, characterTexture, iconTexture } from "./textures"
-import { CHARACTER_ART } from "../art/pixelArt"
 
 describe("visual effects", () => {
   test("soft circle texture is cached", () => {

@@ -1,22 +1,21 @@
-import * as booyah from "@ghom/booyah"
-import { Container, Graphics, Sprite, Text } from "pixi.js"
-
+import type * as booyah from "@ghom/booyah"
 import {
-  CHARACTERS,
-  STEP_DELAY_RATIO,
-  DIVINE_ACTIONS,
-  MAX_ENERGY,
-  STATUSES,
   type ActionDefinition,
+  CHARACTERS,
   type Combat,
+  DIVINE_ACTIONS,
   type Fighter,
   type Locomotion,
+  MAX_ENERGY,
+  STATUSES,
+  STEP_DELAY_RATIO,
 } from "@realms/engine"
-import ViewChip from "./ViewChip"
+import { Container, Graphics, Sprite, type Text } from "pixi.js"
+import { STATUS_COLORS } from "./FighterView"
 import { characterTexture } from "./textures"
 import { COLORS, TEAM_COLORS } from "./theme"
-import { button, panel, text } from "./ui"
-import { STATUS_COLORS } from "./FighterView"
+import { button, clearChildren, panel, text } from "./ui"
+import ViewChip from "./ViewChip"
 
 interface HudEvents extends booyah.BaseCompositeEvents {
   action: [actionId: string]
@@ -154,9 +153,7 @@ export default class Hud extends ViewChip<HudEvents> {
   // ─── Timeline ─────────────────────────────────────────────────────────────
 
   setTimeline(combat: Combat) {
-    this._timeline
-      .removeChildren()
-      .forEach((c) => c.destroy({ children: true }))
+    clearChildren(this._timeline)
     const order = combat.timelineOrder()
     const size = 44
     const gap = 6
@@ -212,15 +209,9 @@ export default class Hud extends ViewChip<HudEvents> {
   // ─── Action bar ───────────────────────────────────────────────────────────
 
   setActions(fighter: Fighter | null, combat: Combat, selected: string | null) {
-    this._actionBar
-      .removeChildren()
-      .forEach((c) => c.destroy({ children: true }))
+    clearChildren(this._actionBar)
 
-    if (
-      !fighter ||
-      fighter.controller !== "human" ||
-      combat.activeFighter !== fighter
-    ) {
+    if (fighter?.controller !== "human" || combat.activeFighter !== fighter) {
       const waiting = text(
         combat.state === "ended"
           ? ""
@@ -295,7 +286,7 @@ export default class Hud extends ViewChip<HudEvents> {
   // ─── Character card ───────────────────────────────────────────────────────
 
   setCard(fighter: Fighter | null, combat: Combat) {
-    this._card.removeChildren().forEach((c) => c.destroy({ children: true }))
+    clearChildren(this._card)
     if (!fighter) return
 
     const width = 200
@@ -378,7 +369,7 @@ export default class Hud extends ViewChip<HudEvents> {
     canUse: boolean,
     selected: string | null,
   ) {
-    this._divine.removeChildren().forEach((c) => c.destroy({ children: true }))
+    clearChildren(this._divine)
     const energy = combat.teams[team].energy
     const width = 200
 
@@ -470,7 +461,7 @@ export default class Hud extends ViewChip<HudEvents> {
       { id: "restart", label: "Rejouer" },
     ],
   ) {
-    this._end.removeChildren().forEach((c) => c.destroy({ children: true }))
+    clearChildren(this._end)
     const title = text(message, 40, color, {
       fontWeight: "700",
       stroke: { color: 0x000000, width: 8 },

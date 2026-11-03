@@ -1,9 +1,8 @@
 import * as booyah from "@ghom/booyah"
 import { Application, TextureStyle } from "pixi.js"
-
+import { params } from "./params"
 import Game from "./view/Game"
 import { COLORS, FONT } from "./view/theme"
-import { params } from "./params"
 
 // crisp pixel art everywhere
 TextureStyle.defaultOptions.scaleMode = "nearest"

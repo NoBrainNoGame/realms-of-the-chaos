@@ -20,8 +20,8 @@ import { createRng } from "./random"
 import type {
   ActionDefinition,
   CharacterPreset,
-  Stats,
   StatName,
+  Stats,
 } from "./types"
 
 /** Share of the damage in a fight that is physical (measured). */
@@ -76,8 +76,8 @@ export function toughness(stats: Stats, actions: readonly string[]) {
     : isMeleeKit(actions)
       ? HEALTH_EXPONENT
       : RANGED_HEALTH_EXPONENT
-  const fragility = Math.pow(Math.min(1, hp / FRAGILE_HP), FRAGILITY_EXPONENT)
-  return (Math.pow(hp, exponent) * effectiveHp(stats) * fragility) / hp
+  const fragility = Math.min(1, hp / FRAGILE_HP) ** FRAGILITY_EXPONENT
+  return (hp ** exponent * effectiveHp(stats) * fragility) / hp
 }
 
 /** Value of one use of an action, given the user's attack stats. */
@@ -130,8 +130,8 @@ export function output(stats: Stats, actions: readonly string[]) {
     ? MELEE_SPEED_EXPONENT
     : SPEED_EXPONENT
   return (
-    Math.pow(stats.speed, speedExponent) *
-    Math.pow(kitOutput(actions, stats), ATTACK_EXPONENT) *
+    stats.speed ** speedExponent *
+    kitOutput(actions, stats) ** ATTACK_EXPONENT *
     crit
   )
 }
@@ -222,7 +222,7 @@ export function generateCharacter(
   for (let attempt = 0; attempt < 100; attempt++) {
     const stats: Stats = { ...base.stats }
     for (const name of DRAWN_STATS) {
-      const factor = Math.pow(GENERATED_SPREAD, rng.next() * 2 - 1)
+      const factor = GENERATED_SPREAD ** (rng.next() * 2 - 1)
       const { min, max } = STAT_LIMITS[name]
       const value = Math.round(base.stats[name] * factor * 10) / 10
       stats[name] = Math.min(max, Math.max(min, value))

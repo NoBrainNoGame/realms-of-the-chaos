@@ -2,7 +2,7 @@
  * Drive a FightScene's local teams like a player would: the AI brain picks
  * the moves, and they are sent as commands through the scene's input path.
  */
-import { decide, type Command } from "@realms/engine"
+import { type Command, decide } from "@realms/engine"
 import type FightScene from "../view/FightScene"
 
 /** Tick the scene until `done` (or a time limit, in simulated ms). */

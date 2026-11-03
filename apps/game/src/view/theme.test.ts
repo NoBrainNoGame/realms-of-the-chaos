@@ -1,20 +1,20 @@
 import { describe, expect, test } from "bun:test"
 import {
-  ELEVATION_HEIGHT,
-  TILE_HEIGHT,
-  TILE_WIDTH,
-  cellNoise,
-  diamond,
-  mix,
-  shade,
-  toScreen,
-} from "./theme"
-import {
-  parseParams,
   DEFAULT_ENEMY_TEAM,
   DEFAULT_PLAYER_TEAM,
   MAX_ROSTER,
+  parseParams,
 } from "../params"
+import {
+  cellNoise,
+  diamond,
+  ELEVATION_HEIGHT,
+  mix,
+  shade,
+  TILE_HEIGHT,
+  TILE_WIDTH,
+  toScreen,
+} from "./theme"
 
 describe("isometric projection", () => {
   test("x goes down-right, y goes down-left", () => {

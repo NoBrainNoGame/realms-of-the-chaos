@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { decide } from "./ai"
 import { Board } from "./board"
-import { Combat, scaleStats, type Command, type CombatOptions } from "./combat"
+import { Combat, type CombatOptions, type Command, scaleStats } from "./combat"
 import { CHARACTERS } from "./content"
 
 /** A human team driven by the AI brain, through serialized commands. */

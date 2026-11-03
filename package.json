@@ -13,16 +13,14 @@
     "build": "turbo run build",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
-    "check": "turbo run typecheck test",
-    "format": "prettier --write \"apps/*/src/**/*.ts\" \"packages/*/src/**/*.ts\"",
-    "balance": "bun packages/engine/scripts/balance.ts"
-  },
-  "prettier": {
-    "semi": false
+    "check": "biome check && turbo run typecheck test",
+    "format": "biome format --write",
+    "balance": "bun packages/engine/scripts/balance.ts",
+    "lint": "biome check"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.6.4",
     "@types/bun": "^1.4.4",
-    "prettier": "^3.9.10",
     "turbo": "^2.11.10",
     "typescript": "^7.0.2"
   },

@@ -1,7 +1,6 @@
 import { Graphics, Sprite, Texture } from "pixi.js"
-
-import ViewChip from "./ViewChip"
 import { softCircle } from "./effects"
+import ViewChip from "./ViewChip"
 
 interface Mote {
   sprite: Sprite

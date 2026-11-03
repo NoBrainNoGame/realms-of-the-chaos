@@ -1,10 +1,9 @@
-import * as booyah from "@ghom/booyah"
-import { Graphics, Text } from "pixi.js"
-
+import type * as booyah from "@ghom/booyah"
 import { CHARACTERS } from "@realms/engine"
-import ViewChip from "./ViewChip"
-import { Puppet, type Facing, type PuppetAction } from "./Puppet"
+import { Graphics, Text } from "pixi.js"
+import { type Facing, Puppet, type PuppetAction } from "./Puppet"
 import { FONT } from "./theme"
+import ViewChip from "./ViewChip"
 
 const FACINGS: Facing[] = ["SE", "SW", "NE", "NW"]
 const ACTIONS: (PuppetAction | "walk" | "idle" | "swim")[] = [

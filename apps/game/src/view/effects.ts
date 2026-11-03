@@ -1,8 +1,7 @@
 import * as booyah from "@ghom/booyah"
 import { Container, Graphics, Sprite, Text, Texture } from "pixi.js"
-
-import { FONT } from "./theme"
 import { iconTexture } from "./textures"
+import { FONT } from "./theme"
 
 export type XY = { x: number; y: number }
 
@@ -140,7 +139,7 @@ export class Particles extends booyah.ChipBase {
   protected _onTick() {
     const dt = this._lastTickInfo.timeSinceLastTick / 1000
     const c = this._config
-    const drag = Math.pow(c.drag ?? 0.3, dt)
+    const drag = (c.drag ?? 0.3) ** dt
     const textureSize = c.shape === "square" ? 4 : 64
 
     for (const p of this._particles) {

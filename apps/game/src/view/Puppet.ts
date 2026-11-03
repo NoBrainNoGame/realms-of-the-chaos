@@ -1,6 +1,5 @@
-import { Container, Graphics, Sprite } from "pixi.js"
-
 import type { Point } from "@realms/engine"
+import { Container, Graphics, Sprite } from "pixi.js"
 import { softCircle } from "./effects"
 
 /**
@@ -38,7 +37,13 @@ const LINE = { width: 1.4, color: OUTLINE, alignment: 0.5 }
 
 type BodyKind = "robe" | "tunic" | "armor" | "scales" | "muscle"
 type HeadKind =
-  "wizard" | "hood" | "helmet" | "hair" | "mask" | "naiad" | "shark"
+  | "wizard"
+  | "hood"
+  | "helmet"
+  | "hair"
+  | "mask"
+  | "naiad"
+  | "shark"
 type Weapon =
   | "staff"
   | "crystalStaff"
@@ -388,6 +393,8 @@ function arm(style: Style, hand: Hand, front: boolean, shade: boolean): Arm {
   const item = new Graphics()
   /** Strapped to the forearm (a shield), drawn over it. */
   const strapped = new Graphics()
+  /** Under the forearm: the inside of a shield, seen from its back. */
+  const underArm = new Graphics()
   const glows: Sprite[] = []
   let holds = false
 
@@ -474,22 +481,26 @@ function arm(style: Style, hand: Hand, front: boolean, shade: boolean): Arm {
             .ellipse(-2.5, -3, 1.6, 2)
             .fill({ color: 0xffffff, alpha: 0.25 })
         } else {
+          // the inside of the shield is under the arm, only the strap
+          // passes over it
           const wood = shade ? darken(0x7f4f24, 0.82) : 0x7f4f24
-          strapped.ellipse(0, 0, 5, 8).fill(wood).stroke(LINE)
-          strapped
+          underArm.ellipse(0, 0, 5, 8).fill(wood).stroke(LINE)
+          underArm
             .ellipse(0, 0, 5, 8)
             .stroke({ width: 1.3, color: 0xadb5bd, alignment: 1 })
           for (const x of [-2, 2]) {
-            strapped
+            underArm
               .moveTo(x, -7)
               .lineTo(x, 7)
               .stroke({ width: 0.8, color: darken(wood), alpha: 0.8 })
           }
-          strapped.rect(-3.5, -1.5, 7, 3).fill(0x5c3a1a).stroke(LINE)
+          strapped.rect(-3.5, -4.5, 7, 2.6).fill(0x5c3a1a).stroke(LINE)
         }
         // strapped to the forearm, kept upright against the body
-        strapped.position.set(1, FOREARM - 1)
-        strapped.rotation = SHIELD_UPRIGHT
+        for (const part of [underArm, strapped]) {
+          part.position.set(1, FOREARM - 1)
+          part.rotation = SHIELD_UPRIGHT
+        }
       }
       break
 
@@ -515,7 +526,7 @@ function arm(style: Style, hand: Hand, front: boolean, shade: boolean): Arm {
 
   // the fist closes over what it holds
   grip.addChild(item, ...glows, fist)
-  elbow.addChild(forearm, grip, strapped)
+  elbow.addChild(underArm, forearm, grip, strapped)
   shoulder.addChild(upper, elbow)
   return { shoulder, elbow, grip, glows, holds }
 }
@@ -984,7 +995,10 @@ function buildGolemRig(s: GolemStyle, front: boolean): Rig {
   head.addChild(h, ...glows)
   head.position.set(3, GOLEM_HEAD_Y)
 
-  body.addChild(behind, legFar, legNear, torso, head, before)
+  // seen from behind, the head sunk between the shoulders is hidden by
+  // the hump of the back: only its top shows
+  if (front) body.addChild(behind, legFar, legNear, torso, head, before)
+  else body.addChild(behind, legFar, legNear, head, torso, before)
 
   root.scale.set(s.scale)
   return {

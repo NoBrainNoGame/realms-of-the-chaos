@@ -253,8 +253,15 @@ export class Menu extends Container {
   }
 
   private _refresh() {
-    this._buttons.forEach((b, i) =>
-      b.setState({ enabled: this.isEnabled(i), selected: i === this._focus }),
-    )
+    for (const [i, b] of this._buttons.entries()) {
+      b.setState({ enabled: this.isEnabled(i), selected: i === this._focus })
+    }
+  }
+}
+
+/** Remove and destroy every child of a container. */
+export function clearChildren(container: Container) {
+  for (const child of container.removeChildren()) {
+    child.destroy({ children: true })
   }
 }

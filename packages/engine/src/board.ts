@@ -1,4 +1,4 @@
-import { DIRECTIONS, type Point, add, keyOf, lineBetween } from "./geometry"
+import { add, DIRECTIONS, keyOf, lineBetween, type Point } from "./geometry"
 import type { Rng } from "./random"
 
 /**

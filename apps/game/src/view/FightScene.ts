@@ -1,50 +1,48 @@
 import * as booyah from "@ghom/booyah"
-import { Container } from "pixi.js"
-
 import {
   ACTIONS,
-  Combat,
-  DIVINE_ACTIONS,
-  MAX_ELEVATION,
-  STATUSES,
-  equals,
-  keyOf,
-  manhattan,
   type ActionDefinition,
   type Board,
   type CharacterPreset,
-  type Command,
+  Combat,
   type CombatOptions,
-  type Fighter,
+  type Command,
+  DIVINE_ACTIONS,
+  equals,
   type FightEvent,
+  type Fighter,
+  keyOf,
+  MAX_ELEVATION,
+  manhattan,
   type Point,
+  STATUSES,
 } from "@realms/engine"
-import ViewChip from "./ViewChip"
+import { Container } from "pixi.js"
+import {
+  ACTION_POSE,
+  comboFx,
+  deathFx,
+  divineFx,
+  type FxContext,
+  hitFx,
+  impactFx,
+  isMelee,
+  landingFx,
+  leapTakeoffFx,
+  PROJECTILES,
+  stepFx,
+} from "./actionFx"
+import Backdrop from "./Backdrop"
 import BoardView, {
   COLUMN_BOTTOM,
   DEPTH,
   depthOf,
   type Highlight,
 } from "./BoardView"
+import { FX, floatingText, particles, projectile } from "./effects"
 import FighterView, { STATUS_COLORS, type WaterState } from "./FighterView"
 import Hud from "./Hud"
-import Backdrop from "./Backdrop"
-import { FX, floatingText, particles, projectile } from "./effects"
 import { facingBetween } from "./Puppet"
-import {
-  ACTION_POSE,
-  PROJECTILES,
-  comboFx,
-  deathFx,
-  divineFx,
-  hitFx,
-  impactFx,
-  isMelee,
-  landingFx,
-  leapTakeoffFx,
-  stepFx,
-  type FxContext,
-} from "./actionFx"
 import {
   COLORS,
   ELEVATION_HEIGHT,
@@ -53,6 +51,7 @@ import {
   TILE_WIDTH,
   toScreen,
 } from "./theme"
+import ViewChip from "./ViewChip"
 
 /** A team of the fight, and who plays it. */
 export interface SceneTeam {

@@ -1,12 +1,11 @@
-import * as booyah from "@ghom/booyah"
-
-import ViewChip from "./ViewChip"
+import type * as booyah from "@ghom/booyah"
+import type { Params } from "../params"
+import ArcadeRun from "./ArcadeRun"
 import FightScene, { classicFight, type SceneOptions } from "./FightScene"
 import Gallery from "./Gallery"
-import TitleScreen, { type TitleChoice } from "./TitleScreen"
 import TeamPicker, { type PickerMode, type PickerResult } from "./TeamPicker"
-import ArcadeRun from "./ArcadeRun"
-import type { Params } from "../params"
+import TitleScreen, { type TitleChoice } from "./TitleScreen"
+import ViewChip from "./ViewChip"
 
 export type Screen =
   | { type: "title" }
