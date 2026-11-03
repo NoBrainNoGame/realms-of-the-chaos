@@ -1,4 +1,4 @@
-import { CHARACTERS } from "./engine"
+import { CHARACTERS } from "@realms/engine"
 
 /**
  * URL parameters:

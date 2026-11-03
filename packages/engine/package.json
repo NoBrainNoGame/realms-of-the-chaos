@@ -1,0 +1,13 @@
+{
+  "name": "@realms/engine",
+  "description": "Pure, deterministic combat engine of Realms of the Chaos",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc --noEmit -p ."
+  }
+}

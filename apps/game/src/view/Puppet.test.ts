@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { Graphics } from "pixi.js"
-import { CHARACTERS } from "../engine"
+import { CHARACTERS } from "@realms/engine"
 import {
   Puppet,
   STYLES,

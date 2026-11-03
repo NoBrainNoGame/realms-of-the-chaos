@@ -1,6 +1,6 @@
 import { Container, Graphics, Sprite } from "pixi.js"
 
-import type { Point } from "../engine"
+import type { Point } from "@realms/engine"
 import { softCircle } from "./effects"
 
 /**

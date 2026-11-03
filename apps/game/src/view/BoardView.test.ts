@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { Container, Graphics } from "pixi.js"
 
-import { Board, Combat, createRng, keyOf } from "../engine"
+import { Board, Combat, createRng, keyOf } from "@realms/engine"
 import { mount, runToEnd, tick } from "../test/harness"
 import BoardView, {
   COLUMN_BOTTOM,

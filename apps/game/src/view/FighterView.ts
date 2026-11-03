@@ -2,7 +2,7 @@ import * as booyah from "@ghom/booyah"
 import { Container, Graphics } from "pixi.js"
 import { OutlineFilter } from "pixi-filters"
 
-import type { Fighter, StatusId } from "../engine"
+import type { Fighter, StatusId } from "@realms/engine"
 import ViewChip from "./ViewChip"
 import { Puppet, type Facing, type PuppetAction } from "./Puppet"
 import { COLORS, PUPPET_SCALE, TEAM_COLORS } from "./theme"

@@ -6,7 +6,7 @@
 import type * as booyah from "@ghom/booyah"
 import type { Container } from "pixi.js"
 
-import { type Point, zoneCells } from "../engine"
+import { type Point, zoneCells } from "@realms/engine"
 import type BoardView from "./BoardView"
 import type { PuppetAction } from "./Puppet"
 import {

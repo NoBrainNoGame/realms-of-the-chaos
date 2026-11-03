@@ -1,6 +1,6 @@
 import { Graphics, Text } from "pixi.js"
 
-import { CHARACTERS } from "../engine"
+import { CHARACTERS } from "@realms/engine"
 import ViewChip from "./ViewChip"
 import { Puppet, type Facing, type PuppetAction } from "./Puppet"
 import { FONT } from "./theme"

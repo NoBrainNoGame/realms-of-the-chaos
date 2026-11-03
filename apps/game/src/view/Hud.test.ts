@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { Container, Text } from "pixi.js"
 
-import { ACTIONS, Board, Combat, comboAction, CHARACTERS } from "../engine"
+import { ACTIONS, Board, Combat, comboAction, CHARACTERS } from "@realms/engine"
 import { mount, tick } from "../test/harness"
 import Hud, { describeAction } from "./Hud"
 import Backdrop from "./Backdrop"

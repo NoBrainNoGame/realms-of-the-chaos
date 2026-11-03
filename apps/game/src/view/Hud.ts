@@ -16,7 +16,7 @@ import {
   type Combat,
   type Fighter,
   type Locomotion,
-} from "../engine"
+} from "@realms/engine"
 import ViewChip from "./ViewChip"
 import { characterTexture, iconTexture } from "./textures"
 import { COLORS, FONT, TEAM_COLORS } from "./theme"

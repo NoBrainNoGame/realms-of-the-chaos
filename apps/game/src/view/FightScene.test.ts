@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 
-import { DIVINE_ACTIONS, equals, manhattan, type Point } from "../engine"
+import { DIVINE_ACTIONS, equals, manhattan, type Point } from "@realms/engine"
 import { mount, tick } from "../test/harness"
 import FightScene, { type SceneOptions, waterState } from "./FightScene"
 import Game from "./Game"

@@ -1,4 +1,4 @@
-import { MIN_ELEVATION, type Point } from "../engine"
+import { MIN_ELEVATION, type Point } from "@realms/engine"
 
 export const FONT = "Pixelify Sans, monospace"
 

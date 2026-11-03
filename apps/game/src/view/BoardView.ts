@@ -14,7 +14,7 @@ import {
   add,
   keyOf,
   manhattan,
-} from "../engine"
+} from "@realms/engine"
 import ViewChip from "./ViewChip"
 import { softCircle } from "./effects"
 import {

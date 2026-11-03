@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import type * as booyah from "@ghom/booyah"
 import { Container } from "pixi.js"
 
-import { ACTIONS, Board, DIVINE_ACTIONS, type Point } from "../engine"
+import { ACTIONS, Board, DIVINE_ACTIONS, type Point } from "@realms/engine"
 import { mount, runToEnd, tick } from "../test/harness"
 import {
   FX,

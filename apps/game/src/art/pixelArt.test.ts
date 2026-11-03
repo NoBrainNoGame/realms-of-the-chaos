@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { CHARACTER_ART, ICON_ART, type PixelArt } from "./pixelArt"
-import { ACTIONS, CHARACTERS, DIVINE_ACTIONS } from "../engine"
+import { ACTIONS, CHARACTERS, DIVINE_ACTIONS } from "@realms/engine"
 
 function validate(name: string, art: PixelArt, size: number) {
   expect(art.rows, name).toHaveLength(size)

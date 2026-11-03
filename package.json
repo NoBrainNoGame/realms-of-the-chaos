@@ -3,29 +3,23 @@
   "description": "HTML5 tactical RPG on an isometric grid",
   "private": true,
   "type": "module",
+  "workspaces": ["apps/*", "packages/*"],
+  "packageManager": "bun@1.3.14",
   "scripts": {
-    "dev": "bun --port 1234 ./index.html",
-    "build": "bun build ./index.html --outdir dist --minify --sourcemap=linked",
-    "preview": "bun --port 1234 ./dist/index.html",
-    "test": "bun test",
-    "typecheck": "tsc --noEmit",
-    "check": "bun run typecheck && bun test",
-    "format": "prettier --write src",
-    "share": "cloudflared tunnel --url http://localhost:1234"
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "check": "turbo run typecheck test",
+    "format": "prettier --write \"apps/*/src/**/*.ts\" \"packages/*/src/**/*.ts\""
   },
   "prettier": {
     "semi": false
   },
-  "dependencies": {
-    "@ghom/booyah": "^1.3.0",
-    "pixi-filters": "^6.1.5",
-    "pixi.js": "^8.22.0"
-  },
   "devDependencies": {
-    "@happy-dom/global-registrator": "^21.0.4",
     "@types/bun": "^1.4.4",
-    "happy-dom": "^21.0.4",
     "prettier": "^3.9.10",
+    "turbo": "^2.11.10",
     "typescript": "^7.0.2"
   },
   "overrides": {

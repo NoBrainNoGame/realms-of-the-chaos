@@ -15,7 +15,7 @@ import {
   type Fighter,
   type FightEvent,
   type Point,
-} from "../engine"
+} from "@realms/engine"
 import ViewChip from "./ViewChip"
 import BoardView, {
   COLUMN_BOTTOM,
