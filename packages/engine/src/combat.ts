@@ -59,7 +59,13 @@ export interface TeamSetup {
 
 /** A serialized player command (online play, replays). */
 export type Command =
-  | { type: "moveTo"; fighterId: string; destination: Point }
+  | {
+      type: "moveTo"
+      fighterId: string
+      destination: Point
+      /** Adds a stop after the planned walk instead of replacing it. */
+      append?: boolean
+    }
   | { type: "useAction"; fighterId: string; actionId: string; target: Point }
   | { type: "pass"; fighterId: string }
   | {
@@ -198,7 +204,7 @@ export class Combat {
           alive: true,
           nextActionAt: 0,
           nextMoveAt: 0,
-          destination: null,
+          waypoints: [],
           path: [],
           statuses: [],
           cooldowns: {},
@@ -677,18 +683,10 @@ export class Combat {
       !this.board.canStep(fighter.position, next, fighter.locomotion) ||
       !this.canEnter(fighter, next)
     ) {
-      const path = fighter.destination
-        ? this.board.findPath(
-            fighter.position,
-            fighter.destination,
-            (p) => this.canEnter(fighter, p),
-            fighter.locomotion,
-          )
-        : null
+      const path = this._route(fighter, fighter.position, fighter.waypoints)
 
       if (!path || path.length === 0) {
-        fighter.path = []
-        fighter.destination = null
+        this._clearWalk(fighter)
         this._emit({ type: "pathBlocked", fighterId: fighter.id })
         return
       }
@@ -700,7 +698,9 @@ export class Combat {
     const from = fighter.position
     fighter.position = next
     fighter.path.shift()
-    if (fighter.path.length === 0) fighter.destination = null
+    if (fighter.waypoints.length && equals(next, fighter.waypoints[0]))
+      fighter.waypoints.shift()
+    if (fighter.path.length === 0) fighter.waypoints = []
     fighter.nextMoveAt = this._time + this.stepDelay(fighter, from, next)
     this._emit({ type: "moved", fighterId: fighter.id, from, to: next })
   }
@@ -785,18 +785,21 @@ export class Combat {
     return { ok: true, events: this._flush() }
   }
 
-  /** Plan a path for the active fighter. Free: does not end the turn. */
-  moveTo(destination: Point): CommandResult {
+  /**
+   * Plan a walk for the active fighter. Free: does not end the turn. With
+   * `append`, the destination becomes one more stop after the planned walk
+   * (to make it go one way rather than another).
+   */
+  moveTo(destination: Point, append = false): CommandResult {
     const fighter = this._checkInput()
     if (typeof fighter === "string") return this._result(fighter)
-    return this._logged(
-      {
-        type: "moveTo",
-        fighterId: fighter.id,
-        destination: { ...destination },
-      },
-      this._moveTo(fighter, destination),
-    )
+    const command: Command = {
+      type: "moveTo",
+      fighterId: fighter.id,
+      destination: { ...destination },
+    }
+    if (append) command.append = true
+    return this._logged(command, this._moveTo(fighter, destination, append))
   }
 
   /** Use an action. Ends the turn and adds its cost to the timeline. */
@@ -852,7 +855,7 @@ export class Combat {
     }
     switch (command.type) {
       case "moveTo":
-        return this.moveTo(command.destination)
+        return this.moveTo(command.destination, command.append)
       case "useAction":
         return this.useAction(command.actionId, command.target)
       case "pass":
@@ -910,8 +913,7 @@ export class Combat {
       cells: [...path],
     })
     // a planned walk is replaced by the sprint
-    fighter.destination = null
-    fighter.path = []
+    this._clearWalk(fighter)
     let time = 0
     for (const next of path) {
       const from = fighter.position
@@ -950,23 +952,61 @@ export class Combat {
     return time
   }
 
-  private _moveTo(fighter: Fighter, destination: Point): string | null {
-    if (equals(destination, fighter.position)) {
-      fighter.destination = null
-      fighter.path = []
+  /**
+   * Walk planned through `waypoints` from `from`: the shortest path to each
+   * stop in turn (null when one of them cannot be reached).
+   */
+  private _route(fighter: Fighter, from: Point, waypoints: readonly Point[]) {
+    const route: Point[] = []
+    let start = from
+    for (const stop of waypoints) {
+      if (equals(stop, start)) continue
+      const leg = this.board.findPath(
+        start,
+        stop,
+        (p) => this.canEnter(fighter, p),
+        fighter.locomotion,
+      )
+      if (!leg) return null
+      route.push(...leg)
+      start = stop
+    }
+    return route
+  }
+
+  /**
+   * The walk a `moveTo` would plan, without planning it (HUD previews):
+   * the whole path, through the planned stops when appending.
+   */
+  planWalk(fighter: Fighter, destination: Point, append = false) {
+    const stops = append ? [...fighter.waypoints, destination] : [destination]
+    return this._route(fighter, fighter.position, stops)
+  }
+
+  private _clearWalk(fighter: Fighter) {
+    fighter.waypoints = []
+    fighter.path = []
+  }
+
+  private _moveTo(
+    fighter: Fighter,
+    destination: Point,
+    append = false,
+  ): string | null {
+    if (!append && equals(destination, fighter.position)) {
+      this._clearWalk(fighter)
       this._emit({ type: "destinationSet", fighterId: fighter.id, path: [] })
       return null
     }
 
-    const path = this.board.findPath(
-      fighter.position,
-      destination,
-      (p) => this.canEnter(fighter, p),
-      fighter.locomotion,
-    )
+    const waypoints = append
+      ? [...fighter.waypoints, destination]
+      : [destination]
+    const path = this._route(fighter, fighter.position, waypoints)
     if (!path) return "Destination inaccessible"
+    if (path.length === 0) return null
 
-    fighter.destination = destination
+    fighter.waypoints = waypoints.map((p) => ({ ...p }))
     fighter.path = path
     fighter.nextMoveAt = Math.max(fighter.nextMoveAt, this._time)
     this._emit({
@@ -1160,8 +1200,7 @@ export class Combat {
       case "dash": {
         const from = fighter.position
         fighter.position = target
-        fighter.path = []
-        fighter.destination = null
+        this._clearWalk(fighter)
         this._emit({ type: "dashed", fighterId: fighter.id, from, to: target })
         break
       }
@@ -1278,8 +1317,7 @@ export class Combat {
 
     if (target.hp <= 0) {
       target.alive = false
-      target.path = []
-      target.destination = null
+      this._clearWalk(target)
       target.statuses = []
       this._emit({ type: "died", fighterId: target.id })
       // catch-up: the team that loses a fighter gets energy right away
@@ -1331,7 +1369,7 @@ export class Combat {
 
     if (!equals(position, from)) {
       target.position = position
-      target.path = []
+      this._clearWalk(target)
       this._emit({ type: "pushed", fighterId: target.id, from, to: position })
     }
 

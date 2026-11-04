@@ -65,7 +65,8 @@ Sans `mode`, les paramètres de combat (`seed`, `spectate`, `team`, `enemies`) l
 
 | Entrée                        | Effet                                                                                         |
 | ----------------------------- | --------------------------------------------------------------------------------------------- |
-| Clic sur une case             | fixe la destination (gratuit, ne termine pas le tour)                                         |
+| Clic sur une case             | fixe la destination (gratuit, ne termine pas le tour) ; chaque clic suivant **ajoute une étape** au trajet |
+| `⌫` ou bouton « Annuler le trajet » | efface le trajet prévu (un clic sur le personnage aussi)                                  |
 | `C` ou icône de botte         | **Course** : jusqu'à 3 cases tout de suite, puis clic sur la destination (le tour se termine) |
 | `1`–`9` ou clic sur une icône | sélectionne une action (combos compris), puis clic sur une cible                              |
 | `Espace` / `Entrée`           | passe le tour                                                                                 |
@@ -348,6 +349,7 @@ Déjà en place :
 - timeline : l'ordre de jeu, et au survol les **durées réelles** entre les tours, sur un axe de temps qui va du premier au dernier personnage. La vue s'agrandit et se resserre en une demi-seconde, avec un easing. Un clic la verrouille (un **cadenas** l'indique), et le choix est mémorisé. Survoler une action, Passer ou une case de Course montre un **fantôme** du personnage là où il rejouera ;
 - barre d'actions avec raccourcis, recharges et infobulles ;
 - fiche du personnage (PV, stats colorées, effets d'état avec leur durée et leur valeur, trajet en cours) ;
+- trajet prévu : une ligne jaune épaisse depuis le personnage, un anneau sur chaque étape et la destination remplie ;
 - panneau des Influences du Ghom (jauge d'Élan) ;
 - journal de combat ;
 - surbrillances : cases accessibles, aperçu du chemin, portée, cibles, zone d'effet ;

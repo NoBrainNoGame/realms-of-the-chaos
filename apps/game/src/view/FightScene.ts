@@ -308,6 +308,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
     this._subscribe(this._hud, "action", (id) => this._selectAction(id))
     this._subscribe(this._hud, "divine", (id) => this._selectDivine(id))
     this._subscribe(this._hud, "pass", () => this._pass())
+    this._subscribe(this._hud, "cancelWalk", () => this._cancelWalk())
     this._subscribe(this._hud, "hoverChoice", (choice) => {
       this._hoverChoice = choice
       this._hud.setLanding(this.landingPreview())
@@ -971,6 +972,33 @@ export default class FightScene extends ViewChip<SceneEvents> {
     return null
   }
 
+  /**
+   * A click in move mode: the first one plans a walk, the next ones add
+   * stops to it (to make it go one way rather than another). A click on
+   * the fighter itself cancels the walk.
+   */
+  private _planWalk(fighter: Fighter, p: Point) {
+    if (equals(p, fighter.position)) return this._cancelWalk()
+    const command: Command = {
+      type: "moveTo",
+      fighterId: fighter.id,
+      destination: p,
+    }
+    if (fighter.waypoints.length) command.append = true
+    this._command(command)
+  }
+
+  /** Cancel the planned walk of the active local fighter. */
+  private _cancelWalk() {
+    const fighter = this._activeHuman
+    if (!fighter?.path.length) return
+    this._command({
+      type: "moveTo",
+      fighterId: fighter.id,
+      destination: { ...fighter.position },
+    })
+  }
+
   /** Pass the turn of the active local fighter. */
   private _pass() {
     const fighter = this._activeHuman
@@ -1057,7 +1085,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
 
     switch (this._mode.type) {
       case "move":
-        this._command({ type: "moveTo", fighterId: fighter.id, destination: p })
+        this._planWalk(fighter, p)
         break
       case "action": {
         const action = this._mode.action
@@ -1103,6 +1131,9 @@ export default class FightScene extends ViewChip<SceneEvents> {
     } else if (e.key === "Escape") {
       this._mode = { type: "move" }
       this._refreshAll()
+    } else if (e.key === "Backspace") {
+      e.preventDefault()
+      this._cancelWalk()
     } else if (e.key === "c" || e.key === "C") {
       const sprint = this.combat.actionsOf(fighter).find((a) => a.movement)
       if (sprint) this._selectAction(sprint.id)
@@ -1202,17 +1233,17 @@ export default class FightScene extends ViewChip<SceneEvents> {
     })
 
     if (this._mode.type === "move") {
-      const path = this.combat.board.findPath(
-        fighter.position,
-        hovered,
-        (p) => this.combat.canEnter(fighter, p),
-        fighter.locomotion,
-      )
+      const append = fighter.waypoints.length > 0
+      const path = this.combat.planWalk(fighter, hovered, append)
       if (!path?.length) return null
       const t = this.combat.movementTime(fighter, path)
       const turns = this.combat.turnsFor(fighter, t)
       return [
-        { text: "Marche  " },
+        {
+          text: append
+            ? `Étape ${fighter.waypoints.length + 1} · trajet total  `
+            : "Marche  ",
+        },
         cells(path.length),
         { text: " · " },
         time(t),
@@ -1250,15 +1281,31 @@ export default class FightScene extends ViewChip<SceneEvents> {
     const fighter = this._activeHuman
     const hovered = this._hovered
 
-    // planned paths of the local fighters
+    // planned walks of the local fighters: a bold line from the fighter,
+    // a ring on each stop, the destination filled
     const local = this.localTeams
     for (const f of this.combat.aliveFighters) {
       if (local.includes(f.team) && f.path.length) {
+        const destination = f.path[f.path.length - 1]
         highlights.push({
-          cells: f.path,
+          cells: [destination],
           color: COLORS.path,
-          alpha: 0.55,
-          inset: 22,
+          alpha: 0.45,
+          inset: 4,
+          outline: true,
+        })
+        highlights.push({
+          cells: f.waypoints.filter((w) => !equals(w, destination)),
+          color: COLORS.path,
+          alpha: 0.35,
+          inset: 10,
+          outline: true,
+        })
+        highlights.push({
+          cells: [f.position, ...f.path],
+          color: COLORS.path,
+          alpha: 0.95,
+          trail: true,
         })
       }
     }
@@ -1281,14 +1328,12 @@ export default class FightScene extends ViewChip<SceneEvents> {
             inset: 6,
           })
           if (hovered && reachable.some((c) => equals(c, hovered))) {
-            const path = this.combat.board.findPath(
-              fighter.position,
-              hovered,
-              (p) => this.combat.canEnter(fighter, p),
-            )
+            // the leg the click would add (or the walk it would plan)
+            const append = fighter.waypoints.length > 0
+            const path = this.combat.planWalk(fighter, hovered, append)
             if (path)
               highlights.push({
-                cells: path,
+                cells: append ? path.slice(fighter.path.length) : path,
                 color: COLORS.path,
                 alpha: 0.7,
                 inset: 18,

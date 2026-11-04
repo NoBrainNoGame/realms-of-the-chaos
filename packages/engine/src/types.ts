@@ -145,7 +145,12 @@ export interface Fighter {
   nextActionAt: number
   /** Timeline time of the next possible step. */
   nextMoveAt: number
-  destination: Point | null
+  /**
+   * Stops of the planned walk still ahead, in order (the last one is the
+   * destination); empty when no walk is planned.
+   */
+  waypoints: Point[]
+  /** Cells of the planned walk still ahead, through every waypoint. */
   path: Point[]
   statuses: StatusInstance[]
   cooldowns: Record<string, number>

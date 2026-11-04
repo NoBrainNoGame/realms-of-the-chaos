@@ -258,7 +258,52 @@ describe("movement", () => {
     expect(moves.length).toBe(3)
     for (const move of moves) expect(manhattan(move.from, move.to)).toBe(1)
     expect(eva.position).toEqual({ x: 3, y: 0 })
-    expect(eva.destination).toBeNull()
+    expect(eva.waypoints).toEqual([])
+  })
+
+  test("a walk can be planned through stops, and cancelled", () => {
+    const combat = setup([
+      [["eva", { x: 0, y: 0 }]],
+      [["gorr", { x: 8, y: 8 }]],
+    ])
+    const [eva, gorr] = combat.fighters
+    turnOf(combat, eva)
+
+    // straight to (3,0), then forced through (0,3) on the way to (3,3)
+    expect(combat.moveTo({ x: 0, y: 3 }).ok).toBe(true)
+    expect(combat.moveTo({ x: 3, y: 3 }, true).ok).toBe(true)
+    expect(eva.waypoints).toEqual([
+      { x: 0, y: 3 },
+      { x: 3, y: 3 },
+    ])
+    expect(eva.path.length).toBe(6)
+    expect(eva.path[2]).toEqual({ x: 0, y: 3 })
+    expect(combat.log.at(-1)).toMatchObject({ type: "moveTo", append: true })
+    expect(combat.planWalk(eva, { x: 4, y: 3 }, true)!.length).toBe(7)
+    expect(combat.planWalk(eva, { x: 4, y: 3 })!.length).toBe(7)
+    expect(eva.path.length).toBe(6) // a preview plans nothing
+
+    // a new destination without append replaces the walk
+    combat.moveTo({ x: 2, y: 0 })
+    expect(eva.waypoints).toEqual([{ x: 2, y: 0 }])
+    // cancelled: a walk to where she stands
+    combat.moveTo(eva.position)
+    expect(eva.waypoints).toEqual([])
+    expect(eva.path).toEqual([])
+
+    combat.moveTo({ x: 0, y: 3 })
+    combat.moveTo({ x: 3, y: 3 }, true)
+    combat.pass()
+    gorr.nextActionAt = 10_000
+    eva.nextActionAt = 10_000
+    const seen: string[] = []
+    while (eva.path.length > 0) {
+      combat.advance()
+      seen.push(`${eva.position.x},${eva.position.y}`)
+    }
+    expect(seen).toContain("0,3")
+    expect(eva.position).toEqual({ x: 3, y: 3 })
+    expect(eva.waypoints).toEqual([])
   })
 
   test("steps are spaced by the step delay and water is slower", () => {

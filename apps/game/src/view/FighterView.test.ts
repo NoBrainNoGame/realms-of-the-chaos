@@ -237,3 +237,58 @@ describe("click out of reach", () => {
     expect(scene.combat.activeFighter).toBe(me)
   })
 })
+
+describe("walk with stops", () => {
+  test("each click adds a stop, the button and Backspace cancel the walk", () => {
+    const scene = mount(
+      new FightScene(
+        classicFight({
+          seed: 8,
+          speed: 4,
+          spectate: false,
+          playerTeam: ["eva", "brutus"],
+          enemyTeam: ["gorr"],
+        }),
+      ),
+    )
+    const internals = scene as any
+    tickUntil(scene, () => internals._inputReady)
+    const me = scene.combat.activeFighter!
+    const reachable = scene.combat
+      .getReachableCells(me)
+      .filter(
+        (c) =>
+          Math.abs(c.x - me.position.x) + Math.abs(c.y - me.position.y) >= 2,
+      )
+    const [a, b] = [reachable[0], reachable.at(-1)!]
+    const cancelButton = () =>
+      internals._hud._actionBar.children.find(
+        (c: Container) => c.label === "cancelWalk",
+      )
+    expect(cancelButton()).toBeUndefined()
+
+    internals._board.emit("cellDown", a, 0)
+    tickUntil(scene, () => !internals._playing)
+    expect(me.waypoints).toEqual([a])
+    expect(cancelButton()).toBeDefined()
+    internals._board.emit("cellOver", b)
+    expect(scene.movePreview()![0].text).toContain("Étape 2")
+    internals._board.emit("cellDown", b, 0)
+    tickUntil(scene, () => !internals._playing)
+    expect(me.waypoints).toEqual([a, b])
+    expect(me.path.some((c) => keyOf(c) === keyOf(a))).toBe(true)
+    expect(me.path.at(-1)).toEqual(b)
+    expect(scene.combat.activeFighter).toBe(me) // planning is free
+
+    cancelButton().emit("pointertap")
+    tickUntil(scene, () => !internals._playing)
+    expect(me.waypoints).toEqual([])
+    expect(me.path).toEqual([])
+    expect(cancelButton()).toBeUndefined()
+
+    internals._board.emit("cellDown", a, 0)
+    tickUntil(scene, () => !internals._playing)
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Backspace" }))
+    expect(me.path).toEqual([])
+  })
+})

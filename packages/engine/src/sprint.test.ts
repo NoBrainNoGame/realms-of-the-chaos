@@ -91,7 +91,7 @@ describe("sprint (Course)", () => {
     })
     expect(eva.position).toEqual({ x: 3, y: 0 })
     expect(eva.path).toEqual([])
-    expect(eva.destination).toBeNull()
+    expect(eva.waypoints).toEqual([])
     expect(eva.nextActionAt).toBeCloseTo(time + expected)
     expect(expected).toBeCloseTo(
       3 * combat.stepDelay(eva, { x: 0, y: 0 }, { x: 1, y: 0 }),

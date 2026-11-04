@@ -34,6 +34,8 @@ export { describeAction }
 interface HudEvents extends booyah.BaseCompositeEvents {
   action: [actionId: string]
   pass: []
+  /** Cancel the planned walk of the active fighter. */
+  cancelWalk: []
   /** An action (or pass, or nothing) is hovered in the action bar. */
   hoverChoice: [choice: string | null]
   divine: [divineId: string]
@@ -605,6 +607,28 @@ export default class Hud extends ViewChip<HudEvents> {
       0,
     )
     this._actionBar.addChild(pass.view)
+
+    // a planned walk: a click adds a stop, so cancelling needs a button
+    if (fighter.path.length) {
+      const cancel = button({
+        width: 112,
+        height: size,
+        label: "Annuler\nle trajet",
+        hotkey: "⌫",
+        accent: COLORS.path,
+        onTap: () => this.emit("cancelWalk"),
+        onOver: () =>
+          this.showTooltip(
+            `Efface le trajet prévu (${tag("move", `${fighter.path.length} cases`)}). Un clic sur la carte ajoute une étape au trajet.`,
+            cancel.view.getGlobalPosition(),
+            true,
+          ),
+        onOut: () => this.hideTooltip(),
+      })
+      cancel.view.position.set(pass.view.x + 96 + 8, 0)
+      cancel.view.label = "cancelWalk"
+      this._actionBar.addChild(cancel.view)
+    }
     this._layout()
   }
 

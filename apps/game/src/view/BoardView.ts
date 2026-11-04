@@ -47,6 +47,11 @@ export interface Highlight {
   inset?: number
   /** Draw a crisp border around each cell. */
   outline?: boolean
+  /**
+   * The cells are a walk, in order: a thick line joins their centers
+   * (each cell draws its halves of the segments to its neighbors).
+   */
+  trail?: boolean
 }
 
 /** Depth offsets inside a diagonal of the shared `entities` layer. */
@@ -212,7 +217,12 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       alpha,
       inset = 3,
       outline = false,
+      trail = false,
     } of highlights) {
+      if (trail) {
+        this._drawTrail(cells, color, alpha)
+        continue
+      }
       for (const p of cells) {
         const parts = this._parts.get(keyOf(p))
         if (!parts) continue
@@ -225,6 +235,32 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
         }
       }
     }
+  }
+
+  private _drawTrail(cells: Point[], color: number, alpha: number) {
+    cells.forEach((p, i) => {
+      const parts = this._parts.get(keyOf(p))
+      if (!parts) return
+      const g = parts.overlay
+      // half-way to the previous and next cells, on the tile top
+      const ends = [cells[i - 1], cells[i + 1]]
+        .filter((q): q is Point => !!q && manhattan(p, q) === 1)
+        .map((q) => {
+          const dx = q.x - p.x
+          const dy = q.y - p.y
+          return { x: ((dx - dy) * W) / 2, y: ((dx + dy) * H) / 2 }
+        })
+      for (const [width, tint, a] of [
+        [9, 0x000000, alpha * 0.45],
+        [5, color, alpha],
+      ] as const) {
+        for (const end of ends)
+          g.moveTo(0, 0)
+            .lineTo(end.x, end.y)
+            .stroke({ width, color: tint, alpha: a, cap: "round" })
+        g.circle(0, 0, width / 2).fill({ color: tint, alpha: a })
+      }
+    })
   }
 
   /**
