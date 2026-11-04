@@ -10,10 +10,10 @@ import {
   STATUSES,
   STEP_DELAY_RATIO,
 } from "@realms/engine"
-import { Container, Graphics, Sprite, Text } from "pixi.js"
+import { Container, Graphics, Rectangle, Sprite, Text } from "pixi.js"
 import { STATUS_COLORS } from "./FighterView"
 import { characterTexture } from "./textures"
-import { COLORS, TEAM_COLORS } from "./theme"
+import { COLORS, MEANING, TEAM_COLORS } from "./theme"
 import {
   button,
   clearChildren,
@@ -40,8 +40,16 @@ export const LOCOMOTION_TRAITS: Record<Locomotion, string | null> = {
   aquatic: "Aquatique (aucune pénalité)",
 }
 
+/** Browser storage key of the pinned timeline view. */
+const TIMELINE_KEY = "realms.timeline.expanded"
+/** Width of the time axis of the expanded timeline (px). */
+const TIMELINE_SPAN = 620
+
 export default class Hud extends ViewChip<HudEvents> {
   private _timeline!: Container
+  private _timelineCombat: Combat | null = null
+  private _timelinePinned = false
+  private _timelineHovered = false
   private _actionBar!: Container
   private _card!: Container
   private _divine!: Container
@@ -61,6 +69,24 @@ export default class Hud extends ViewChip<HudEvents> {
 
   protected _onActivate() {
     this._timeline = new Container()
+    // hover: real durations between turns; click: keep that view
+    this._timeline.eventMode = "static"
+    this._timeline.cursor = "pointer"
+    this._timeline.on("pointerenter", () => {
+      this._timelineHovered = true
+      this._redrawTimeline()
+    })
+    this._timeline.on("pointerleave", () => {
+      this._timelineHovered = false
+      this._redrawTimeline()
+    })
+    this._timeline.on("pointertap", () => this.toggleTimeline())
+    try {
+      this._timelinePinned =
+        globalThis.localStorage?.getItem(TIMELINE_KEY) === "1"
+    } catch {
+      // storage blocked: compact by default
+    }
     this._actionBar = new Container()
     this._card = new Container()
     this._divine = new Container()
@@ -199,22 +225,119 @@ export default class Hud extends ViewChip<HudEvents> {
 
   // ─── Timeline ─────────────────────────────────────────────────────────────
 
+  /** Timeline expanded to real durations (persistent after a click). */
+  get timelineExpanded() {
+    return this._timelinePinned || this._timelineHovered
+  }
+
+  /** Expand or collapse the timeline for good (a click on it). */
+  toggleTimeline() {
+    this._timelinePinned = !this._timelinePinned
+    try {
+      globalThis.localStorage?.setItem(
+        TIMELINE_KEY,
+        this._timelinePinned ? "1" : "0",
+      )
+    } catch {
+      // storage blocked: the choice lasts for this session only
+    }
+    this._redrawTimeline()
+  }
+
   setTimeline(combat: Combat) {
+    this._timelineCombat = combat
+    this._redrawTimeline()
+  }
+
+  private _redrawTimeline() {
+    const combat = this._timelineCombat
+    if (!combat) return
     clearChildren(this._timeline)
+    const expanded = this.timelineExpanded
     const order = combat.timelineOrder()
     const size = 44
     const gap = 6
-    const width = order.length * (size + gap) - gap + 16
+    const waits = order.map((f) =>
+      Math.max(0, Math.round(f.nextActionAt - combat.time)),
+    )
 
-    this._timeline.addChild(panel(width, size + 26))
-    const arrow = text("→ ordre de jeu", 11, COLORS.muted)
-    arrow.position.set(8, size + 9)
-    this._timeline.addChild(arrow)
+    // where each portrait goes: in a row (compact) or at its real wait
+    let width: number
+    let height: number
+    const places: { x: number; y: number }[] = []
+    let scale = 0
+    let range = 0
+    if (!expanded) {
+      width = order.length * (size + gap) - gap + 16
+      height = size + 26
+      order.forEach((_, i) => places.push({ x: 8 + i * (size + gap), y: 6 }))
+    } else {
+      range = Math.max(40, ...waits) * 1.05
+      scale = Math.min(6, TIMELINE_SPAN / range)
+      // close turns are stacked on rows so portraits stay readable
+      const rowEnds: number[] = []
+      let rows = 1
+      waits.forEach((wait) => {
+        const x = 8 + wait * scale
+        let row = rowEnds.findIndex((end) => x >= end + 2)
+        if (row < 0) row = rowEnds.length
+        rowEnds[row] = x + size
+        rows = Math.max(rows, row + 1)
+        places.push({ x, y: 6 + row * (size * 0.6) })
+      })
+      width = 16 + size + range * scale
+      height = 6 + (rows - 1) * size * 0.6 + size + 40
+    }
+
+    this._timeline.addChild(
+      panel(width, height, expanded ? MEANING.time : COLORS.panelBorder),
+    )
+    if (expanded) {
+      // the time axis, in the meaning color of time
+      const axisY = height - 26
+      const axis = new Graphics()
+        .moveTo(8 + size / 2, axisY)
+        .lineTo(8 + size / 2 + range * scale, axisY)
+        .stroke({ width: 1.5, color: MEANING.time, alpha: 0.8 })
+      const step = range > 200 ? 50 : range > 80 ? 20 : 10
+      for (let t = 0; t <= range; t += step) {
+        const x = 8 + size / 2 + t * scale
+        axis
+          .moveTo(x, axisY - 3)
+          .lineTo(x, axisY + 3)
+          .stroke({
+            width: 1,
+            color: MEANING.time,
+          })
+        const tick = text(t === 0 ? "maintenant" : `${t}`, 10, MEANING.time)
+        tick.anchor.set(t === 0 ? 0 : 0.5, 0)
+        tick.position.set(x - (t === 0 ? 4 : 0), axisY + 5)
+        this._timeline.addChild(tick)
+      }
+      this._timeline.addChild(axis)
+    } else {
+      const hint = text(
+        "→ ordre de jeu · survoler : durées réelles",
+        11,
+        COLORS.muted,
+      )
+      hint.position.set(8, size + 9)
+      this._timeline.addChild(hint)
+    }
 
     order.forEach((fighter, i) => {
       const slot = new Container()
-      slot.position.set(8 + i * (size + gap), 6)
+      slot.position.set(places[i].x, places[i].y)
       const active = combat.activeFighter === fighter
+      if (expanded) {
+        // a tick from the portrait down to its time on the axis
+        slot.addChild(
+          new Graphics()
+            .moveTo(size / 2, size)
+            .lineTo(size / 2, height - 26 - places[i].y)
+            .stroke({ width: 1, color: TEAM_COLORS[fighter.team], alpha: 0.6 }),
+        )
+      }
       slot.addChild(
         new Graphics()
           .roundRect(0, 0, size, size, 4)
@@ -232,7 +355,7 @@ export default class Hud extends ViewChip<HudEvents> {
       portrait.mask = mask
       slot.addChild(mask, portrait)
 
-      const wait = Math.max(0, Math.round(fighter.nextActionAt - combat.time))
+      const wait = waits[i]
       const label = text(active ? "▶" : `${wait}`, 11, COLORS.text, {
         stroke: { color: 0x000000, width: 3 },
       })
@@ -250,6 +373,7 @@ export default class Hud extends ViewChip<HudEvents> {
       slot.on("pointerout", () => this.hideTooltip())
       this._timeline.addChild(slot)
     })
+    this._timeline.hitArea = new Rectangle(0, 0, width, height)
     this._layout()
   }
 

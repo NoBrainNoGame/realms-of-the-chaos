@@ -212,3 +212,62 @@ describe("Backdrop and Gallery", () => {
     expect(puppets).toHaveLength(Object.keys(CHARACTERS).length * 4)
   })
 })
+
+describe("timeline: real durations", () => {
+  const setup = () => {
+    try {
+      localStorage.removeItem("realms.timeline.expanded")
+    } catch {}
+    const hud = mount(new Hud())
+    const c = combat()
+    c.run()
+    const [eva, merlin, gorr] = c.fighters
+    eva.nextActionAt = c.time + 10
+    merlin.nextActionAt = c.time + 12 // close to eva: stacked on another row
+    gorr.nextActionAt = c.time + 80
+    hud.setTimeline(c)
+    const timeline = (hud as any)._timeline as Container
+    const slots = () =>
+      timeline.children.filter(
+        (child) => child.eventMode === "static",
+      ) as Container[]
+    return { hud, c, timeline, slots }
+  }
+
+  test("hovering expands it: portraits at their real wait, on a time axis", () => {
+    const { hud, timeline, slots } = setup()
+    const compact = timeline.width
+    expect(hud.timelineExpanded).toBe(false)
+    expect(texts(timeline).some((t) => t.includes("durées réelles"))).toBe(true)
+
+    timeline.emit("pointerenter", {} as any)
+    expect(hud.timelineExpanded).toBe(true)
+    expect(timeline.width).toBeGreaterThan(compact)
+    const [first, second, third] = slots()
+    // spacing follows the waits, not the order
+    const gapSmall = second.x - first.x
+    const gapBig = third.x - second.x
+    expect(gapBig).toBeGreaterThan(gapSmall * 5)
+    // close turns are stacked on another row
+    expect(second.y).not.toBe(first.y)
+    expect(texts(timeline)).toContain("maintenant")
+
+    timeline.emit("pointerleave", {} as any)
+    expect(hud.timelineExpanded).toBe(false)
+    expect(timeline.width).toBe(compact)
+  })
+
+  test("a click keeps the expanded view, another one collapses it", () => {
+    const { hud, timeline } = setup()
+    timeline.emit("pointertap", {} as any)
+    timeline.emit("pointerleave", {} as any)
+    expect(hud.timelineExpanded).toBe(true)
+    expect(localStorage.getItem("realms.timeline.expanded")).toBe("1")
+    // remembered by a new HUD
+    const again = mount(new Hud())
+    expect(again.timelineExpanded).toBe(true)
+    hud.toggleTimeline()
+    expect(hud.timelineExpanded).toBe(false)
+    expect(localStorage.getItem("realms.timeline.expanded")).toBe("0")
+  })
+})

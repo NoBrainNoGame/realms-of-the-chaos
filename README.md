@@ -343,7 +343,7 @@ Si aucune action ne vaut le coup, l'IA cherche la case accessible d'où elle aur
 
 Déjà en place :
 
-- timeline (ordre de jeu et temps restant) ;
+- timeline : l'ordre de jeu, et au survol les **durées réelles** entre les tours, sur un axe de temps. Un clic garde cette vue, et le choix est mémorisé ;
 - barre d'actions avec raccourcis, recharges et infobulles ;
 - fiche du personnage (stats, effets d'état) ;
 - panneau des Influences du Ghom (jauge d'Élan) ;
