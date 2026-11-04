@@ -4,6 +4,18 @@ export const FONT = "Pixelify Sans, monospace"
 
 export const TILE_WIDTH = 64
 export const TILE_HEIGHT = 32
+/** Grid vector seen at a screen offset on the ground plane (`project`'s inverse). */
+export function unproject(
+  x: number,
+  y: number,
+  c: Readonly<Camera> = camera,
+): { x: number; y: number } {
+  const { sin, cos, squash } = basis(c)
+  const u = x / CELL
+  const v = y / (CELL * squash)
+  return { x: u * cos + v * sin, y: -u * sin + v * cos }
+}
+
 /** Pixel height of one elevation level. */
 export const ELEVATION_HEIGHT = 16
 /** Extra thickness under the lowest level (the island crust). */

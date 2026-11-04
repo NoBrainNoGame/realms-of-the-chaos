@@ -4,7 +4,12 @@ import { Container } from "pixi.js"
 import { mount, tick } from "../test/harness"
 import { tickUntil } from "../test/play"
 import FighterView from "./FighterView"
-import FightScene, { classicFight, MIN_ZOOM, TURN_DURATION } from "./FightScene"
+import FightScene, {
+  classicFight,
+  FOLLOW_ZOOM,
+  MIN_ZOOM,
+  TURN_DURATION,
+} from "./FightScene"
 import { MAX_LENS_BLUR } from "./lens"
 import { camera, ISO_PITCH, MAX_PITCH, MAX_YAW, toScreen } from "./theme"
 
@@ -538,6 +543,59 @@ describe("camera tilt and turns", () => {
       left.emit("pointertap", {} as any) // ignored while turning
       tick(scene, TURN_DURATION * 2)
       expect(camera.quarter).toBe(0)
+    } finally {
+      scene.terminate()
+    }
+  })
+
+  test("zoomed in, a quarter turn keeps the cell looked at in the middle", () => {
+    const { scene, world } = setup()
+    try {
+      // zoom on a cell off the board's middle
+      const target = { x: 2, y: 5 }
+      const cell = scene.combat.board.get(target)!
+      const onScreen = () => {
+        const p = toScreen(target, cell.elevation)
+        return {
+          x: world.x + p.x * world.scale.x,
+          y: world.y + p.y * world.scale.y,
+        }
+      }
+      const at = onScreen()
+      scene.zoomAt(at, 6)
+      tick(scene, 2000)
+      expect(scene.zoom).toBeGreaterThanOrEqual(FOLLOW_ZOOM)
+      // bring it to the middle of the screen, as the player would
+      const internals = scene as any
+      const now = onScreen()
+      internals._pan.x += 640 - now.x
+      internals._pan.y += 360 - now.y
+      tick(scene, 16)
+      const looked = scene.lookedAt()
+      expect(Math.round(looked.x)).toBe(target.x)
+      expect(Math.round(looked.y)).toBe(target.y)
+      for (const dir of [1, 1, -1] as const) {
+        scene.turnCamera(dir)
+        tick(scene, TURN_DURATION * 2)
+        const after = onScreen()
+        expect(Math.abs(after.x - 640)).toBeLessThan(2)
+        expect(Math.abs(after.y - 360)).toBeLessThan(2)
+      }
+      expect(camera.quarter).toBe(1)
+    } finally {
+      scene.terminate()
+    }
+  })
+
+  test("not zoomed in, a quarter turn keeps the whole board in the middle", () => {
+    const { scene, middle } = setup()
+    try {
+      const before = middle()
+      scene.turnCamera(1)
+      tick(scene, TURN_DURATION * 2)
+      const after = middle()
+      expect(Math.abs(after.x - before.x)).toBeLessThan(2)
+      expect(Math.abs(after.y - before.y)).toBeLessThan(2)
     } finally {
       scene.terminate()
     }

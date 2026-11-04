@@ -6,14 +6,19 @@ import {
   parseParams,
 } from "../params"
 import {
+  camera,
   cellNoise,
   diamond,
   ELEVATION_HEIGHT,
+  ISO_PITCH,
   mix,
+  project,
+  resetCamera,
   shade,
   TILE_HEIGHT,
   TILE_WIDTH,
   toScreen,
+  unproject,
 } from "./theme"
 
 describe("isometric projection", () => {
@@ -117,5 +122,25 @@ describe("URL parameters", () => {
     expect(parse("?enemies=zzz").enemyTeam).toEqual(DEFAULT_ENEMY_TEAM)
     const long = parse(`?team=${Array(10).fill("eva").join(",")}`)
     expect(long.playerTeam).toHaveLength(MAX_ROSTER)
+  })
+})
+
+describe("unproject", () => {
+  test("is project's inverse, from any view", () => {
+    try {
+      for (const view of [
+        { quarter: 0, pitch: ISO_PITCH, yaw: 0 },
+        { quarter: 1, pitch: 60, yaw: 12 },
+        { quarter: 3, pitch: 75, yaw: -20 },
+      ]) {
+        Object.assign(camera, view)
+        const o = project(2.5, -1.25)
+        const g = unproject(o.x, o.y)
+        expect(g.x).toBeCloseTo(2.5, 4)
+        expect(g.y).toBeCloseTo(-1.25, 4)
+      }
+    } finally {
+      resetCamera()
+    }
   })
 })

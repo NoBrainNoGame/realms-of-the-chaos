@@ -52,6 +52,7 @@ import {
   ELEVATION_HEIGHT,
   ISO,
   ISO_PITCH,
+  levelHeight,
   MAX_PITCH,
   MAX_YAW,
   MEANING,
@@ -60,6 +61,7 @@ import {
   TILE_HEIGHT,
   TILE_WIDTH,
   toScreen,
+  unproject,
 } from "./theme"
 import { type Segment, tag } from "./ui"
 import ViewChip from "./ViewChip"
@@ -132,6 +134,8 @@ export function combatOptions(options: SceneOptions): CombatOptions {
 /** Zoom bounds, relative to the board fitted to the screen. */
 export const MIN_ZOOM = 0.6
 export const MAX_ZOOM = 3
+/** From this zoom, a quarter turn keeps the cell looked at in the middle. */
+export const FOLLOW_ZOOM = 1.25
 /** Length of a quarter turn of the camera (ms). */
 export const TURN_DURATION = 420
 
@@ -228,6 +232,8 @@ export default class FightScene extends ViewChip<SceneEvents> {
     elapsed: number
     yaw: number
     swapped: boolean
+    /** Zoomed in: the point of the board kept in the middle of the screen. */
+    follow: { x: number; y: number; elevation: number } | null
   } | null = null
   /** Right or middle button held on the screen (camera drag). */
   private _drag: {
@@ -415,7 +421,15 @@ export default class FightScene extends ViewChip<SceneEvents> {
   turnCamera(dir: 1 | -1) {
     if (this._turn) return
     const to = (camera.quarter + dir + 4) % 4
-    this._turn = { dir, to, elapsed: 0, yaw: camera.yaw, swapped: false }
+    this._turn = {
+      dir,
+      to,
+      elapsed: 0,
+      yaw: camera.yaw,
+      swapped: false,
+      // close enough, the camera keeps facing the cell it looks at
+      follow: this._zoom.target >= FOLLOW_ZOOM ? this.lookedAt() : null,
+    }
   }
 
   /** Back to the classic view (the zoom too). */
@@ -423,7 +437,14 @@ export default class FightScene extends ViewChip<SceneEvents> {
     this._aim = { pitch: ISO_PITCH, yaw: 0 }
     if (camera.quarter !== 0 && !this._turn) {
       const dir = camera.quarter === 3 ? 1 : -1
-      this._turn = { dir, to: 0, elapsed: 0, yaw: camera.yaw, swapped: false }
+      this._turn = {
+        dir,
+        to: 0,
+        elapsed: 0,
+        yaw: camera.yaw,
+        swapped: false,
+        follow: null,
+      }
     }
     this._zoom.target = 1
     this._zoom.anchor = { x: this._fit.width / 2, y: this._fit.height / 2 }
@@ -620,6 +641,39 @@ export default class FightScene extends ViewChip<SceneEvents> {
     this._clampPan()
   }
 
+  /**
+   * The point of the board seen in the middle of the screen: on the ground
+   * of the cell there (its elevation), on the board's edge if outside.
+   */
+  lookedAt(): { x: number; y: number; elevation: number } {
+    const scale = this._fit.scale * this._zoom.value
+    const sx = (this._fit.width / 2 - this._fit.x - this._pan.x) / scale
+    const sy = (this._fit.height / 2 - this._fit.y - this._pan.y) / scale
+    const board = this.combat.board
+    let elevation = 0
+    let p = unproject(sx, sy)
+    // the ground stands at its cell's height: a few steps settle it
+    for (let i = 0; i < 4; i++) {
+      p = unproject(sx, sy + elevation * levelHeight())
+      p = {
+        x: Math.min(board.width - 0.5, Math.max(-0.5, p.x)),
+        y: Math.min(board.height - 0.5, Math.max(-0.5, p.y)),
+      }
+      const cell = board.get({ x: Math.round(p.x), y: Math.round(p.y) })
+      elevation = cell ? cell.elevation : 0
+    }
+    return { ...p, elevation }
+  }
+
+  /** Moves the camera so a point of the board is in the middle. */
+  private _keepInMiddle(p: { x: number; y: number; elevation: number }) {
+    const scale = this._fit.scale * this._zoom.value
+    const o = toScreen(p, p.elevation)
+    this._pan.x = this._fit.width / 2 - this._fit.x - o.x * scale
+    this._pan.y = this._fit.height / 2 - this._fit.y - o.y * scale
+    this._clampPan()
+  }
+
   /** The board can't leave the screen (more slack the further the zoom). */
   private _clampPan() {
     const extra = this._zoom.value - 1
@@ -715,6 +769,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
     }
     this._updateCamera(this._lastTickInfo.timeSinceLastTick)
     this._updateZoom(this._lastTickInfo.timeSinceLastTick)
+    if (this._turn?.follow) this._keepInMiddle(this._turn.follow)
     this._placeWorld(dx, dy)
   }
 
