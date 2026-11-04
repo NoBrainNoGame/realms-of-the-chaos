@@ -28,8 +28,6 @@ export const MAX_ELEVATION = 3
 export const MAX_STEP = 1
 /** Water surface level. */
 export const WATER_LEVEL = 0
-/** Basins up to this size are usually flooded at generation. */
-export const MAX_POND_SIZE = 8
 
 /** Water at least this deep (in levels) must be swum. */
 export const DEEP_WATER = 2
@@ -164,7 +162,7 @@ export class Board {
   }
 
   /**
-   * Procedural arena: smooth hills and holes (some flooded), point-symmetric
+   * Procedural arena: smooth hills and flooded holes (ponds and lakes), point-symmetric
    * so both sides are fair, with walkable spawn edges.
    */
   static generate(rng: Rng, width = 9, height = 9): Board {
@@ -211,40 +209,11 @@ export class Board {
       board.get(m)!.elevation = elevation
     }
 
-    // flood some holes (a whole basin and its mirror together)
-    const decided = new Set<string>()
-    for (const cell of board._cells) {
-      if (cell.elevation >= 0 || decided.has(keyOf(cell))) continue
-      // ponds are frequent, big lakes are rare (big valleys stay dry)
-      const size = board._basin(cell).length
-      const flooded = rng.chance(size <= MAX_POND_SIZE ? 0.65 : 0.15)
-      for (const start of [cell, mirror(cell)]) {
-        for (const p of board._basin(start)) {
-          decided.add(keyOf(p))
-          if (flooded) board.get(p)!.terrain = "water"
-        }
-      }
-    }
+    // every hole holds water: rain fills the basins of the island
+    for (const cell of board._cells)
+      if (cell.elevation < 0) cell.terrain = "water"
 
     return board
-  }
-
-  /** Connected cells below ground level around `start`. */
-  private _basin(start: Point): Point[] {
-    const seen = new Set([keyOf(start)])
-    const stack = [start]
-    const result: Point[] = []
-    while (stack.length) {
-      const p = stack.pop()!
-      result.push(p)
-      for (const n of this.neighbors(p)) {
-        if (this.get(n)!.elevation < 0 && !seen.has(keyOf(n))) {
-          seen.add(keyOf(n))
-          stack.push(n)
-        }
-      }
-    }
-    return result
   }
 
   /** Enough relief, and both spawn edges belong to one big walkable region. */

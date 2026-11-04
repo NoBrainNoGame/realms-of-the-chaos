@@ -207,3 +207,33 @@ describe("landing preview on the timeline", () => {
     expect(delays.size).toBeGreaterThan(1)
   })
 })
+
+describe("click out of reach", () => {
+  test("cancels the selected action instead of failing it", () => {
+    const scene = mount(
+      new FightScene(
+        classicFight({
+          seed: 8,
+          speed: 4,
+          spectate: false,
+          playerTeam: ["eva", "brutus"],
+          enemyTeam: ["gorr"],
+        }),
+      ),
+    )
+    const internals = scene as any
+    tickUntil(scene, () => internals._inputReady)
+    const me = scene.combat.activeFighter!
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "c" }))
+    expect(internals._mode.type).toBe("action")
+    const valid = scene.combat.getValidTargets(me, internals._mode.action)
+    const out = scene.combat.board.cells.find(
+      (c) => !valid.some((v) => keyOf(v) === keyOf(c)),
+    )!
+    const before = { ...me.position }
+    internals._board.emit("cellDown", out, 0)
+    expect(internals._mode.type).toBe("move")
+    expect(me.position).toEqual(before)
+    expect(scene.combat.activeFighter).toBe(me)
+  })
+})

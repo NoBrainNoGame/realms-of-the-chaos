@@ -1061,6 +1061,15 @@ export default class FightScene extends ViewChip<SceneEvents> {
         break
       case "action": {
         const action = this._mode.action
+        // a click out of reach cancels the action instead of failing it
+        const valid = this.combat
+          .getValidTargets(fighter, action)
+          .some((c) => equals(c, p))
+        if (!valid) {
+          this._mode = { type: "move" }
+          this._refreshAll()
+          break
+        }
         this._command({
           type: "useAction",
           fighterId: fighter.id,

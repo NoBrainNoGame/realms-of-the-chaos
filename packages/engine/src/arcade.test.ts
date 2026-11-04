@@ -193,12 +193,11 @@ describe("arcade run verification", () => {
     }
     expect(() => verifyArcadeRun(forged)).toThrow()
 
-    // a bonus that is not allowed
-    const full = { ...record, team: ["brutus", "lyra", "eva"] }
-    if (full.waves[0].bonus !== null) {
+    // a bonus that is never offered
+    if (first.bonus !== null) {
       const badBonus: ArcadeRecord = {
-        ...full,
-        waves: [{ ...first, bonus: "recruit" }],
+        ...record,
+        waves: [{ ...first, bonus: "jackpot" as ArcadeBonus }],
       }
       expect(() => verifyArcadeRun(badBonus)).toThrow()
     }

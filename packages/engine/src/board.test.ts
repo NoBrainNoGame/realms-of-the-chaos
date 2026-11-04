@@ -189,10 +189,10 @@ describe("Procedural generation", () => {
     }
   })
 
-  test("water only fills holes", () => {
+  test("water fills every hole, and only holes (no dry basin)", () => {
     for (const board of boards) {
       for (const cell of board.cells) {
-        if (cell.terrain === "water") expect(cell.elevation).toBeLessThan(0)
+        expect(cell.terrain === "water").toBe(cell.elevation < 0)
       }
     }
   })

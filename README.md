@@ -69,7 +69,7 @@ Sans `mode`, les paramètres de combat (`seed`, `spectate`, `team`, `enemies`) l
 | `C` ou icône de botte         | **Course** : jusqu'à 3 cases tout de suite, puis clic sur la destination (le tour se termine) |
 | `1`–`9` ou clic sur une icône | sélectionne une action (combos compris), puis clic sur une cible                              |
 | `Espace` / `Entrée`           | passe le tour                                                                                 |
-| `Échap` / clic droit          | annule la sélection                                                                           |
+| `Échap` / clic droit          | annule la sélection (un clic hors de portée aussi)                                            |
 | `F`                           | vitesse des animations ×1 / ×2 / ×4                                                           |
 | Survol | infos du personnage, aperçu du chemin ou de la zone d'effet, et **coût en temps** du déplacement (marche : nombre de tours jusqu'à l'arrivée ; Course : équivalent en actions) |
 
@@ -234,7 +234,7 @@ Autres règles liées à l'eau :
 
 Les rochers ont été retirés : les falaises et les pitons jouent maintenant leur rôle (bloquer le passage et la vue).
 
-La carte est générée de façon procédurale (collines et creux gaussiens) et **symétrique** (équitable pour les deux camps). Les mares sont fréquentes, les grands lacs rares. Les deux bords de départ sont praticables et reliés. Les personnages sont placés aléatoirement de leur côté, dans la zone praticable, **à 4 cases minimum de chaque ennemi** (règle du doc).
+La carte est générée de façon procédurale (collines et creux gaussiens) et **symétrique** (équitable pour les deux camps). Tous les creux sont remplis d'eau : mares et lacs, peu profonds ou profonds (un creux sec n'apparaît qu'avec un Séisme). Les deux bords de départ sont praticables et reliés. Les personnages sont placés aléatoirement de leur côté, dans la zone praticable, **à 4 cases minimum de chaque ennemi** (règle du doc).
 
 ### Actions (« sorts »)
 
