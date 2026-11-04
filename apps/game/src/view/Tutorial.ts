@@ -1,6 +1,7 @@
 import type * as booyah from "@ghom/booyah"
 import type { Fighter, Point } from "@realms/engine"
 import { Container, Graphics } from "pixi.js"
+import { settings } from "../settings"
 
 import FightScene, { type SceneOptions } from "./FightScene"
 import type { Bounds } from "./Hud"
@@ -500,7 +501,9 @@ export default class Tutorial extends ViewChip<TutorialEvents> {
   /** Places the bubble by its target, the arrow and the target's glow. */
   private _layout(step: TutorialStep) {
     const anchor = step.anchor?.(this) ?? null
-    const size = { width: BUBBLE_WIDTH, height: this._bubble.height }
+    // the player's interface size (settings)
+    this._bubble.scale.set(settings().uiSize)
+    const size = { width: this._bubble.width, height: this._bubble.height }
     const place = placeBubble(anchor, size, {
       width: this._width,
       height: this._height,

@@ -7,6 +7,7 @@ import {
   HP_PER_HEALTH,
 } from "@realms/engine"
 import { Container, Graphics, Sprite } from "pixi.js"
+import { settings } from "../settings"
 import { arcadeBest } from "../storage"
 import Backdrop from "./Backdrop"
 import { LOCOMOTION_TRAITS } from "./Hud"
@@ -273,8 +274,9 @@ export default class TeamPicker extends ViewChip<PickerEvents> {
 
   protected _onResize(width: number, height: number) {
     const contentHeight = this._layout.height + 20
+    // the player's interface size, as long as the screen has room
     const scale = Math.min(
-      1.25,
+      1.25 * settings().uiSize,
       (width - 32) / LAYOUT_WIDTH,
       (height - 32) / contentHeight,
     )

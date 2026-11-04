@@ -19,6 +19,7 @@ import {
   usefulActions,
 } from "@realms/engine"
 import { Container, Graphics } from "pixi.js"
+import { settings } from "../settings"
 import {
   ACTION_POSE,
   comboFx,
@@ -610,8 +611,9 @@ export default class FightScene extends ViewChip<SceneEvents> {
       0.6,
       Math.min(
         1.6,
-        (width - 460) / (right - left),
-        (height - 230) / (bottom - top),
+        // room for the HUD, at the player's interface size
+        (width - 460 * settings().uiSize) / (right - left),
+        (height - 230 * settings().uiSize) / (bottom - top),
       ),
     )
     // the center of the board stays where the classic view puts it
@@ -748,13 +750,14 @@ export default class FightScene extends ViewChip<SceneEvents> {
     }
   }
 
-  /** The curved arrows on each side under the island, kept on screen. */
   /** The curved arrows on each side of the action bar. */
   private _placeTurnButtons() {
     if (!this._hud) return
+    const k = settings().uiSize
     const bar = this._hud.actionBarBounds
-    const y = bar.y + Math.max(28, bar.height / 2)
-    const gap = 16 + 22
+    const y = bar.y + Math.max(28 * k, bar.height / 2)
+    const gap = (16 + 22) * k
+    for (const b of this._turnButtons) b.scale.set(k)
     this._turnButtons[0]?.position.set(bar.x - gap, y)
     this._turnButtons[1]?.position.set(bar.x + bar.width + gap, y)
   }

@@ -10,6 +10,7 @@ import {
   type TextStyleOptions,
 } from "pixi.js"
 
+import { settings } from "../settings"
 import { iconTexture } from "./textures"
 import { COLORS, FONT, MEANING, type Meaning } from "./theme"
 
@@ -17,12 +18,19 @@ export const style = (
   size: number,
   color = COLORS.text,
   extra: TextStyleOptions = {},
-): TextStyleOptions => ({
-  fontFamily: FONT,
-  fontSize: size,
-  fill: color,
-  ...extra,
-})
+): TextStyleOptions => {
+  // the player's text size (settings) scales the font and its lines
+  const k = settings().textSize
+  return {
+    fontFamily: FONT,
+    fill: color,
+    ...extra,
+    fontSize: Math.round(size * k),
+    ...(extra.lineHeight
+      ? { lineHeight: Math.round(extra.lineHeight * k) }
+      : {}),
+  }
+}
 
 export const text = (
   value: string,
@@ -348,7 +356,9 @@ export function richText(
 ) {
   const segments =
     typeof content === "string" ? markup(content, options.color) : content
-  const lineHeight = options.lineHeight ?? Math.round(size * 1.3)
+  const lineHeight = Math.round(
+    (options.lineHeight ?? size * 1.3) * settings().textSize,
+  )
   const extra: TextStyleOptions = {}
   if (options.stroke) extra.stroke = options.stroke
   if (options.fontWeight) extra.fontWeight = options.fontWeight

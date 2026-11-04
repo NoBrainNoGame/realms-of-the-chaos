@@ -1,6 +1,7 @@
 import * as booyah from "@ghom/booyah"
 import { Board, createRng } from "@realms/engine"
 import { BlurFilter, Container, Sprite } from "pixi.js"
+import { settings } from "../settings"
 import { arcadeBest } from "../storage"
 import Backdrop from "./Backdrop"
 import BoardView from "./BoardView"
@@ -19,7 +20,12 @@ export const TAGLINES = [
   "Pourquoi quelque chose, plutôt que rien ?",
 ]
 
-export type TitleChoice = "skirmish" | "local" | "arcade" | "tutorial"
+export type TitleChoice =
+  | "skirmish"
+  | "local"
+  | "arcade"
+  | "settings"
+  | "tutorial"
 
 /** The island of the title screen turns a quarter this often (ms). */
 export const TITLE_TURN_EVERY = 7000
@@ -33,6 +39,7 @@ export const TITLE_MENU: MenuItem[] = [
   { id: "arcade", label: "Arcade" },
   { id: "online", label: "Duel en ligne", hint: "bientôt", enabled: false },
   { id: "codex", label: "Chroniques", hint: "bientôt", enabled: false },
+  { id: "settings", label: "Réglages" },
   { id: "tutorial", label: "Tutoriel" },
 ]
 
@@ -41,6 +48,7 @@ const DESCRIPTIONS: Record<string, string> = {
   local: "Deux joueurs, un seul écran : chacun son équipe, chacun son tour.",
   arcade:
     "Les Marées : des vagues de plus en plus fortes. Jusqu'où tiendrez-vous ?",
+  settings: "La taille du texte et celle de l'interface.",
   tutorial:
     "Un combat guidé, pas à pas : la frise du temps, les déplacements, l'eau, le relief, la course, les combos et la caméra.",
 }
@@ -322,14 +330,19 @@ export default class TitleScreen extends ViewChip<TitleEvents> {
     this._focusBackdrop()
     this._halo.scale.set((520 * scale) / 64)
 
+    // the player's interface size (settings)
+    const k = settings().uiSize
     this._title.position.set(Math.round(width / 2), Math.round(height * 0.13))
-    this._title.scale.set(Math.min(1, width / 900))
-    const menuX = compact ? width / 2 - 140 : width * 0.7 - 140
+    this._title.scale.set(Math.min(1, width / 900) * k)
+    const menuX = (compact ? width / 2 : width * 0.7) - 140 * k
+    this._menu.scale.set(k)
     this._menu.position.set(Math.round(menuX), Math.round(height * 0.3))
+    this._description.scale.set(k)
     this._description.position.set(
-      Math.round(menuX + 140),
-      Math.round(this._menu.y + this._menu.height + 16),
+      Math.round(menuX + 140 * k),
+      Math.round(this._menu.y + this._menu.height + 16 * k),
     )
+    this._record.scale.set(k)
     this._record.position.set(width - 14, height - 12)
     this._place()
   }

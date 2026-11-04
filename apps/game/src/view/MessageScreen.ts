@@ -1,5 +1,6 @@
 import type * as booyah from "@ghom/booyah"
 import { Container } from "pixi.js"
+import { settings } from "../settings"
 import Backdrop from "./Backdrop"
 import { COLORS } from "./theme"
 import { Menu, type MenuItem, panel, text } from "./ui"
@@ -91,8 +92,10 @@ export default class MessageScreen extends ViewChip<MessageEvents> {
   }
 
   protected _onResize(width: number, height: number) {
+    // the player's interface size (settings)
+    this._box.scale.set(settings().uiSize)
     this._box.position.set(
-      Math.round(width / 2 - WIDTH / 2),
+      Math.round(width / 2 - this._box.width / 2),
       Math.max(20, Math.round(height / 2 - this._box.height / 2)),
     )
   }

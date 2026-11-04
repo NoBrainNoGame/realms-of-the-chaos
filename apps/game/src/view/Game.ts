@@ -3,6 +3,7 @@ import type { Params } from "../params"
 import ArcadeRun from "./ArcadeRun"
 import FightScene, { classicFight, type SceneOptions } from "./FightScene"
 import Gallery from "./Gallery"
+import SettingsScreen from "./SettingsScreen"
 import TeamPicker, { type PickerMode, type PickerResult } from "./TeamPicker"
 import TitleScreen, { type TitleChoice } from "./TitleScreen"
 import Tutorial from "./Tutorial"
@@ -15,6 +16,7 @@ export type Screen =
   | { type: "arcade"; team: string[] }
   | { type: "gallery" }
   | { type: "tutorial" }
+  | { type: "settings" }
 
 /** First screen from the URL (dev shortcuts), the title screen otherwise. */
 export function initialScreen(params: Params): Screen {
@@ -23,6 +25,8 @@ export function initialScreen(params: Params): Screen {
       return { type: "gallery" }
     case "tutorial":
       return { type: "tutorial" }
+    case "settings":
+      return { type: "settings" }
     case "skirmish":
     case "local":
     case "arcade":
@@ -127,8 +131,8 @@ export default class Game extends ViewChip {
         const title = new TitleScreen()
         this._subscribeOnce(title, "choose", (choice: TitleChoice) =>
           this.show(
-            choice === "tutorial"
-              ? { type: "tutorial" }
+            choice === "tutorial" || choice === "settings"
+              ? { type: choice }
               : { type: "picker", mode: choice },
           ),
         )
@@ -194,6 +198,12 @@ export default class Game extends ViewChip {
           this.show({ type: "tutorial" }),
         )
         return tutorial
+      }
+
+      case "settings": {
+        const screen = new SettingsScreen()
+        this._subscribeOnce(screen, "back", () => this.show({ type: "title" }))
+        return screen
       }
 
       case "gallery": {

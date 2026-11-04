@@ -12,7 +12,7 @@ import { CHARACTERS } from "@realms/engine"
  * - `?anim=swim`             with the gallery: loops a single animation
  *                            (idle, walk, melee, shoot, cast, roar, hit, swim)
  * - `?mode=skirmish`         opens a screen directly: title, skirmish, local,
- *                            arcade, gallery, fight or tutorial
+ *                            arcade, gallery, fight, tutorial or settings
  *
  * Without `mode`, any fight parameter (seed, spectate, team, enemies) starts
  * a fight right away, as before the title screen existed.
@@ -25,6 +25,7 @@ export const MODES = [
   "gallery",
   "fight",
   "tutorial",
+  "settings",
 ] as const
 export type StartMode = (typeof MODES)[number]
 

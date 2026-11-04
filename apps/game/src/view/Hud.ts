@@ -8,6 +8,7 @@ import {
   MAX_ENERGY,
 } from "@realms/engine"
 import { Container, Graphics, Rectangle, Sprite, Text } from "pixi.js"
+import { settings } from "../settings"
 import {
   describeAction,
   describeDivine,
@@ -177,9 +178,16 @@ export default class Hud extends ViewChip<HudEvents> {
   }
 
   /** Where the action bar is on the screen (it widens with the actions). */
+  /** The action bar on the screen (the HUD may be scaled). */
   get actionBarBounds() {
     const bar = this._actionBar
-    return { x: bar.x, y: bar.y, width: bar.width, height: bar.height }
+    const k = this._container.scale.x
+    return {
+      x: bar.x * k,
+      y: bar.y * k,
+      width: bar.width * k,
+      height: bar.height * k,
+    }
   }
 
   /** Where a part of the HUD is on the screen (null: empty or hidden). */
@@ -206,8 +214,12 @@ export default class Hud extends ViewChip<HudEvents> {
   }
 
   protected _onResize(width: number, height: number) {
-    this._width = width
-    this._height = height
+    // the player's interface size (settings): the HUD is laid out smaller
+    // or larger, then scaled to the screen
+    const scale = settings().uiSize
+    this._container.scale.set(scale)
+    this._width = width / scale
+    this._height = height / scale
     this._layout()
   }
 
@@ -222,7 +234,7 @@ export default class Hud extends ViewChip<HudEvents> {
       h - 92,
     )
     this._card.position.set(12, 100)
-    this._divine.position.set(w - 212, 100)
+    this._divine.position.set(w - Math.max(200, this._divine.width) - 12, 100)
     this._log.position.set(12, h - 140)
     this._speed.position.set(w - 12, 10)
     this._placePreview()
@@ -704,7 +716,6 @@ export default class Hud extends ViewChip<HudEvents> {
     clearChildren(this._card)
     if (!fighter) return
 
-    const width = 200
     const preset = CHARACTERS[fighter.presetId]
     const lines: Container[] = []
 
@@ -720,9 +731,10 @@ export default class Hud extends ViewChip<HudEvents> {
       12,
       COLORS.muted,
     )
-    title.position.set(64, 32)
+    // the lines flow down: the player's text size can make them taller
+    title.position.set(64, Math.max(32, name.y + name.height))
     const hp = richText(describeHp(fighter, combat), 13)
-    hp.position.set(64, 48)
+    hp.position.set(64, Math.max(48, title.y + title.height + 2))
     lines.push(portrait, name, title, hp)
 
     // each stat in the color of what it changes
@@ -730,10 +742,18 @@ export default class Hud extends ViewChip<HudEvents> {
       color: COLORS.muted,
       lineHeight: 16,
     })
-    stats.position.set(10, 66)
+    stats.position.set(10, Math.max(66, hp.y + hp.height + 4))
     lines.push(stats)
+    const width = Math.ceil(
+      Math.max(
+        200,
+        64 + title.width + 10,
+        64 + name.width + 10,
+        stats.width + 20,
+      ),
+    )
 
-    let y = 122
+    let y = Math.max(122, stats.y + stats.height + 6)
     const trait = LOCOMOTION_TRAITS[fighter.locomotion]
     if (trait) {
       const label = text(trait, 12, MEANING.water)
@@ -795,11 +815,12 @@ export default class Hud extends ViewChip<HudEvents> {
   ) {
     clearChildren(this._divine)
     const energy = combat.teams[team].energy
-    const width = 200
 
     const title = text("Influences du Ghom", 15, COLORS.energy, {
       fontWeight: "700",
     })
+    // wider with a larger text (settings)
+    const width = Math.ceil(Math.max(200, title.width + 20))
     title.position.set(10, 8)
     const pips = new Graphics()
     for (let i = 0; i < MAX_ENERGY; i++) {
@@ -835,6 +856,7 @@ export default class Hud extends ViewChip<HudEvents> {
     })
 
     this._divine.addChild(panel(width, 50 + 3 * 46 + 6), ...children)
+    if (this._width) this._layout()
   }
 
   // ─── Log, tooltip, banner, end ────────────────────────────────────────────
@@ -851,7 +873,13 @@ export default class Hud extends ViewChip<HudEvents> {
     )
   }
 
-  showTooltip(content: string, at: { x: number; y: number }, above = false) {
+  showTooltip(
+    content: string,
+    global: { x: number; y: number },
+    above = false,
+  ) {
+    const scale = this._container.scale.x
+    const at = { x: global.x / scale, y: global.y / scale }
     clearChildren(this._tooltipText)
     this._tooltipText.addChild(
       richText(content, 13, { wrap: 260, lineHeight: 17 }),

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, test } from "bun:test"
 import { CHARACTERS, verifyArcadeRun } from "@realms/engine"
 import type { Container } from "pixi.js"
 import { parseParams } from "../params"
+import { resetSettings, settings, updateSettings } from "../settings"
 import { arcadeBest, clearStorage, submitArcadeScore } from "../storage"
 import { mount, tick } from "../test/harness"
 import { playLocally, tickUntil } from "../test/play"
@@ -10,6 +11,7 @@ import FightScene from "./FightScene"
 import Gallery from "./Gallery"
 import Game, { initialScreen, pickedFight } from "./Game"
 import MessageScreen from "./MessageScreen"
+import SettingsScreen from "./SettingsScreen"
 import TeamPicker, { DIFFICULTIES, MAX_TEAM, randomTeam } from "./TeamPicker"
 import TitleScreen, {
   TITLE_MENU,
@@ -26,7 +28,10 @@ const key = (k: string) =>
 const game = (query = "") =>
   mount(new Game(parseParams(new URLSearchParams(query))))
 
-beforeEach(() => clearStorage())
+beforeEach(() => {
+  clearStorage()
+  resetSettings()
+})
 
 describe("Menu", () => {
   test("arrows skip disabled items and wrap, Enter selects", () => {
@@ -282,6 +287,41 @@ describe("game routing", () => {
     ;(g.current as Tutorial).scene.emit("quit")
     expect(g.screen.type).toBe("title")
     expect(game("?mode=tutorial").current).toBeInstanceOf(Tutorial)
+  })
+
+  test("title → settings: arrows change the sizes, Escape goes back (?mode=settings)", () => {
+    const g = game()
+    expect(TITLE_MENU.at(-2)?.id).toBe("settings")
+    ;(g.current as TitleScreen).emit("choose", "settings")
+    const screen = g.current as SettingsScreen
+    expect(screen).toBeInstanceOf(SettingsScreen)
+    key("ArrowRight") // text size: Normal → Grand
+    expect(settings().textSize).toBe(1.15)
+    key("ArrowDown")
+    key("ArrowLeft") // interface: 100 % → 90 %
+    key("ArrowLeft")
+    expect(settings().uiSize).toBe(0.8)
+    tick(g, 50) // rebuilt at the new sizes
+    expect(screen.container.children.at(-1)?.scale.x).toBe(0.8)
+    key("ArrowDown")
+    key("Enter") // "Retour"
+    expect(g.screen.type).toBe("title")
+    expect(game("?mode=settings").current).toBeInstanceOf(SettingsScreen)
+    key("Escape")
+  })
+
+  test("the interface size scales the HUD, laid out for the smaller screen", () => {
+    resetSettings()
+    const normal = game("?seed=3").current as FightScene
+    const bar = normal.hud.actionBarBounds
+    updateSettings({ uiSize: 1.3 })
+    const big = game("?seed=3").current as FightScene
+    expect(big.hud.container.scale.x).toBe(1.3)
+    const bigBar = big.hud.actionBarBounds
+    expect(bigBar.width).toBeCloseTo(bar.width * 1.3, 0)
+    // still centered at the bottom of the screen
+    expect(bigBar.x + bigBar.width / 2).toBeCloseTo(bar.x + bar.width / 2, -1)
+    expect(bigBar.y + bigBar.height).toBeLessThanOrEqual(window.innerHeight)
   })
 
   test("the Menu button leaves a fight; Escape leaves the gallery (?gallery)", () => {
