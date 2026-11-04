@@ -172,6 +172,20 @@ export function skyPoint(
 }
 /** Motes live between these heights (levels), then start again below. */
 const MOTE_HEIGHT = 40
+/** Zoom at which the stars and motes start to fade, and are all gone. */
+export const DETAIL_ZOOM = { from: 1.2, to: 2.2 }
+
+/**
+ * How much of the sky's detail (stars, motes) is shown at a zoom, from 1
+ * to 0: closer, the board fills the screen and the lens blurs the rest,
+ * so they cost without being seen.
+ */
+export function skyDetail(zoom: number) {
+  const t = (zoom - DETAIL_ZOOM.from) / (DETAIL_ZOOM.to - DETAIL_ZOOM.from)
+  const u = Math.min(1, Math.max(0, t))
+  return 1 - u * u * (3 - 2 * u)
+}
+
 /** A jump bigger than this (× width) is a cut: no trail. */
 const CUT = 0.25
 
@@ -201,6 +215,7 @@ export default class Backdrop extends ViewChip {
   /** Sky angle and tilt of the camera when the stars were last drawn. */
   private _skyView: SkyView | null = null
   private _starsDirty = true
+  private _detail = 1
   private _zoom = 1
   private _islands: DistantIsland[] = []
   private _time = 0
@@ -373,7 +388,13 @@ export default class Backdrop extends ViewChip {
    */
   set zoom(value: number) {
     this._zoom = value
+    this._detail = skyDetail(value)
     this._placeIslands()
+  }
+
+  /** Share of the stars and motes shown (1: all, 0: none), from the zoom. */
+  get detail() {
+    return this._detail
   }
 
   get zoom() {
@@ -531,7 +552,15 @@ export default class Backdrop extends ViewChip {
   private _placeMotes(dt: number) {
     const { focus, k } = this._view()
     const lh = levelHeight()
-    for (const mote of this._motes) {
+    // closer, fewer motes: the last ones go first, then fade out
+    const shown = this._motes.length * this._detail
+    for (const [index, mote] of this._motes.entries()) {
+      const fade = Math.min(1, Math.max(0, shown - index))
+      mote.sprite.visible = fade > 0
+      if (fade === 0) {
+        mote.last = null
+        continue
+      }
       mote.height += mote.speed * dt
       if (mote.height > MOTE_HEIGHT) {
         mote.height -= MOTE_HEIGHT * 2
@@ -554,7 +583,7 @@ export default class Backdrop extends ViewChip {
       const diameter = size * 64
       sprite.rotation = length > 0.5 ? Math.atan2(dy, dx) : 0
       sprite.scale.set(size * (1 + length / diameter), size)
-      sprite.alpha = mote.alpha * (diameter / (diameter + length * 0.5))
+      sprite.alpha = mote.alpha * fade * (diameter / (diameter + length * 0.5))
     }
   }
 
@@ -631,10 +660,19 @@ export default class Backdrop extends ViewChip {
   protected _onTick() {
     const dt = this._lastTickInfo.timeSinceLastTick / 1000
     this._time += dt
-    this._stars.alpha = 0.75 + 0.25 * Math.sin(this._time * 0.8)
+    const detail = this._detail
+    this._stars.alpha = (0.75 + 0.25 * Math.sin(this._time * 0.8)) * detail
     this._drawIslands()
     this._placeIslands()
-    this._drawStars()
+    if (detail > 0) {
+      this._stars.visible = true
+      this._drawStars()
+    } else if (this._stars.visible) {
+      // gone: not drawn nor computed; back from where the camera is then
+      this._stars.visible = false
+      this._skyView = null
+      this._starsDirty = true
+    }
     this._placeMotes(dt)
   }
 }

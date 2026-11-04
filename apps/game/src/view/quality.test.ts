@@ -20,10 +20,10 @@ describe("adaptive quality", () => {
     expect(q.resolution).toBe(2)
   })
 
-  test("slow frames step it down, to 1 then by quarters, never below the floor", () => {
+  test("slow frames step it down by halves, never below a pixel per pixel", () => {
     const q = warm(2)
+    expect(run(q, 40)).toBe(1.5)
     expect(run(q, 40)).toBe(1)
-    expect(run(q, 40)).toBe(0.75)
     expect(run(q, 40)).toBeNull()
     expect(q.resolution).toBe(MIN_RESOLUTION)
   })
@@ -32,6 +32,12 @@ describe("adaptive quality", () => {
     const q = new Quality(2)
     expect(run(q, 100, QUALITY_WINDOW * 2)).toBeNull()
     expect(q.resolution).toBe(2)
+  })
+
+  test("a screen of a pixel per pixel is never lowered", () => {
+    const q = warm(1)
+    expect(run(q, 60, QUALITY_WINDOW * 4)).toBeNull()
+    expect(q.resolution).toBe(1)
   })
 
   test("pauses (a hidden tab) are not slowness", () => {

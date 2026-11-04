@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { Board, createRng } from "@realms/engine"
 import { Container, Graphics } from "pixi.js"
 import { mount, tick } from "../test/harness"
-import Backdrop, { skyPoint } from "./Backdrop"
+import Backdrop, { DETAIL_ZOOM, skyDetail, skyPoint } from "./Backdrop"
 import BoardView from "./BoardView"
 import FightScene, { classicFight } from "./FightScene"
 import { drawBlock, drawFloatingIsland, undersideDepths } from "./islands"
@@ -198,6 +198,35 @@ describe("everything floats, each at its own pace", () => {
     } finally {
       resetCamera()
     }
+  })
+
+  test("zooming in, the stars and motes fade out, and come back", () => {
+    expect(skyDetail(1)).toBe(1)
+    expect(skyDetail(DETAIL_ZOOM.to)).toBe(0)
+    const mid = skyDetail((DETAIL_ZOOM.from + DETAIL_ZOOM.to) / 2)
+    expect(mid).toBeGreaterThan(0)
+    expect(mid).toBeLessThan(1)
+    const backdrop = mount(new Backdrop())
+    ;(backdrop as any)._onResize(1200, 800)
+    const stars = (backdrop as any)._stars as Container
+    const shown = () => backdrop.motes.filter((m) => m.sprite.visible).length
+    tick(backdrop, 16)
+    expect(shown()).toBe(backdrop.motes.length)
+    backdrop.zoom = (DETAIL_ZOOM.from + DETAIL_ZOOM.to) / 2
+    tick(backdrop, 16)
+    expect(shown()).toBeGreaterThan(0)
+    expect(shown()).toBeLessThan(backdrop.motes.length)
+    expect(stars.alpha).toBeLessThan(0.75)
+    backdrop.zoom = 3
+    tick(backdrop, 16)
+    expect(shown()).toBe(0)
+    expect(stars.visible).toBe(false)
+    backdrop.zoom = 1
+    tick(backdrop, 16)
+    expect(shown()).toBe(backdrop.motes.length)
+    expect(stars.visible).toBe(true)
+    // back without a trail from the view it had before
+    expect(backdrop.stars.every((s) => s.trail === 0)).toBe(true)
   })
 
   test("seen from above, turning moves the stars along arcs, not straight lines", () => {

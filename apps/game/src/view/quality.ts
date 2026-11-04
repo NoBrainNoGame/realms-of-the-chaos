@@ -1,6 +1,7 @@
 /**
  * Adaptive quality: when the frames stay slow (a small configuration),
- * the rendering resolution steps down, never below `MIN_RESOLUTION`.
+ * the rendering resolution of a dense screen steps down, never below
+ * `MIN_RESOLUTION`.
  * It only steps down: going back up would make it waver.
  */
 
@@ -11,8 +12,12 @@ export const QUALITY_WINDOW = 90
  * 30 fps): only a real struggle, a quick machine never gets there.
  */
 export const SLOW_FRAME = 34
-/** Lowest resolution (blurrier, but four times fewer pixels than 1.5). */
-export const MIN_RESOLUTION = 0.75
+/**
+ * Lowest resolution: one pixel per screen pixel. Below, the pixel art of
+ * the board and the fighters turns blurry and blocky: the sky's detail
+ * goes first instead (see `skyDetail`).
+ */
+export const MIN_RESOLUTION = 1
 /** Longer frames are pauses (a hidden tab, a load), not slowness (ms). */
 const PAUSE = 200
 
@@ -39,10 +44,7 @@ export class Quality {
       this._frames.reduce((sum, f) => sum + f, 0) / this._frames.length
     this._frames = []
     if (average <= SLOW_FRAME || this.resolution <= MIN_RESOLUTION) return null
-    this.resolution = Math.max(
-      MIN_RESOLUTION,
-      this.resolution > 1 ? 1 : this.resolution - 0.25,
-    )
+    this.resolution = Math.max(MIN_RESOLUTION, this.resolution - 0.5)
     return this.resolution
   }
 }

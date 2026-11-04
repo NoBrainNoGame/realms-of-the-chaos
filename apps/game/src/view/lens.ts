@@ -27,8 +27,9 @@ export class Lens {
   private _amount = 0
 
   constructor(readonly target: Container) {
-    // half resolution: it blurs anyway, and costs a quarter of the pixels
-    this.filter.resolution = 0.5
+    // the screen's resolution: lower, the sharp band (the board and the
+    // fighters) would be pixelated
+    this.filter.resolution = "inherit"
   }
 
   get amount() {
