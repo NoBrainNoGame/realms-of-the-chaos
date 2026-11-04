@@ -306,6 +306,7 @@ Dans la barre d'actions, les combos ont une bordure turquoise et le portrait du 
 - **Particules** : feu, fumée, poussière, étincelles, débris, éclaboussures (en marchant dans l'eau), bulles de poison, éclats de glace, scintillements.
 - **Lumières** : halos additifs (explosions, soins, coups), énergie qui converge (Soin, Réparation), lentille de gravité (Distorsion), champ de force cristallin (Champ), éclairs (Accélération, Séisme), entailles (Lame furtive).
 - **Tremblement d'écran** : explosions, Écrasement, Secousse, Séisme et coups critiques.
+- **Décor** : l'île repose sur un faux empilement de blocs de terrain, une pyramide inversée irrégulière aux mêmes strates que le sol. L'eau des bords avant tombe en cascades le long des flancs et se perd en gouttelettes dans le vide. Autour, des îles lointaines construites de la même façon, bleutées par la distance. Tout flotte lentement, chaque île à son propre rythme.
 - **Mort (la Dispersion)** : la chaleur et la lumière du personnage se répandent à l'horizontale et s'éteignent. Rien ne s'élève : il n'y a pas d'âme dans ce monde.
 
 ### Effets d'état (« états spéciaux » du doc)

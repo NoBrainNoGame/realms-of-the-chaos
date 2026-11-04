@@ -15,6 +15,7 @@ import {
   Sprite,
 } from "pixi.js"
 import { softCircle } from "./effects"
+import { BLOCK_HEIGHT, drawBlock, undersideDepths } from "./islands"
 import {
   cellNoise,
   diamond,
@@ -82,6 +83,15 @@ interface CellParts {
   y: number
 }
 
+/** A waterfall pouring from a water cell over the edge of the island. */
+interface Cascade {
+  g: Graphics
+  /** -1: the front-left face, 1: the front-right face. */
+  side: -1 | 1
+  /** Height of the fall along the column and the blocks under it. */
+  length: number
+}
+
 interface Wave {
   start: number
   duration: number
@@ -98,7 +108,10 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
   private _hitLayer!: Container
   private _time = 0
   private _waves: Wave[] = []
-  private _islets: { node: Container; baseY: number; phase: number }[] = []
+  /** Blocks stacked under each cell (the inverted pyramid). */
+  private _depths: number[][] = []
+  /** Waterfalls pouring over the edges, by cell key. */
+  private _cascades = new Map<string, Cascade[]>()
   private _offsets = new Map<string, number>()
 
   constructor(
@@ -111,6 +124,11 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
   }
 
   protected _onActivate() {
+    this._depths = undersideDepths(
+      this._board.width,
+      this._board.height,
+      this._seed,
+    )
     this._container.addChild(this._drawUnderside())
     this._hitLayer = new Container()
     this._hitLayer.sortableChildren = true
@@ -155,10 +173,15 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       }
       i++
     }
-    for (const islet of this._islets) {
-      islet.node.y = islet.baseY + Math.sin(this._time / 900 + islet.phase) * 4
+    for (const list of this._cascades.values()) {
+      for (const cascade of list) this._drawCascade(cascade)
     }
     this._updateWaves()
+  }
+
+  /** Waterfalls of the island (one per water cell side on the edge). */
+  get cascades(): readonly Cascade[] {
+    return [...this._cascades.values()].flat()
   }
 
   protected _onTerminate() {
@@ -280,6 +303,7 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       if (c !== parts.overlay && c !== g) c.destroy({ children: true })
     })
     parts.animated = []
+    this._cascades.delete(keyOf(cell))
     g.clear()
     column.addChild(g)
 
@@ -355,6 +379,59 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       .stroke({ width: 1, color: 0x000000, alpha: 0.25 })
   }
 
+  /** Animated waterfall: a foam lip, streaks running down, droplets. */
+  private _drawCascade(cascade: Cascade) {
+    const { g, side, length } = cascade
+    const t = this._time / 1000
+    const xa = side * W * 0.18
+    const xb = side * W * 0.82
+    // the top edge of the face the water runs down
+    const top = (x: number) => (side < 0 ? H * (1 + x / W) : H * (1 - x / W))
+    g.clear()
+    const slices = 8
+    for (let i = 0; i < slices; i++) {
+      const y0 = (length * i) / slices
+      const y1 = (length * (i + 1)) / slices
+      const alpha = 0.6 * Math.min(1, (slices - i) / 3)
+      g.poly([
+        xa,
+        top(xa) + y0,
+        xb,
+        top(xb) + y0,
+        xb,
+        top(xb) + y1,
+        xa,
+        top(xa) + y1,
+      ]).fill({ color: WATER.surface, alpha })
+    }
+    for (let s = 0; s < 5; s++) {
+      const x = xa + ((xb - xa) * (s + 0.5)) / 5
+      const speed = 60 + (s % 3) * 18
+      for (let k = 0; k < 3; k++) {
+        const y = (t * speed + (k * length) / 3 + s * 13) % length
+        g.moveTo(x, top(x) + y)
+          .lineTo(x, top(x) + y + 7)
+          .stroke({
+            width: 1.2,
+            color: 0xffffff,
+            alpha: 0.55 * (1 - y / length),
+          })
+      }
+    }
+    g.moveTo(xa, top(xa))
+      .lineTo(xb, top(xb))
+      .stroke({ width: 2, color: WATER.foam, alpha: 0.85 })
+    // droplets falling past the bottom, into the void
+    for (let d = 0; d < 4; d++) {
+      const u = (t / 0.9 + d / 4) % 1
+      const x = xa + (xb - xa) * ((d * 0.37 + 0.15) % 1)
+      g.circle(x, top(x) + length + u * 40, 1.4).fill({
+        color: 0xe7f5ff,
+        alpha: 0.7 * (1 - u),
+      })
+    }
+  }
+
   /** Flooded hole: sandy bed, translucent water body, shimmer and foam. */
   private _drawWater(g: Graphics, cell: Cell, bedY: number, parts: CellParts) {
     const depth = -cell.elevation
@@ -383,6 +460,19 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       .stroke({ width: 1.5, color: 0xffffff, alpha: 0.35 })
     parts.column.addChild(shimmer)
     parts.animated.push(shimmer)
+
+    // water on the edge pours over it, down the column and the blocks below
+    const length = COLUMN_BOTTOM + this._depths[cell.y][cell.x] * BLOCK_HEIGHT
+    const falls: Cascade[] = []
+    if (cell.y === this._board.height - 1)
+      falls.push({ g: new Graphics(), side: -1, length })
+    if (cell.x === this._board.width - 1)
+      falls.push({ g: new Graphics(), side: 1, length })
+    for (const fall of falls) {
+      parts.column.addChild(fall.g)
+      this._drawCascade(fall)
+    }
+    this._cascades.set(keyOf(cell), falls)
 
     // foam along the shores
     const corners = {
@@ -636,126 +726,36 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
   }
 
   /**
-   * Underside of the floating island: rocky roots hanging under every
-   * front edge cell (aligned on the grid), a dark core, a magical glow, and
-   * small floating islets drifting around.
+   * Underside of the floating island: a fake stack of terrain blocks under
+   * every cell, narrowing into an irregular inverted pyramid, with the
+   * same strata as the terrain, and a faint glow below.
    */
   private _drawUnderside() {
     const container = new Container()
     const { width, height } = this._board
-    const left = toScreen({ x: 0, y: height - 1 })
     const front = toScreen({ x: width - 1, y: height - 1 })
+    const left = toScreen({ x: 0, y: height - 1 })
     const right = toScreen({ x: width - 1, y: 0 })
-    const L = { x: left.x - W, y: left.y + COLUMN_BOTTOM }
-    const F = { x: front.x, y: front.y + H + COLUMN_BOTTOM }
-    const R = { x: right.x + W, y: right.y + COLUMN_BOTTOM }
-    const noise = (x: number, salt: number) =>
-      cellNoise({ x, y: salt }, this._seed)
 
     const glow = new Sprite(softCircle())
     glow.anchor.set(0.5)
     glow.tint = 0x7048e8
-    glow.alpha = 0.3
+    glow.alpha = 0.25
     glow.blendMode = "add"
-    glow.scale.set(((R.x - L.x) * 1.5) / 64, 300 / 64)
-    glow.position.set(F.x, F.y + 90)
+    glow.scale.set(((right.x - left.x + TILE_WIDTH) * 1.4) / 64, 320 / 64)
+    glow.position.set(front.x, front.y + COLUMN_BOTTOM + 110)
     container.addChild(glow)
 
-    // dark core holding the roots together
-    const core = new Graphics()
-    const tip = { x: F.x + (noise(1, 1) - 0.5) * 30, y: F.y + 150 }
-    // strata bands narrowing towards the tip
-    const bands = 4
-    for (let b = 0; b < bands; b++) {
-      const k = 1 - b / bands
-      const toward = (p: { x: number; y: number }) => ({
-        x: tip.x + (p.x - tip.x) * k,
-        y: tip.y + (p.y - tip.y) * k,
-      })
-      const [l, f, r] = [L, F, R].map(toward)
-      const color = STRATA[Math.min(STRATA.length - 1, 3 + b)]
-      core.poly([l.x, l.y, f.x, f.y, tip.x, tip.y]).fill(shade(color, 0.72))
-      core.poly([f.x, f.y, r.x, r.y, tip.x, tip.y]).fill(shade(color, 0.92))
-    }
-    // a few cracks
-    for (let i = 0; i < 4; i++) {
-      const t = 0.2 + noise(i, 3) * 0.6
-      const start = { x: L.x + (R.x - L.x) * t, y: F.y + 10 + noise(i, 4) * 30 }
-      core
-        .moveTo(start.x, start.y)
-        .lineTo(start.x + (noise(i, 5) - 0.5) * 12, start.y + 18)
-        .lineTo(start.x + (noise(i, 6) - 0.5) * 16, start.y + 34)
-        .stroke({ width: 1, color: 0x000000, alpha: 0.3 })
-    }
-    container.addChild(core)
-
-    // one rocky root under each front edge cell
-    const roots = new Graphics()
-    const root = (cell: Point, side: -1 | 1) => {
-      const base = toScreen(cell)
-      const ox = base.x
-      const oy = base.y + COLUMN_BOTTOM
-      // the visible bottom edge of the face: from the outer corner to the front corner
-      const outer = { x: ox + side * W, y: oy }
-      const inner = { x: ox, y: oy + H }
-      const depth = 26 + noise(cell.x * 13 + cell.y * 7, 2 + side) * 70
-      const tipPoint = {
-        x: (outer.x + inner.x) / 2 + (noise(cell.x + cell.y * 9, 5) - 0.5) * 10,
-        y: (outer.y + inner.y) / 2 + depth,
+    const blocks = new Graphics()
+    const cells = [...this._board.cells].sort((a, b) => a.x + a.y - (b.x + b.y))
+    for (const cell of cells) {
+      const depth = this._depths[cell.y][cell.x]
+      const origin = toScreen(cell)
+      for (let k = 0; k < depth; k++) {
+        drawBlock(blocks, origin, COLUMN_BOTTOM + k * BLOCK_HEIGHT, k + 1)
       }
-      const bands = 4
-      for (let b = 0; b < bands; b++) {
-        const t0 = b / bands
-        const t1 = (b + 1) / bands
-        const lerp = (a: { x: number; y: number }, t: number) => ({
-          x: a.x + (tipPoint.x - a.x) * t,
-          y: a.y + (tipPoint.y - a.y) * t,
-        })
-        const o0 = lerp(outer, t0)
-        const i0 = lerp(inner, t0)
-        const o1 = lerp(outer, t1)
-        const i1 = lerp(inner, t1)
-        const color = STRATA[Math.min(STRATA.length - 1, 3 + b)]
-        roots
-          .poly([o0.x, o0.y, i0.x, i0.y, i1.x, i1.y, o1.x, o1.y])
-          .fill(side < 0 ? shade(color, 0.78) : color)
-      }
-      roots
-        .moveTo(inner.x, inner.y)
-        .lineTo(tipPoint.x, tipPoint.y)
-        .stroke({ width: 1, color: 0x000000, alpha: 0.25 })
     }
-    for (let x = 0; x < width; x++) root({ x, y: height - 1 }, -1)
-    for (let y = 0; y < height; y++) root({ x: width - 1, y }, 1)
-    container.addChild(roots)
-
-    // small floating islets, gently bobbing
-    for (let i = 0; i < 5; i++) {
-      const n = noise(i, 7)
-      const side = i % 2 === 0 ? -1 : 1
-      const islet = new Graphics()
-      const s = 9 + n * 12
-      const h = s / 2
-      islet
-        .poly([-s, 0, 0, h, 0, h + s * 0.4, -s, s * 0.4])
-        .fill(shade(STRATA[1], 0.78))
-        .poly([s, 0, 0, h, 0, h + s * 0.4, s, s * 0.4])
-        .fill(STRATA[1])
-        .poly([-s, s * 0.4, 0, h + s * 0.4, s, s * 0.4, s * 0.1, s * 1.6])
-        .fill(STRATA[4])
-        .poly([0, -h, s, 0, 0, h, -s, 0])
-        .fill(GROUND_TOP[1])
-        .moveTo(-s, 0)
-        .lineTo(0, -h)
-        .lineTo(s, 0)
-        .stroke({ width: 1, color: 0xffffff, alpha: 0.2 })
-      islet.position.set(
-        F.x + side * (R.x - F.x) * (0.8 + n * 0.45),
-        F.y - 40 + noise(i, 8) * 170,
-      )
-      container.addChild(islet)
-      this._islets.push({ node: islet, baseY: islet.y, phase: n * Math.PI * 2 })
-    }
+    container.addChild(blocks)
     return container
   }
 }
