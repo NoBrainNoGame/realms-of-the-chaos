@@ -631,8 +631,13 @@ export default class FightScene extends ViewChip<SceneEvents> {
     const { width: w, height: h } = this.combat.board
     const middle = toScreen({ x: (w - 1) / 2, y: (h - 1) / 2 }, 0, ISO)
     const front = toScreen({ x: w - 1, y: h - 1 }, 0, ISO)
-    const x = this._world.x + middle.x * scale
-    const y = this._world.y + (front.y + TILE_HEIGHT + COLUMN_BOTTOM) * scale
+    // anchored to the middle of the board as drawn now, offset as in the
+    // classic view: the arrows don't follow the turns and tilts
+    const now = toScreen({ x: (w - 1) / 2, y: (h - 1) / 2 })
+    const x = this._world.x + now.x * scale
+    const y =
+      this._world.y +
+      (now.y + front.y + TILE_HEIGHT + COLUMN_BOTTOM - middle.y) * scale
     // a third of the way to the left and right corners
     const corner = toScreen({ x: w - 1, y: 0 }, 0, ISO)
     const spread = Math.max(60, (corner.x - middle.x) * scale * 0.35)

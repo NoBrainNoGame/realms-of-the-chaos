@@ -456,9 +456,22 @@ describe("camera tilt and turns", () => {
       expect(left.x).toBeLessThan(middle().x)
       expect(right.x).toBeGreaterThan(middle().x)
       expect(left.y).toBeGreaterThan(middle().y)
+      const at = () => [left.x, left.y, right.x, right.y]
+      const before = at()
+      // (within a pixel: the fit is rounded)
+      const still = () =>
+        at().forEach((v, i) => {
+          expect(Math.abs(v - before[i])).toBeLessThan(1)
+        })
       right.emit("pointertap", {} as any)
       tick(scene, TURN_DURATION * 2)
       expect(camera.quarter).toBe(1)
+      // they stay at the same place under the board, turned or tilted
+      still()
+      scene.aimCamera(70, 10)
+      tick(scene, 1000)
+      still()
+      scene.resetView()
       left.emit("pointertap", {} as any)
       left.emit("pointertap", {} as any) // ignored while turning
       tick(scene, TURN_DURATION * 2)
