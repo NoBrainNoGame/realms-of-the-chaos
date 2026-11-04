@@ -2,6 +2,8 @@
 
 > **Statut : plan validé dans ses grandes lignes (version 2), avec les décisions du 4 novembre 2026 ci-dessous.** La version 1 reposait sur « rien n'est réel tant que rien ne le regarde », une idée fausse : c'est l'**interaction** de la matière avec son environnement qui fixe un état, pas un regard. Cette version repart de la physique actuelle. Aucun texte définitif ici : seulement la structure.
 
+> **Le scénario rédigé** (ères, chapitres, dialogues, combats, choix et fins) est dans [`aventure/`](aventure/README.md).
+
 ## Décisions (4 novembre 2026)
 
 1. **Cinq ères**, 28 chapitres.

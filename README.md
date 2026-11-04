@@ -430,6 +430,8 @@ Le Google Doc n'a pas été mis à jour après plusieurs décisions. **Pour ces 
 
 ## Feuille de route
 
+Le scénario de l'Aventure est rédigé dans [`docs/aventure/`](docs/aventure/README.md) : 5 ères, 28 chapitres, le Carnet des Questions et 5 fins. Son plan et ses fondements scientifiques sont dans [`docs/scenario.md`](docs/scenario.md).
+
 La « coquille vide » du doc avance :
 
 1. ✅ Des personnages (8)
