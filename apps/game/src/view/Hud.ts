@@ -182,6 +182,29 @@ export default class Hud extends ViewChip<HudEvents> {
     return { x: bar.x, y: bar.y, width: bar.width, height: bar.height }
   }
 
+  /** Where a part of the HUD is on the screen (null: empty or hidden). */
+  partBounds(
+    part: "timeline" | "card" | "divine" | "actionBar" | "log",
+  ): Bounds | null {
+    const view = {
+      timeline: this._timeline,
+      card: this._card,
+      divine: this._divine,
+      actionBar: this._actionBar,
+      log: this._log,
+    }[part]
+    return boundsOf(view)
+  }
+
+  /**
+   * Where a button of the action bar is: an action id, "pass" or
+   * "cancelWalk" (null: not shown now).
+   */
+  buttonBounds(label: string): Bounds | null {
+    const button = this._actionBar.children.find((c) => c.label === label)
+    return button ? boundsOf(button) : null
+  }
+
   protected _onResize(width: number, height: number) {
     this._width = width
     this._height = height
@@ -611,6 +634,7 @@ export default class Hud extends ViewChip<HudEvents> {
         partner.position.set(size - 22, -10)
         b.view.addChild(partner)
       }
+      b.view.label = action.id
       b.view.position.set(i * (size + 8) + (action.combo ? 12 : 0), 0)
       this._actionBar.addChild(b.view)
     })
@@ -899,4 +923,18 @@ export default class Hud extends ViewChip<HudEvents> {
     // below the timeline, so the final board stays visible
     this._end.position.set(Math.round(this._width / 2 - 160), 120)
   }
+}
+
+/** A rectangle of the screen. */
+export interface Bounds {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+function boundsOf(view: Container): Bounds | null {
+  if (!view.visible || view.children.length === 0) return null
+  const { x, y, width, height } = view.getBounds()
+  return width > 0 && height > 0 ? { x, y, width, height } : null
 }

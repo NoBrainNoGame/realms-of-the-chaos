@@ -16,6 +16,7 @@ import TitleScreen, {
   TITLE_TILT,
   TITLE_TURN_EVERY,
 } from "./TitleScreen"
+import Tutorial from "./Tutorial"
 import { camera, ISO, ISO_PITCH, toScreen } from "./theme"
 import { Menu } from "./ui"
 
@@ -270,6 +271,19 @@ describe("game routing", () => {
     expect(g.screen.type).toBe("title")
   })
 
+  test("title → tutorial → replay / title (?mode=tutorial)", () => {
+    const g = game()
+    ;(g.current as TitleScreen).emit("choose", "tutorial")
+    expect(g.current).toBeInstanceOf(Tutorial)
+    const first = g.current as Tutorial
+    first.scene.emit("endAction", "again")
+    expect(g.current).toBeInstanceOf(Tutorial)
+    expect(g.current).not.toBe(first)
+    ;(g.current as Tutorial).scene.emit("quit")
+    expect(g.screen.type).toBe("title")
+    expect(game("?mode=tutorial").current).toBeInstanceOf(Tutorial)
+  })
+
   test("the Menu button leaves a fight; Escape leaves the gallery (?gallery)", () => {
     const g = game("?seed=3")
     const scene = g.current as FightScene
@@ -277,6 +291,7 @@ describe("game routing", () => {
     ;(scene as any)._hud.emit("quit")
     expect(g.screen.type).toBe("title")
     expect(TITLE_MENU.map((i) => i.id)).not.toContain("gallery")
+    expect(TITLE_MENU.at(-1)?.id).toBe("tutorial")
     g.show({ type: "gallery" })
     expect(g.current).toBeInstanceOf(Gallery)
     tick(g, 100)

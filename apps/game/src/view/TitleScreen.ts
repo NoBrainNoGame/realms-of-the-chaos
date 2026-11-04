@@ -19,7 +19,7 @@ export const TAGLINES = [
   "Pourquoi quelque chose, plutôt que rien ?",
 ]
 
-export type TitleChoice = "skirmish" | "local" | "arcade"
+export type TitleChoice = "skirmish" | "local" | "arcade" | "tutorial"
 
 /** The island of the title screen turns a quarter this often (ms). */
 export const TITLE_TURN_EVERY = 7000
@@ -33,6 +33,7 @@ export const TITLE_MENU: MenuItem[] = [
   { id: "arcade", label: "Arcade" },
   { id: "online", label: "Duel en ligne", hint: "bientôt", enabled: false },
   { id: "codex", label: "Chroniques", hint: "bientôt", enabled: false },
+  { id: "tutorial", label: "Tutoriel" },
 ]
 
 const DESCRIPTIONS: Record<string, string> = {
@@ -40,6 +41,8 @@ const DESCRIPTIONS: Record<string, string> = {
   local: "Deux joueurs, un seul écran : chacun son équipe, chacun son tour.",
   arcade:
     "Les Marées : des vagues de plus en plus fortes. Jusqu'où tiendrez-vous ?",
+  tutorial:
+    "Un combat guidé, pas à pas : la frise du temps, les déplacements, l'eau, le relief, la course, les combos et la caméra.",
 }
 
 interface TitleEvents extends booyah.BaseCompositeEvents {

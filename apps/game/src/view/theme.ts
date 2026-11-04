@@ -70,6 +70,15 @@ export const MEANING = {
   luck: 0xf783ac,
   /** Water: swimming, aquatic traits. */
   water: 0x66d9e8,
+  /** Combined actions (allies sharing a cell). */
+  combo: 0x63e6be,
+  /** Planned walks. */
+  path: 0xffe066,
+  /** What the HUD suggests (the glow of the buttons). */
+  suggest: 0x8ce99a,
+  /** Your team, and the enemies (their team colors). */
+  ally: 0x4dabf7,
+  foe: 0xff6b6b,
 }
 
 export type Meaning = keyof typeof MEANING

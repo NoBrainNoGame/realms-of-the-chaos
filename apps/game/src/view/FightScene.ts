@@ -2,7 +2,7 @@ import * as booyah from "@ghom/booyah"
 import {
   ACTIONS,
   type ActionDefinition,
-  type Board,
+  Board,
   type CharacterPreset,
   Combat,
   type CombatOptions,
@@ -94,6 +94,10 @@ export interface SceneOptions {
   endActions?: EndAction[]
   /** Shows a "Menu" button to leave the fight. */
   quittable?: boolean
+  /** A handmade map (`Board.fromAscii` rows) instead of a generated one. */
+  board?: string[]
+  /** Start cells per team (random spawns otherwise). */
+  positions?: Point[][]
 }
 
 /** A classic fight: your team (or the AI's if spectating) against the AI. */
@@ -122,6 +126,8 @@ export function classicFight(options: {
 export function combatOptions(options: SceneOptions): CombatOptions {
   return {
     seed: options.seed,
+    board: options.board && Board.fromAscii(options.board),
+    positions: options.positions,
     teams: options.teams.map((team) => ({
       name: team.name,
       controller: team.controller === "local" ? "human" : "ai",
@@ -431,6 +437,35 @@ export default class FightScene extends ViewChip<SceneEvents> {
       // close enough, the camera keeps facing the cell it looks at
       follow: this._zoom.target >= FOLLOW_ZOOM ? this.lookedAt() : null,
     }
+  }
+
+  // ─── Anchors (where things are on the screen, for the tutorial) ──────────
+
+  get hud(): Hud {
+    return this._hud
+  }
+
+  /** Screen position of the top of a cell (as drawn now). */
+  cellOnScreen(p: Point) {
+    const global = this._world.toGlobal(this._board.cellTop(p))
+    return { x: global.x, y: global.y }
+  }
+
+  /** The two quarter-turn arrows, together. */
+  get turnButtonsBounds() {
+    const [left, right] = this._turnButtons.map((b) => b.getBounds())
+    if (!left || !right) return null
+    return {
+      x: left.x,
+      y: Math.min(left.y, right.y),
+      width: right.x + right.width - left.x,
+      height: Math.max(left.height, right.height),
+    }
+  }
+
+  /** Redraws the HUD and the board overlay (after changing the combat). */
+  refresh() {
+    if (this._hud) this._refreshAll()
   }
 
   /** Back to the classic view (the zoom too). */
@@ -1425,16 +1460,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
     if (!fighter || !this._inputReady) return
     const action = this.combat.actionsOf(fighter).find((a) => a.id === id)
     if (!action || this.combat.isOnCooldown(fighter, action)) return
-    // self actions are used straight away
-    if (action.target === "self") {
-      this._command({
-        type: "useAction",
-        fighterId: fighter.id,
-        actionId: action.id,
-        target: fighter.position,
-      })
-      return
-    }
+    // nothing is used on the first click (self actions: then click yourself)
     this._mode =
       this._mode.type === "action" && this._mode.action.id === id
         ? { type: "move" }
@@ -1445,20 +1471,33 @@ export default class FightScene extends ViewChip<SceneEvents> {
   private _selectDivine(id: string) {
     const fighter = this._activeHuman
     if (!fighter || !this._inputReady) return
-    if (DIVINE_ACTIONS[id].target === "none") {
-      this._command({
-        type: "useDivine",
-        fighterId: fighter.id,
-        divineId: id,
-        target: null,
-      })
-      return
-    }
+    // nothing is used on the first click (team powers: then click an ally)
     this._mode =
       this._mode.type === "divine" && this._mode.id === id
         ? { type: "move" }
         : { type: "divine", id }
     this._refreshAll()
+  }
+
+  /**
+   * Cells a divine power can be aimed at. A power on the whole team is
+   * confirmed by a click on one of its fighters (no use on a misclick).
+   */
+  private _divineCells(id: string): Point[] {
+    const divine = DIVINE_ACTIONS[id]
+    const team = this._activeHuman?.team
+    switch (divine.target) {
+      case "fighter":
+        return this.combat.aliveFighters.map((f) => f.position)
+      case "none":
+        return this.combat.aliveFighters
+          .filter((f) => f.team === team)
+          .map((f) => f.position)
+      default:
+        return this.combat.board.cells
+          .filter((c) => this.combat.fightersAt(c).length === 0)
+          .map((c) => ({ x: c.x, y: c.y }))
+    }
   }
 
   private _onCellDown(p: Point, button: number) {
@@ -1492,12 +1531,14 @@ export default class FightScene extends ViewChip<SceneEvents> {
       }
       case "divine": {
         const id = this._mode.id
-        this._command({
-          type: "useDivine",
-          fighterId: fighter.id,
-          divineId: id,
-          target: p,
-        })
+        const cells = this._divineCells(id)
+        if (cells.some((c) => equals(c, p)))
+          this._command({
+            type: "useDivine",
+            fighterId: fighter.id,
+            divineId: id,
+            target: DIVINE_ACTIONS[id].target === "none" ? null : p,
+          })
         this._mode = { type: "move" }
         this._refreshAll()
         break
@@ -1793,13 +1834,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
           break
         }
         case "divine": {
-          const divine = DIVINE_ACTIONS[this._mode.id]
-          const cells =
-            divine.target === "fighter"
-              ? this.combat.aliveFighters.map((f) => f.position)
-              : this.combat.board.cells
-                  .filter((c) => this.combat.fightersAt(c).length === 0)
-                  .map((c) => ({ x: c.x, y: c.y }))
+          const cells = this._divineCells(this._mode.id)
           highlights.push({ cells, color: COLORS.divine, alpha: 0.25 })
           if (hovered && cells.some((c) => keyOf(c) === keyOf(hovered))) {
             highlights.push({

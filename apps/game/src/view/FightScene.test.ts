@@ -84,6 +84,8 @@ describe("FightScene", () => {
       // divine power when affordable
       if (!usedDivine && team.energy >= DIVINE_ACTIONS.blessing.cost) {
         internals._selectDivine("blessing")
+        // a team power is confirmed by a click on one of the team
+        internals._board.emit("cellDown", me.position, 0)
         usedDivine = true
         runUntil(s, () => !internals._playing && !internals._pending)
       }
@@ -116,10 +118,8 @@ describe("FightScene", () => {
           .findIndex((a) => a.id === action.id)
         if (index < 9) key(String(index + 1))
         else internals._selectAction(action.id)
-        if (action.target !== "self") {
-          internals._board.emit("cellOver", target)
-          internals._board.emit("cellDown", target, 0)
-        }
+        internals._board.emit("cellOver", target)
+        internals._board.emit("cellDown", target, 0)
         acted = true
         break
       }
@@ -211,6 +211,65 @@ describe("FightScene", () => {
     internals._hud.emit("pass")
     runUntil(s, () => !internals._pending)
     expect(s.combat.activeFighter).not.toBe(me)
+  })
+})
+
+describe("no misclick", () => {
+  test("a spell on yourself needs a click on the caster", () => {
+    const s = mount(
+      new FightScene(
+        classicFight({
+          ...OPTIONS,
+          seed: 8,
+          spectate: false,
+          playerTeam: ["gorr"],
+        }),
+      ),
+    )
+    const internals = s as any
+    runUntil(
+      s,
+      () => internals._inputReady && s.combat.activeFighter?.team === 0,
+    )
+    const me = s.combat.activeFighter!
+    const self = s.combat.actionsOf(me).find((a) => a.target === "self")!
+    expect(self).toBeDefined()
+    const length = s.combat.log.length
+    internals._hud.emit("action", self.id)
+    expect(s.combat.log.length).toBe(length)
+    expect(internals._mode).toMatchObject({ type: "action" })
+    // a click elsewhere cancels
+    const other = s.combat.board.cells.find((c) => !equals(c, me.position))!
+    internals._board.emit("cellDown", { x: other.x, y: other.y }, 0)
+    expect(s.combat.log.length).toBe(length)
+    expect(internals._mode.type).toBe("move")
+    // the spell, then the caster
+    internals._hud.emit("action", self.id)
+    internals._board.emit("cellDown", me.position, 0)
+    expect(s.combat.log.at(-1)).toMatchObject({
+      type: "useAction",
+      actionId: self.id,
+    })
+  })
+
+  test("a power on the whole team needs a click on one of it", () => {
+    const s = scene({ seed: 8, spectate: false })
+    const internals = s as any
+    runUntil(s, () => internals._inputReady)
+    const me = s.combat.activeFighter!
+    s.combat.teams[me.team].energy = 6
+    const length = s.combat.log.length
+    internals._hud.emit("divine", "blessing")
+    expect(s.combat.log.length).toBe(length)
+    const foe = s.combat.aliveFighters.find((f) => f.team !== me.team)!
+    internals._board.emit("cellDown", foe.position, 0)
+    expect(s.combat.log.length).toBe(length)
+    internals._hud.emit("divine", "blessing")
+    internals._board.emit("cellDown", me.position, 0)
+    expect(s.combat.log.at(-1)).toMatchObject({
+      type: "useDivine",
+      divineId: "blessing",
+    })
   })
 })
 

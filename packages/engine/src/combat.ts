@@ -143,6 +143,11 @@ export class Combat {
   readonly fighters: Fighter[] = []
   readonly teams: Team[]
   readonly rng: Rng
+  /**
+   * AI teams on hold: their fighters only pass (a tutorial's foes, until
+   * the lesson is over). Delete a team to let it fight.
+   */
+  readonly holding = new Set<number>()
 
   private _time = 0
   private _state: CombatState = "running"
@@ -739,6 +744,7 @@ export class Combat {
   }
 
   private _playAi(fighter: Fighter) {
+    if (this.holding.has(fighter.team)) return this._pass(fighter)
     const divine = decideDivine(this, fighter)
     if (divine) this._useDivine(fighter.team, divine.divineId, divine.target)
     if (this._state === "ended") return

@@ -4,6 +4,7 @@ import { Board } from "./board"
 import { Combat } from "./combat"
 import { ACTIONS } from "./content"
 import type { Point } from "./geometry"
+import type { FightEvent } from "./types"
 
 function setup(teams: [string, Point][][], board = new Board(9, 9)) {
   return new Combat({
@@ -166,5 +167,31 @@ describe("useful actions (HUD suggestions)", () => {
       expect(action.movement).toBeUndefined()
       expect(near.isOnCooldown(eva, action)).toBe(false)
     }
+  })
+})
+
+describe("teams on hold", () => {
+  test("only pass until released", () => {
+    const c = new Combat({
+      seed: 3,
+      board: new Board(9, 9),
+      teams: [
+        { controller: "ai", fighters: ["eva"] },
+        { controller: "ai", fighters: ["gorr"] },
+      ],
+      positions: [[{ x: 0, y: 0 }], [{ x: 1, y: 0 }]],
+    })
+    c.holding.add(1)
+    const events = c.run(2000)
+    const gorr = c.fighters[1]
+    const acted = (e: FightEvent) =>
+      (e.type === "actionUsed" || e.type === "moved") &&
+      e.fighterId === gorr.id
+    expect(events.filter(acted)).toHaveLength(0)
+    expect(
+      events.some((e) => e.type === "turnPassed" && e.fighterId === gorr.id),
+    ).toBe(true)
+    c.holding.delete(1)
+    if (c.state !== "ended") expect(c.run(2000).some(acted)).toBe(true)
   })
 })
