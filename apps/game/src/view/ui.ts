@@ -11,7 +11,7 @@ import {
 } from "pixi.js"
 
 import { iconTexture } from "./textures"
-import { COLORS, FONT } from "./theme"
+import { COLORS, FONT, MEANING, type Meaning } from "./theme"
 
 export const style = (
   size: number,
@@ -59,6 +59,8 @@ export function button(options: {
   inline?: boolean
   /** Border color when not selected (combined actions). */
   accent?: number
+  /** Color of the label (a meaning color when it is a number). */
+  labelColor?: number
   onTap: () => void
   onOver?: () => void
   onOut?: () => void
@@ -89,6 +91,7 @@ export function button(options: {
     const label = text(
       options.label,
       options.inline ? 12 : options.icon ? 11 : 14,
+      options.labelColor,
     )
     if (options.inline) {
       label.anchor.set(0, 0.5)
@@ -273,17 +276,96 @@ export interface Segment {
 }
 
 /**
- * A line of text in several colors (the meaning colors of the theme), laid
- * out left to right.
+ * Tags a value with its meaning color, in the markup read by `richText`:
+ * `tag("damage", 12)` → `{damage:12}`.
  */
-export function richText(segments: Segment[], size: number) {
+export function tag(kind: Meaning, value: string | number) {
+  return `{${kind}:${value}}`
+}
+
+const TAG = /\{(\w+):([^{}]*)\}/g
+
+/** Splits a marked-up string (`{damage:12} dégâts`) into colored segments. */
+export function markup(source: string, color?: number): Segment[] {
+  const out: Segment[] = []
+  let last = 0
+  for (const match of source.matchAll(TAG)) {
+    const kind = match[1] as Meaning
+    if (!(kind in MEANING)) continue
+    if (match.index > last)
+      out.push({ text: source.slice(last, match.index), color })
+    out.push({ text: match[2], color: MEANING[kind] })
+    last = match.index + match[0].length
+  }
+  if (last < source.length) out.push({ text: source.slice(last), color })
+  return out
+}
+
+/** A marked-up string without its tags (for logs and tests). */
+export function plain(source: string) {
+  return source.replace(TAG, (all, kind: string, value: string) =>
+    kind in MEANING ? value : all,
+  )
+}
+
+export interface RichTextOptions {
+  /** Color of untagged text. */
+  color?: number
+  /** Wraps the words to this width (px). */
+  wrap?: number
+  lineHeight?: number
+  stroke?: TextStyleOptions["stroke"]
+  fontWeight?: TextStyleOptions["fontWeight"]
+}
+
+/**
+ * Text in several colors (the meaning colors of the theme): colored
+ * segments or a marked-up string, laid out left to right, on several lines
+ * (`\n`), wrapped to a width if asked.
+ */
+export function richText(
+  content: Segment[] | string,
+  size: number,
+  options: RichTextOptions = {},
+) {
+  const segments =
+    typeof content === "string" ? markup(content, options.color) : content
+  const lineHeight = options.lineHeight ?? Math.round(size * 1.3)
+  const extra: TextStyleOptions = {}
+  if (options.stroke) extra.stroke = options.stroke
+  if (options.fontWeight) extra.fontWeight = options.fontWeight
   const line = new Container()
   let x = 0
-  for (const segment of segments) {
-    const part = text(segment.text, size, segment.color ?? COLORS.text)
-    part.x = x
+  let y = 0
+  const place = (value: string, color: number) => {
+    if (!value) return
+    const part = text(value, size, color, extra)
+    if (options.wrap && x > 0 && x + part.width > options.wrap) {
+      // wrapped: the word starts the next line (without its spaces)
+      x = 0
+      y += lineHeight
+      const trimmed = value.trimStart()
+      if (trimmed !== value) {
+        part.destroy()
+        place(trimmed, color)
+        return
+      }
+    }
+    part.position.set(x, y)
     x += part.width
     line.addChild(part)
+  }
+  for (const segment of segments) {
+    const color = segment.color ?? options.color ?? COLORS.text
+    segment.text.split("\n").forEach((chunk, i) => {
+      if (i > 0) {
+        x = 0
+        y += lineHeight
+      }
+      if (!options.wrap) place(chunk, color)
+      // words with their trailing spaces, so a line breaks between words
+      else for (const word of chunk.match(/\S*\s*/g) ?? []) place(word, color)
+    })
   }
   return line
 }

@@ -1,10 +1,13 @@
 import { describe, expect, test } from "bun:test"
 import { ACTIONS, Board, CHARACTERS, Combat, comboAction } from "@realms/engine"
-import { type Container, Text } from "pixi.js"
+import { Container, Text } from "pixi.js"
 import { mount, tick } from "../test/harness"
 import Backdrop from "./Backdrop"
+import { describeStats } from "./describe"
 import Gallery from "./Gallery"
 import Hud, { describeAction } from "./Hud"
+import { MEANING } from "./theme"
+import { markup, plain, richText } from "./ui"
 
 function combat() {
   return new Combat({
@@ -140,8 +143,8 @@ describe("Hud", () => {
     hud.showTooltipAt("Salut", { x: 10, y: 10 })
     hud.hideTooltip()
     for (let i = 0; i < 10; i++) hud.log(`ligne ${i}`)
-    const log = texts(hud.container).find((t) => t.startsWith("ligne"))!
-    expect(log.split("\n")).toHaveLength(7)
+    const log = texts(hud.container).filter((t) => t.startsWith("ligne"))
+    expect(log).toHaveLength(7)
     hud.banner("Coucou")
     tick(hud, 2000)
     hud.setSpeed(2)
@@ -160,7 +163,7 @@ describe("Hud", () => {
     const arrow = describeAction(ACTIONS.arrow, c, eva)
     expect(arrow).toContain("par niveau")
     expect(arrow).toContain("ligne de vue")
-    expect(arrow).toContain("coût")
+    expect(plain(arrow)).toContain("Coût : ")
     expect(describeAction(ACTIONS.warCry, c, eva)).toContain("Sur soi")
     const combo = describeAction(
       comboAction(CHARACTERS.eva, CHARACTERS.merlin),
@@ -168,6 +171,55 @@ describe("Hud", () => {
       eva,
     )
     expect(combo).toContain("Intrication")
+  })
+
+  test("every number of a description wears its meaning color", () => {
+    const c = combat()
+    const [eva] = c.fighters
+    const kinds = (source: string) =>
+      markup(source)
+        .filter((s) => s.color !== undefined)
+        .map((s) => [s.color, s.text] as const)
+    const has = (source: string, color: number, pattern: RegExp) =>
+      kinds(source).some(([k, t]) => k === color && pattern.test(t))
+    const arrow = describeAction(ACTIONS.arrow, c, eva)
+    expect(has(arrow, MEANING.damage, /^\d+ dégâts$/)).toBe(true)
+    expect(has(arrow, MEANING.range, /Portée 2-6/)).toBe(true)
+    expect(has(arrow, MEANING.time, /^\d+ temps$/)).toBe(true)
+    const heal = describeAction(ACTIONS.heal, c, eva)
+    expect(has(heal, MEANING.heal, /^\+\d+ PV$/)).toBe(true)
+    const poison = describeAction(ACTIONS.poisonArrow, c, eva)
+    expect(has(poison, MEANING.poison, /-4 PV/)).toBe(true)
+    expect(has(poison, MEANING.time, /3 tours/)).toBe(true)
+    const bubble = describeAction(ACTIONS.bubble, c, eva)
+    expect(has(bubble, MEANING.shield, /12 dégâts/)).toBe(true)
+    const bash = describeAction(ACTIONS.shieldBash, c, eva)
+    expect(has(bash, MEANING.move, /2 cases/)).toBe(true)
+    // the stats of the card
+    const stats = describeStats(eva)
+    expect(has(stats, MEANING.time, /^\d+$/)).toBe(true) // speed
+    expect(has(stats, MEANING.damage, /^\d+$/)).toBe(true) // attacks
+    expect(has(stats, MEANING.shield, /^\d+$/)).toBe(true) // defenses
+    expect(has(stats, MEANING.luck, /^\d+$/)).toBe(true)
+    // no tag is left visible
+    for (const text of [arrow, heal, poison, bubble, bash, stats])
+      expect(plain(text)).not.toMatch(/\{\w+:/)
+  })
+
+  test("rich text: colored parts, lines and wrapping", () => {
+    const line = richText("a {damage:12} b\n{heal:+3 PV}", 13)
+    const parts = line.children as Text[]
+    expect(parts.map((p) => p.text)).toEqual(["a ", "12", " b", "+3 PV"])
+    expect(parts[1].style.fill).toBe(MEANING.damage)
+    expect(parts[3].y).toBeGreaterThan(parts[0].y)
+    // unknown tags stay as they are
+    expect(plain("{nope:1}")).toBe("{nope:1}")
+    const wrapped = richText("un deux trois quatre cinq six sept", 13, {
+      wrap: 60,
+    })
+    const ys = new Set(wrapped.children.map((c) => c.y))
+    expect(ys.size).toBeGreaterThan(1)
+    expect(wrapped).toBeInstanceOf(Container)
   })
 })
 

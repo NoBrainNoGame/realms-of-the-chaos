@@ -39,6 +39,7 @@ import BoardView, {
   depthOf,
   type Highlight,
 } from "./BoardView"
+import { describeHp, describeStatus } from "./describe"
 import { FX, floatingText, particles, projectile } from "./effects"
 import FighterView, { STATUS_COLORS, type WaterState } from "./FighterView"
 import Hud from "./Hud"
@@ -52,7 +53,7 @@ import {
   TILE_WIDTH,
   toScreen,
 } from "./theme"
-import type { Segment } from "./ui"
+import { type Segment, tag } from "./ui"
 import ViewChip from "./ViewChip"
 
 /** A team of the fight, and who plays it. */
@@ -495,7 +496,8 @@ export default class FightScene extends ViewChip<SceneEvents> {
               this._effects,
               at,
               event.critical ? `-${event.amount} !` : `-${event.amount}`,
-              event.critical ? 0xffd43b : 0xff6b6b,
+              // a critical hit is luck: pink, bigger
+              event.critical ? MEANING.luck : MEANING.damage,
               event.critical ? 22 : 17,
             ),
           ),
@@ -506,7 +508,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
                     this._effects,
                     { x: at.x, y: at.y + 18 },
                     `(${event.absorbed} absorbés)`,
-                    0xffe066,
+                    MEANING.shield,
                     12,
                   ),
                 ),
@@ -525,7 +527,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
               this._effects,
               at,
               `+${event.amount}`,
-              COLORS.heal,
+              MEANING.heal,
               17,
             ),
           ),
@@ -575,7 +577,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
               -this._views.get(event.fighterId)!.headHeight - 24,
             ),
             `${event.amount > 0 ? "+" : ""}${Math.round(event.amount)} ⌛`,
-            0xb197fc,
+            MEANING.time,
             14,
           ),
         )
@@ -1114,12 +1116,20 @@ export default class FightScene extends ViewChip<SceneEvents> {
     this._hud.setLanding(this.landingPreview())
     const fighter = this._hovered ? this._fighterAt(this._hovered) : null
     if (fighter) {
-      const statuses = fighter.statuses
-        .map((s) => STATUSES[s.id].name)
-        .join(", ")
+      const statuses = fighter.statuses.map((s) =>
+        describeStatus(s.id, s.turns, s.value),
+      )
       const pos = this._world.toGlobal(this._center(fighter.id, -60))
+      const wait = Math.max(
+        0,
+        Math.round(fighter.nextActionAt - this.combat.time),
+      )
       this._hud.showTooltipAt(
-        `${fighter.name} — ${fighter.hp}/${this.combat.maxHp(fighter)} PV${statuses ? `\n${statuses}` : ""}`,
+        [
+          `${fighter.name} — ${describeHp(fighter, this.combat)}`,
+          `Prochain tour dans ${tag("time", `${wait} temps`)}`,
+          ...statuses,
+        ].join("\n"),
         pos,
       )
     } else {

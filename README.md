@@ -343,9 +343,11 @@ Si aucune action ne vaut le coup, l'IA cherche la case accessible d'où elle aur
 
 Déjà en place :
 
+- **code couleur de sens**, partout où un chiffre s'affiche (descriptions des sorts, fiche, infobulles, timeline, pouvoirs, chiffres du combat) : rouge pour les dégâts et l'attaque, vert pour les soins et les PV, bleu pour les déplacements, violet pour le poison, jaune pour le temps (coûts, attentes, tours, recharges, vitesse), cyan pour les boucliers et la défense, orange pour la portée et les zones, rose pour la chance et les coups critiques, lavande pour l'Élan, turquoise pour l'eau. Les textes utilisent un balisage (`{damage:12}`, voir `apps/game/src/view/describe.ts`) rendu par `richText` ;
+- descriptions des sorts tirées de leurs effets réels : dégâts estimés (avant défense), soins, poussées, statuts avec leur durée et leur valeur, zone, portée, coût en temps et recharge ;
 - timeline : l'ordre de jeu, et au survol les **durées réelles** entre les tours, sur un axe de temps qui va du premier au dernier personnage. La vue s'agrandit et se resserre en une demi-seconde, avec un easing. Un clic la verrouille (un **cadenas** l'indique), et le choix est mémorisé. Survoler une action, Passer ou une case de Course montre un **fantôme** du personnage là où il rejouera ;
 - barre d'actions avec raccourcis, recharges et infobulles ;
-- fiche du personnage (stats, effets d'état) ;
+- fiche du personnage (PV, stats colorées, effets d'état avec leur durée et leur valeur, trajet en cours) ;
 - panneau des Influences du Ghom (jauge d'Élan) ;
 - journal de combat ;
 - surbrillances : cases accessibles, aperçu du chemin, portée, cibles, zone d'effet ;

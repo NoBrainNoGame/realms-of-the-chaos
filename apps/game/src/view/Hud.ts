@@ -1,17 +1,21 @@
 import * as booyah from "@ghom/booyah"
 import {
-  type ActionDefinition,
   CHARACTERS,
   type Combat,
   DIVINE_ACTIONS,
   type Fighter,
   type Locomotion,
   MAX_ENERGY,
-  STATUSES,
-  STEP_DELAY_RATIO,
 } from "@realms/engine"
 import { Container, Graphics, Rectangle, Sprite, Text } from "pixi.js"
-import { STATUS_COLORS } from "./FighterView"
+import {
+  describeAction,
+  describeDivine,
+  describeHp,
+  describeStats,
+  describeStatus,
+  STATUS_COLORS,
+} from "./describe"
 import { characterTexture } from "./textures"
 import { COLORS, MEANING, TEAM_COLORS } from "./theme"
 import {
@@ -20,9 +24,12 @@ import {
   panel,
   richText,
   type Segment,
+  tag,
   text,
 } from "./ui"
 import ViewChip from "./ViewChip"
+
+export { describeAction }
 
 interface HudEvents extends booyah.BaseCompositeEvents {
   action: [actionId: string]
@@ -59,10 +66,10 @@ export default class Hud extends ViewChip<HudEvents> {
   private _actionBar!: Container
   private _card!: Container
   private _divine!: Container
-  private _log!: Text
+  private _log!: Container
   private _logLines: { text: string }[] = []
   private _tooltip!: Container
-  private _tooltipText!: Text
+  private _tooltipText!: Container
   private _banner!: Text
   private _bannerTime = 0
   private _end!: Container
@@ -97,14 +104,10 @@ export default class Hud extends ViewChip<HudEvents> {
     this._actionBar = new Container()
     this._card = new Container()
     this._divine = new Container()
-    this._log = text("", 13, COLORS.muted, { lineHeight: 17 })
+    this._log = new Container()
     this._tooltip = new Container()
     this._tooltip.visible = false
-    this._tooltipText = text("", 13, COLORS.text, {
-      wordWrap: true,
-      wordWrapWidth: 240,
-      lineHeight: 17,
-    })
+    this._tooltipText = new Container()
     this._tooltip.addChild(new Graphics(), this._tooltipText)
     this._banner = text("", 30, COLORS.text, {
       stroke: { color: 0x000000, width: 6 },
@@ -488,7 +491,8 @@ export default class Hud extends ViewChip<HudEvents> {
       const label = text(
         active ? "▶" : ghost ? `◌${wait}` : `${wait}`,
         11,
-        ghost ? MEANING.time : COLORS.text,
+        // waits are time: yellow (the active fighter's ▶ stays white)
+        active ? COLORS.text : MEANING.time,
         { stroke: { color: 0x000000, width: 3 } },
       )
       label.anchor.set(1, 1)
@@ -503,7 +507,7 @@ export default class Hud extends ViewChip<HudEvents> {
       slot.eventMode = "static"
       slot.on("pointerover", () =>
         this.showTooltip(
-          `${fighter.name} — prochain tour dans ${wait}`,
+          `${fighter.name} — prochain tour dans ${tag("time", `${wait} temps`)}`,
           slot.getGlobalPosition(),
         ),
       )
@@ -547,6 +551,7 @@ export default class Hud extends ViewChip<HudEvents> {
         accent: action.combo ? COLORS.combo : undefined,
         hotkey: `${i + 1}`,
         label: cooldown > 0 ? `⌛${cooldown - 1}` : undefined,
+        labelColor: MEANING.time,
         onTap: () => this.emit("action", action.id),
         onOver: () => {
           this.showTooltip(
@@ -626,37 +631,32 @@ export default class Hud extends ViewChip<HudEvents> {
       COLORS.muted,
     )
     title.position.set(64, 32)
-    const hp = text(`PV ${fighter.hp} / ${combat.maxHp(fighter)}`, 13)
+    const hp = richText(describeHp(fighter, combat), 13)
     hp.position.set(64, 48)
     lines.push(portrait, name, title, hp)
 
-    // stats may be scaled by difficulty: show them rounded
-    const s = Object.fromEntries(
-      Object.entries(fighter.stats).map(([k, v]) => [k, Math.round(v)]),
-    ) as typeof fighter.stats
-    const stats = text(
-      [
-        `Vitesse ${s.speed}   Chance ${s.luck}`,
-        `Atq. phys. ${s.physicalAttack}   Déf. ${s.physicalDefense}`,
-        `Atq. én. ${s.magicalAttack}   Déf. ${s.magicalDefense}`,
-      ].join("\n"),
-      12,
-      COLORS.muted,
-      { lineHeight: 16 },
-    )
+    // each stat in the color of what it changes
+    const stats = richText(describeStats(fighter), 12, {
+      color: COLORS.muted,
+      lineHeight: 16,
+    })
     stats.position.set(10, 66)
     lines.push(stats)
 
     let y = 122
     const trait = LOCOMOTION_TRAITS[fighter.locomotion]
     if (trait) {
-      const label = text(trait, 12, 0x66d9e8)
+      const label = text(trait, 12, MEANING.water)
       label.position.set(10, y)
       lines.push(label)
       y += 18
     }
     if (combat.isSwimming(fighter)) {
-      const label = text("En train de nager : +50 % de temps", 12, 0xffa94d)
+      const label = richText(
+        `En train de nager : ${tag("time", "+50 % de temps")}`,
+        12,
+        { color: MEANING.water },
+      )
       label.position.set(10, y)
       lines.push(label)
       y += 18
@@ -665,27 +665,28 @@ export default class Hud extends ViewChip<HudEvents> {
       // a planned walk: how far, how long, in how many of its turns
       const time = combat.movementTime(fighter, fighter.path)
       const turns = combat.turnsFor(fighter, time)
-      const label = text(
-        `En route : ${fighter.path.length} case${fighter.path.length > 1 ? "s" : ""}, ${Math.round(time)} temps (${turns} tour${turns > 1 ? "s" : ""})`,
+      const n = fighter.path.length
+      const label = richText(
+        `En route : ${tag("move", `${n} case${n > 1 ? "s" : ""}`)}, ${tag("time", `${Math.round(time)} temps`)} (${tag("time", `${turns} tour${turns > 1 ? "s" : ""}`)})`,
         12,
-        COLORS.path,
+        { color: COLORS.muted },
       )
       label.position.set(10, y)
       lines.push(label)
       y += 18
     }
     for (const status of fighter.statuses) {
-      const def = STATUSES[status.id]
       const dot = new Graphics()
         .circle(14, y + 8, 5)
         .fill(STATUS_COLORS[status.id])
-      const label = text(
-        `${def.name} (${status.turns}t)${status.value ? ` · ${status.value}` : ""}`,
+      const label = richText(
+        describeStatus(status.id, status.turns, status.value),
         12,
+        { wrap: width - 32 },
       )
       label.position.set(24, y)
       lines.push(dot, label)
-      y += 18
+      y += Math.max(18, Math.ceil(label.height) + 2)
     }
 
     this._card.addChild(
@@ -722,21 +723,23 @@ export default class Hud extends ViewChip<HudEvents> {
       const b = button({
         width: width - 20,
         height: 40,
-        label: `${divine.name} (${divine.cost})`,
+        label: divine.name,
         icon: divine.id,
         inline: true,
         onTap: () => this.emit("divine", divine.id),
         onOver: () =>
-          this.showTooltip(
-            `${divine.name} — ${divine.cost} d'Élan\n${divine.description}`,
-            b.view.getGlobalPosition(),
-          ),
+          this.showTooltip(describeDivine(divine), b.view.getGlobalPosition()),
         onOut: () => this.hideTooltip(),
       })
       b.setState({
         enabled: canUse && energy >= divine.cost,
         selected: selected === divine.id,
       })
+      // its cost in Élan, in the Élan color
+      const cost = text(`${divine.cost} ✦`, 12, MEANING.elan)
+      cost.anchor.set(1, 0.5)
+      cost.position.set(width - 30, 20)
+      b.view.addChild(cost)
       b.view.position.set(10, 50 + i * 46)
       children.push(b.view)
     })
@@ -749,11 +752,20 @@ export default class Hud extends ViewChip<HudEvents> {
   log(line: string) {
     this._logLines.push({ text: line })
     this._logLines = this._logLines.slice(-7)
-    this._log.text = this._logLines.map((l) => l.text).join("\n")
+    clearChildren(this._log)
+    this._log.addChild(
+      richText(this._logLines.map((l) => l.text).join("\n"), 13, {
+        color: COLORS.muted,
+        lineHeight: 17,
+      }),
+    )
   }
 
   showTooltip(content: string, at: { x: number; y: number }, above = false) {
-    this._tooltipText.text = content
+    clearChildren(this._tooltipText)
+    this._tooltipText.addChild(
+      richText(content, 13, { wrap: 260, lineHeight: 17 }),
+    )
     this._tooltipText.position.set(8, 6)
     const bg = this._tooltip.children[0] as Graphics
     bg.clear()
@@ -821,35 +833,4 @@ export default class Hud extends ViewChip<HudEvents> {
     // below the timeline, so the final board stays visible
     this._end.position.set(Math.round(this._width / 2 - 160), 120)
   }
-}
-
-export function describeAction(
-  action: ActionDefinition,
-  combat: Combat,
-  fighter: Fighter,
-) {
-  const range =
-    action.launch.shape === "point"
-      ? "Sur soi"
-      : `Portée ${action.launch.min ?? 0}-${action.launch.max}${
-          action.launch.max > 1 ? " (+1 par niveau au-dessus de la cible)" : ""
-        }${action.lineOfSight ? ", ligne de vue" : ""}`
-  if (action.movement) {
-    const step = Math.round(
-      combat.baseStepDelay(fighter) *
-        STEP_DELAY_RATIO *
-        combat.delayMultiplier(fighter),
-    )
-    return `${action.name} (C)\n${action.description}\nJusqu'à ${action.movement.maxSteps} cases, en contournant les obstacles et en traversant les alliés\ncoût : le temps du trajet (environ ${step} par case sur terrain plat)`
-  }
-  const cost = Math.round(
-    combat.baseDelay(fighter) *
-      action.timeCost *
-      combat.delayMultiplier(fighter),
-  )
-  const cooldown = action.cooldown
-    ? ` · recharge ${action.cooldown} tour(s)`
-    : ""
-  const combo = action.combo ? "\n✦ Intrication" : ""
-  return `${action.name}${combo}\n${action.description}\n${range}\ncoût ${cost} temps${cooldown}`
 }

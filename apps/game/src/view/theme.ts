@@ -39,14 +39,28 @@ export const COLORS = {
  * spells, tooltips): one color, one kind of thing.
  */
 export const MEANING = {
+  /** Damage dealt, attack stats. */
   damage: 0xff6b6b,
+  /** Healing, hit points. */
   heal: 0x69db7c,
+  /** Moves: cells walked, pushes, jumps. */
   move: 0x4dabf7,
   poison: 0xcc5de8,
+  /** Time: costs, waits, turns, cooldowns, speed, slow and haste. */
   time: 0xffd43b,
+  /** Shields, defense stats. */
   shield: 0x99e9f2,
+  /** The Ghom's energy. */
   elan: 0xb197fc,
+  /** Reach: range, line of sight, area. */
+  range: 0xffa94d,
+  /** Luck and critical hits. */
+  luck: 0xf783ac,
+  /** Water: swimming, aquatic traits. */
+  water: 0x66d9e8,
 }
+
+export type Meaning = keyof typeof MEANING
 
 export const TEAM_COLORS = [0x4dabf7, 0xff6b6b, 0x69db7c, 0xda77f2]
 

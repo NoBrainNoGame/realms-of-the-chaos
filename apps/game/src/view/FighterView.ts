@@ -2,17 +2,12 @@ import * as booyah from "@ghom/booyah"
 import { EROSION, type Fighter, type StatusId } from "@realms/engine"
 import { Container, Graphics } from "pixi.js"
 import { OutlineFilter } from "pixi-filters"
+import { STATUS_COLORS } from "./describe"
 import { type Facing, Puppet, type PuppetAction } from "./Puppet"
 import { COLORS, PUPPET_SCALE, TEAM_COLORS } from "./theme"
 import ViewChip from "./ViewChip"
 
-export const STATUS_COLORS: Record<StatusId, number> = {
-  poisoned: 0x82c91e,
-  slowed: 0x74c0fc,
-  hasted: 0xfcc419,
-  shielded: 0xffe066,
-  enraged: 0xf03e3e,
-}
+export { STATUS_COLORS } from "./describe"
 
 const HP_WIDTH = 26
 
