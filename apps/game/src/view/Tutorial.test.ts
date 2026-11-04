@@ -112,7 +112,7 @@ describe("Tutorial", () => {
     const me = combat.activeFighter!
     const commands = combat.log.length
 
-    // reading: no walk, no action, no pass, no camera
+    // reading: no walk, no action, no pass (the camera still turns)
     board.emit("cellDown", combat.getReachableCells(me)[0], 0)
     expect(me.path).toEqual([])
     const first = combat.actionsOf(me)[0]
@@ -124,23 +124,31 @@ describe("Tutorial", () => {
     const quarter = camera.quarter
     key("e")
     tick(t, 2000)
-    expect(camera.quarter).toBe(quarter)
+    expect(camera.quarter).not.toBe(quarter)
     // but the timeline it shows can be clicked, and Entrée reads on
     expect(t.allows({ type: "timeline" })).toBe(true)
     key("Enter")
     expect(t.step?.id).toBe("card")
     expect(combat.log.length).toBe(commands)
 
-    // the walk lesson: Avancer only (no attack, no new step on the board)
+    // the walk lesson: walking goes on (a new step, Avancer), no attack
     while (t.step && t.step.id !== "move") t.next()
     tick(t, 100)
     board.emit("cellDown", combat.getReachableCells(me)[0], 0)
     tick(t, 100)
     expect(t.step?.id).toBe("walk")
-    expect(t.allows({ type: "cell" })).toBe(false)
+    expect(t.allows({ type: "cell" })).toBe(true)
     expect(t.allows({ type: "action", id: first.id })).toBe(false)
     expect(t.allows({ type: "cancel" })).toBe(true)
     expect(t.allows({ type: "pass" })).toBe(true)
+    expect(t.allows({ type: "camera" })).toBe(true)
+    // the course lesson: the Course, and walking
+    while (t.step && t.step.id !== "sprint") t.next()
+    expect(t.allows({ type: "action", id: "sprint" })).toBe(true)
+    expect(t.allows({ type: "action", id: first.id })).toBe(
+      first.id === "sprint",
+    )
+    expect(t.allows({ type: "cell" })).toBe(true)
 
     // once the lessons are over, everything goes
     while (t.step) t.next()

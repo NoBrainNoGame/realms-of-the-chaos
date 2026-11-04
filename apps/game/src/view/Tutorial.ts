@@ -91,8 +91,8 @@ export interface TutorialStep {
   /** When the step ends (by itself or with the button). */
   leave?: (t: Tutorial) => void
   /**
-   * What the player may click or press during the lesson (beyond backing
-   * out of a selection): what it asks for, nothing else. None: nothing.
+   * What else the player may use during a lesson to try (walking and the
+   * camera always go): an action of the bar, the timeline.
    */
   allows?: (input: SceneInput) => boolean
 }
@@ -178,7 +178,6 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   },
   {
     id: "move",
-    allows: (input) => input.type === "cell",
     title: "Se déplacer",
     needsTurn: true,
     anchor: (t) => cell(t, TUTORIAL_CELLS.walk, "below", "right"),
@@ -189,7 +188,6 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   },
   {
     id: "walk",
-    allows: (input) => input.type === "pass",
     title: "Avancer",
     needsTurn: true,
     anchor: (t) =>
@@ -219,9 +217,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   },
   {
     id: "sprint",
-    allows: (input) =>
-      input.type === "cell" ||
-      (input.type === "action" && input.id === "sprint"),
+    allows: (input) => input.type === "action" && input.id === "sprint",
     title: "La course",
     needsTurn: true,
     button: "Passer l'étape",
@@ -237,7 +233,6 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   },
   {
     id: "join",
-    allows: (input) => input.type === "cell" || input.type === "pass",
     title: "Les combos",
     needsTurn: true,
     button: "Passer l'étape",
@@ -253,10 +248,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   },
   {
     id: "combo",
-    allows: (input) =>
-      input.type === "cell" ||
-      input.type === "pass" ||
-      (input.type === "action" && input.id.startsWith("combo:")),
+    allows: (input) => input.type === "action" && input.id.startsWith("combo:"),
     title: "Utiliser un combo",
     needsTurn: true,
     button: "Passer l'étape",
@@ -285,7 +277,6 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   },
   {
     id: "camera",
-    allows: (input) => input.type === "camera",
     title: "La caméra",
     anchor: (t) => ui(t.scene.turnButtonsBounds, "above"),
     done: (t) => camera.quarter !== t.quarter,
@@ -458,14 +449,16 @@ export default class Tutorial extends ViewChip<TutorialEvents> {
   allows(input: SceneInput): boolean {
     const step = this.step
     if (!step) return true
-    if (input.type === "cancel") return true
+    // the view is not an order: turning, tilting, zooming always go
+    if (input.type === "cancel" || input.type === "camera") return true
     const reading = !step.done || this._doneAtStart
     if (reading && input.type === "pass" && input.key) {
       if (this._bubble.visible) this.next()
       return false
     }
-    if (this._doneAtStart) return false
-    return step.allows?.(input) ?? false
+    if (step.allows?.(input)) return true
+    // a lesson to try: the fighter can always walk (cells, Avancer)
+    return !reading && (input.type === "cell" || input.type === "pass")
   }
 
   /** Ends the current lesson. */
