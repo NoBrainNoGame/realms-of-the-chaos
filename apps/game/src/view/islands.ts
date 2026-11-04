@@ -72,13 +72,17 @@ export function drawBlock(
   y0: number,
   depth: number,
   c: Readonly<Camera> = camera,
+  /** Faces against a neighbor block are hidden: not drawn. */
+  hidden?: (dir: { x: number; y: number }) => boolean,
 ) {
+  const faces = visibleFaces(c).filter((f) => !hidden?.(f.dir))
+  if (faces.length === 0) return
   const color = blockColor(depth)
   const v = verticalScale(c)
   const { x, y } = origin
   const top = y + y0 * v
   const bottom = y + (y0 + BLOCK_HEIGHT) * v
-  for (const { a, b, light } of visibleFaces(c)) {
+  for (const { a, b, light } of faces) {
     g.poly([
       x + a.x,
       top + a.y,
@@ -89,16 +93,16 @@ export function drawBlock(
       x + a.x,
       bottom + a.y,
     ]).fill(shade(color, light < 1 ? 0.72 : 1))
-    // block seams: the top edges of the faces
-    g.moveTo(x + a.x, top + a.y)
-      .lineTo(x + b.x, top + b.y)
-      .stroke({ width: 1, color: 0x000000, alpha: 0.28 })
   }
-  // and the front edge
+  // block seams (the top edges of the faces) and the front edge, in one
+  // stroke: a stroke is costly to build
+  for (const { a, b } of faces) {
+    g.moveTo(x + a.x, top + a.y).lineTo(x + b.x, top + b.y)
+  }
   const f = frontCorner(c)
   g.moveTo(x + f.x, top + f.y)
     .lineTo(x + f.x, bottom + f.y)
-    .stroke({ width: 1, color: 0x000000, alpha: 0.2 })
+    .stroke({ width: 1, color: 0x000000, alpha: 0.25 })
 }
 
 /**
@@ -128,21 +132,41 @@ export function drawFloatingIsland(
       })
     }
   }
+  const at = (x: number, y: number) =>
+    x >= 0 && y >= 0 && x < size && y < size ? cells[y * size + x] : null
   // painter's order: back to front
-  cells.sort((a, b) => depthAlong(a, c) - depthAlong(b, c))
-  for (const cell of cells) {
+  const order = [...cells].sort((a, b) => depthAlong(a, c) - depthAlong(b, c))
+  for (const cell of order) {
     if (cell.skip) continue
     const p = toScreen(cell, 0, c)
     const origin = { x: p.x - center.x, y: p.y - center.y }
     const top = -cell.elevation * ELEVATION_HEIGHT
     // the column: from its top to the floor of the island
+    // (the faces against a neighbor's block are hidden)
+    const next = (d: { x: number; y: number }) => {
+      const n = at(cell.x + d.x, cell.y + d.y)
+      return n && !n.skip ? n : null
+    }
     for (let level = cell.elevation; level > -1; level--) {
-      drawBlock(g, origin, -level * ELEVATION_HEIGHT, 0, c)
+      drawBlock(g, origin, -level * ELEVATION_HEIGHT, 0, c, (d) => {
+        const n = next(d)
+        return !!n && n.elevation >= level
+      })
     }
     // the inverted pyramid under it
     const depth = depths[cell.y][cell.x]
     for (let k = 0; k < depth; k++) {
-      drawBlock(g, origin, ELEVATION_HEIGHT + k * BLOCK_HEIGHT, k + 1, c)
+      drawBlock(
+        g,
+        origin,
+        ELEVATION_HEIGHT + k * BLOCK_HEIGHT,
+        k + 1,
+        c,
+        (d) => {
+          const n = next(d)
+          return !!n && depths[n.y][n.x] > k
+        },
+      )
     }
     const grass = shade(
       GROUND_TOP[cell.elevation] ?? GROUND_TOP[0],

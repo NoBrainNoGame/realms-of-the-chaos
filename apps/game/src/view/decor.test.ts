@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test"
-import { Board } from "@realms/engine"
+import { Board, createRng } from "@realms/engine"
 import { Container, Graphics } from "pixi.js"
 import { mount, tick } from "../test/harness"
 import Backdrop, { skyPoint } from "./Backdrop"
 import BoardView from "./BoardView"
 import FightScene, { classicFight } from "./FightScene"
-import { drawFloatingIsland, undersideDepths } from "./islands"
+import { drawBlock, drawFloatingIsland, undersideDepths } from "./islands"
 import { camera, depthAlong, resetCamera } from "./theme"
 
 describe("island underside (inverted pyramid of blocks)", () => {
@@ -36,6 +36,53 @@ describe("island underside (inverted pyramid of blocks)", () => {
       const g = new Graphics()
       drawFloatingIsland(g, size, 7)
       expect(g.bounds.width).toBeGreaterThan(0)
+    }
+  })
+})
+
+describe("drawing only what can be seen", () => {
+  test("a block hides the faces against its neighbors", () => {
+    const all = new Graphics()
+    drawBlock(all, { x: 0, y: 0 }, 0, 1)
+    const some = new Graphics()
+    drawBlock(some, { x: 0, y: 0 }, 0, 1, camera, (d) => d.x === 1)
+    const none = new Graphics()
+    drawBlock(none, { x: 0, y: 0 }, 0, 1, camera, () => true)
+    const count = (g: Graphics) => g.context.instructions.length
+    expect(count(some)).toBeGreaterThan(0)
+    expect(count(some)).toBeLessThan(count(all))
+    expect(count(none)).toBe(0)
+  })
+
+  test("a redraw reuses the decor of the cells, a refresh rebuilds it", () => {
+    const board = mount(
+      new BoardView(
+        Board.generate(createRng(42)),
+        new Container(),
+        new Container(),
+        42,
+      ),
+    )
+    const parts = [...(board as any)._parts.entries()] as [
+      string,
+      { decor: { node: Container }[] | null },
+    ][]
+    const [key, decorated] = parts.find(
+      ([, p]) => p.decor && p.decor.length > 0,
+    )!
+    expect(decorated).toBeDefined()
+    const nodes = decorated!.decor!.map((d) => d.node)
+    try {
+      camera.yaw = 10
+      board.redraw()
+      expect(decorated!.decor!.map((d) => d.node)).toEqual(nodes)
+      for (const node of nodes) expect(node.destroyed).toBe(false)
+      const [x, y] = key.split(",").map(Number)
+      board.refreshCell({ x, y })
+      expect(decorated!.decor).not.toBe(null)
+      for (const node of nodes) expect(node.destroyed).toBe(true)
+    } finally {
+      resetCamera()
     }
   })
 })
@@ -120,6 +167,34 @@ describe("everything floats, each at its own pace", () => {
       // still again: no more trail
       tick(backdrop, 16)
       expect(backdrop.stars.every((s) => s.trail === 0)).toBe(true)
+    } finally {
+      resetCamera()
+    }
+  })
+
+  test("the stars drawn sit where skyPoint puts them, and only seen ones are lit", () => {
+    const backdrop = mount(new Backdrop())
+    ;(backdrop as any)._onResize(1200, 800)
+    try {
+      camera.pitch = 50
+      camera.yaw = 7
+      tick(backdrop, 16)
+      tick(backdrop, 16)
+      const view = { turn: 45 + 90 * camera.quarter + camera.yaw, pitch: 50 }
+      for (const star of backdrop.stars) {
+        const p = skyPoint(star, view, 1200, 800)
+        if (!p) expect(star.x).toBeNaN()
+        else {
+          expect(star.x).toBeCloseTo(p.x, 6)
+          expect(star.y).toBeCloseTo(p.y, 6)
+        }
+      }
+      // the sprites of the stars off the screen stay out
+      const sprites = (backdrop as any)._starSprites as { dot: any }[]
+      const lit = sprites.filter((s) => s.dot.alpha > 0).length
+      expect(lit).toBeGreaterThan(30)
+      expect(lit).toBeLessThan(backdrop.stars.length / 4)
+      expect(lit).toBe((backdrop as any)._lit.length)
     } finally {
       resetCamera()
     }

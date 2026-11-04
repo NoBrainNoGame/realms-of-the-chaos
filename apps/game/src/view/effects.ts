@@ -35,6 +35,24 @@ export function softCircle(): Texture {
   return softTexture
 }
 
+let dotTexture: Texture | null = null
+
+/** A small crisp disc (16 px), for the stars. */
+export function starDot(): Texture {
+  if (dotTexture) return dotTexture
+  const size = 16
+  const canvas = document.createElement("canvas")
+  canvas.width = canvas.height = size
+  const ctx = canvas.getContext("2d")!
+  ctx.fillStyle = "#fff"
+  ctx.beginPath()
+  ctx.arc(size / 2, size / 2, size / 2 - 0.5, 0, Math.PI * 2)
+  ctx.fill()
+  dotTexture = Texture.from(canvas)
+  dotTexture.source.scaleMode = "linear"
+  return dotTexture
+}
+
 /** Small hard square, used for sparks, debris and ice shards. */
 function square(): Texture {
   if (squareTexture) return squareTexture

@@ -26,7 +26,10 @@ export class Lens {
   readonly filter = new TiltShiftFilter({ blur: 0, gradientBlur: 1 })
   private _amount = 0
 
-  constructor(readonly target: Container) {}
+  constructor(readonly target: Container) {
+    // half resolution: it blurs anyway, and costs a quarter of the pixels
+    this.filter.resolution = 0.5
+  }
 
   get amount() {
     return this._amount

@@ -75,6 +75,12 @@ export function waveOffset(amplitude: number, u: number) {
   return amplitude * Math.exp(-3.5 * u) * Math.sin(2.5 * Math.PI * u)
 }
 
+/**
+ * How far under the top of a neighbor's column a side stays drawn (px):
+ * more than a shockwave moves a column, so no hole shows.
+ */
+const HIDDEN_MARGIN = 14
+
 /** Bottom of every column, below the lowest level (classic view). */
 export const COLUMN_BOTTOM = -FLOOR_LEVEL * ELEVATION_HEIGHT + TILE_DEPTH
 
@@ -88,9 +94,29 @@ interface CellParts {
   overlay: Graphics
   /** Animated bits (water shimmer, crystal glows). */
   animated: Container[]
+  /**
+   * Decor standing on the top (grass, flowers, crystals…), drawn once:
+   * facing the screen, it only moves when the camera does. Null until
+   * drawn, and after a terrain change.
+   */
+  decor: DecorItem[] | null
+  /** Vines hanging from each side (by side), drawn once too. */
+  vines: Map<number, DecorItem[]>
+  /** Water shimmer, drawn once. */
+  shimmer: Graphics | null
+  /** Drawn again at each redraw (waterfalls). */
+  transient: Container[]
   hit: Graphics
   /** Rest position of the column on screen. */
   y: number
+}
+
+/** A decor piece drawn around (0, 0), standing on a point of the top. */
+interface DecorItem {
+  /** Grid offset from the cell's middle (or along the side, for vines). */
+  at: Point
+  node: Container
+  animated?: Container
 }
 
 /** A waterfall pouring from a water cell over the edge of the island. */
@@ -179,6 +205,10 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
         ground,
         overlay,
         animated: [],
+        decor: null,
+        vines: new Map(),
+        shimmer: null,
+        transient: [],
         hit,
         y: 0,
       })
@@ -215,8 +245,10 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
   }
 
   protected _onTerminate() {
-    for (const parts of this._parts.values())
+    for (const parts of this._parts.values()) {
+      this._forgetDecor(parts)
       parts.column.destroy({ children: true })
+    }
     this._hitLayer.destroy({ children: true })
     this._parts.clear()
   }
@@ -230,7 +262,10 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
   refreshCell(p: Point) {
     for (const q of [p, ...this._board.neighbors(p)]) {
       const cell = this._board.get(q)
-      if (cell) this._drawCell(cell)
+      if (!cell) continue
+      // its decor may change (a pit, a shore…)
+      this._forgetDecor(this._parts.get(keyOf(cell))!)
+      this._drawCell(cell)
     }
   }
 
@@ -377,9 +412,10 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     column.zIndex = depthOf(cell, DEPTH.column)
     parts.y = base.y
 
-    column.removeChildren().forEach((c) => {
-      if (c !== parts.overlay && c !== g) c.destroy({ children: true })
-    })
+    // the cached pieces are only detached, the others are drawn again
+    column.removeChildren()
+    for (const node of parts.transient) node.destroy({ children: true })
+    parts.transient = []
     parts.animated = []
     this._cascades.delete(keyOf(cell))
     g.clear()
@@ -388,7 +424,7 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     const groundY = -cell.elevation * levelHeight()
     const noise = cellNoise(cell, this._seed)
 
-    this._drawSides(g, groundY, cell.terrain === "water")
+    this._drawSides(g, cell, groundY, cell.terrain === "water")
 
     if (cell.terrain === "water") {
       this._drawWater(g, cell, groundY, parts)
@@ -400,20 +436,23 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       const top = diamond().map((v, i) => (i % 2 === 1 ? v + groundY : v))
       g.poly(top).fill(color)
       // light from the top-left: lit back edges, darker front edges
-      for (const dir of SIDES) {
-        const [a, b] = edgeOf(dir)
-        const front = project(dir.x, dir.y).y > 0
-        g.moveTo(a.x, a.y + groundY)
-          .lineTo(b.x, b.y + groundY)
-          .stroke(
-            front
-              ? { width: 1, color: 0x000000, alpha: 0.25 }
-              : { width: 1.5, color: 0xffffff, alpha: 0.18 },
-          )
+      // (one stroke per kind of edge: a stroke is costly to build)
+      for (const front of [false, true]) {
+        for (const dir of SIDES) {
+          if (project(dir.x, dir.y).y > 0 !== front) continue
+          const [a, b] = edgeOf(dir)
+          g.moveTo(a.x, a.y + groundY).lineTo(b.x, b.y + groundY)
+        }
+        g.stroke(
+          front
+            ? { width: 1, color: 0x000000, alpha: 0.25 }
+            : { width: 1.5, color: 0xffffff, alpha: 0.18 },
+        )
       }
-      this._drawVines(g, cell, groundY)
-      this._drawDecor(g, cell, groundY, parts)
+      this._placeVines(cell, groundY, parts)
+      this._drawGrain(g, cell, groundY)
     }
+    this._placeDecor(cell, groundY, parts)
 
     // highlights sit on the walkable surface
     parts.overlay.y = cell.terrain === "water" ? 0 : groundY
@@ -425,18 +464,35 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     parts.hit.zIndex = depthAlong(cell)
   }
 
-  /** Column sides, banded with rock strata (one band per level). */
-  private _drawSides(g: Graphics, topY: number, underwater: boolean) {
+  /**
+   * Column sides, banded with rock strata (one band per level). The bands
+   * well behind the neighbor's column are hidden: not drawn (a margin
+   * stays for the shockwaves, which move the columns).
+   */
+  private _drawSides(
+    g: Graphics,
+    cell: Cell,
+    topY: number,
+    underwater: boolean,
+  ) {
     const step = levelHeight()
     const bottom = COLUMN_BOTTOM * verticalScale()
     const faces = visibleFaces()
+    const level = levelHeight()
+    // below this, a face is behind its neighbor's column
+    const cover = faces.map(({ dir }) => {
+      const n = this._board.get({ x: cell.x + dir.x, y: cell.y + dir.y })
+      return n ? -n.elevation * level + HIDDEN_MARGIN : Number.POSITIVE_INFINITY
+    })
     let band = 0
     for (let y0 = topY; y0 < bottom - 0.01; y0 += step, band++) {
       const y1 = Math.min(bottom, y0 + step)
       const rock =
         STRATA[Math.min(band + (underwater ? 2 : 0), STRATA.length - 1)]
       const color = underwater ? mix(rock, WATER.deep, 0.25) : rock
-      for (const { a, b, light } of faces) {
+      const shown = faces.filter((_, i) => y0 < cover[i] - 0.01)
+      if (shown.length === 0) continue
+      for (const { a, b, light } of shown) {
         g.poly([
           a.x,
           a.y + y0,
@@ -449,18 +505,19 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
         ]).fill(shade(color, light))
       }
       // pebbles in the strata
-      const dark = faces.find((f) => f.light < 1)
-      const lit = faces.find((f) => f.light === 1)
+      const dark = shown.find((f) => f.light < 1)
+      const lit = shown.find((f) => f.light === 1)
       if (dark) {
         const p = lerp(dark.a, dark.b, 0.25)
-        g.circle(p.x, p.y + y0 + step * 0.45, 1.4).fill({
+        // (a few pixels: a square is as good as a circle, and far cheaper)
+        g.rect(p.x - 1.2, p.y + y0 + step * 0.45 - 1.2, 2.4, 2.4).fill({
           color: 0x000000,
           alpha: 0.18,
         })
       }
       if (lit) {
         const p = lerp(lit.a, lit.b, 0.65)
-        g.circle(p.x, p.y + y0 + step * 0.3, 1.2).fill({
+        g.rect(p.x - 1, p.y + y0 + step * 0.3 - 1, 2, 2).fill({
           color: 0xffffff,
           alpha: 0.08,
         })
@@ -468,7 +525,9 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     }
     if (!underwater) {
       // grassy lip on the top of the sides
-      for (const { a, b, light } of faces) {
+      for (const { a, b, light } of faces.filter(
+        (_, i) => topY < cover[i] - 0.01,
+      )) {
         g.poly([
           a.x,
           a.y + topY,
@@ -565,18 +624,21 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     }
     g.poly(diamond()).fill({ color: body, alpha: 0.55 + depth * 0.1 })
 
-    const n = cellNoise(cell, this._seed, 7)
-    const shimmer = new Graphics()
-    shimmer.blendMode = "add"
-    shimmer
-      .moveTo(-14 + n * 8, -2)
-      .lineTo(-4 + n * 8, -5)
-      .stroke({ width: 1.5, color: 0xffffff, alpha: 0.5 })
-      .moveTo(4 - n * 6, 5)
-      .lineTo(14 - n * 6, 2)
-      .stroke({ width: 1.5, color: 0xffffff, alpha: 0.35 })
-    parts.column.addChild(shimmer)
-    parts.animated.push(shimmer)
+    if (!parts.shimmer) {
+      const n = cellNoise(cell, this._seed, 7)
+      const shimmer = new Graphics()
+      shimmer.blendMode = "add"
+      shimmer
+        .moveTo(-14 + n * 8, -2)
+        .lineTo(-4 + n * 8, -5)
+        .stroke({ width: 1.5, color: 0xffffff, alpha: 0.5 })
+        .moveTo(4 - n * 6, 5)
+        .lineTo(14 - n * 6, 2)
+        .stroke({ width: 1.5, color: 0xffffff, alpha: 0.35 })
+      parts.shimmer = shimmer
+    }
+    parts.column.addChild(parts.shimmer)
+    parts.animated.push(parts.shimmer)
 
     // water on the edge pours over it, down the column and the blocks below
     const length = COLUMN_BOTTOM + this._depths[cell.y][cell.x] * BLOCK_HEIGHT
@@ -587,6 +649,7 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     }))
     for (const fall of falls) {
       parts.column.addChild(fall.g)
+      parts.transient.push(fall.g)
       this._drawCascade(fall)
     }
     this._cascades.set(keyOf(cell), falls)
@@ -604,51 +667,124 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
   }
 
   /** Vines and moss hanging from the visible front edges of the island. */
-  private _drawVines(g: Graphics, cell: Cell, topY: number) {
-    const rand = (salt: number) => cellNoise(cell, this._seed, salt)
+  private _placeVines(cell: Cell, topY: number, parts: CellParts) {
     for (const { dir, a, b } of this._edgeFaces(cell)) {
       // same strands on the same side, whatever the camera
       const side = dir.x + 2 * dir.y
-      const strands = 1 + Math.floor(rand(300 + side) * 3)
-      for (let i = 0; i < strands; i++) {
-        const t = 0.15 + rand(310 + i * 7 + side) * 0.7
-        // point on the top edge of that face
-        const start = lerp(a, b, t)
-        let x = start.x
-        let y = topY + start.y + 3
-        const length = 10 + rand(320 + i * 7 + side) * 22
-        const sway = (rand(330 + i * 7 + side) - 0.5) * 4
-        g.moveTo(x, y)
-        const points: [number, number][] = []
-        for (let k = 1; k <= 4; k++) {
-          const nx = x + Math.sin(k * 1.3 + sway) * 1.5
-          const ny = y + length / 4
-          g.quadraticCurveTo((x + nx) / 2 + sway * 0.3, (y + ny) / 2, nx, ny)
-          points.push([nx, ny])
-          x = nx
-          y = ny
-        }
-        g.stroke({ width: 1.3, color: 0x2b5d1f, alpha: 0.95 })
-        points.forEach(([px, py], k) => {
-          const dir = k % 2 === 0 ? 1 : -1
-          g.ellipse(px + dir * 1.6, py - 2, 1.6, 0.9).fill(
-            k % 2 ? 0x4f8a2f : 0x3f7a25,
-          )
-        })
+      let strands = parts.vines.get(side)
+      if (!strands) {
+        strands = this._drawVines(cell, side)
+        parts.vines.set(side, strands)
+      }
+      for (const { at, node } of strands) {
+        const start = lerp(a, b, at.x)
+        node.position.set(start.x, topY + start.y + 3)
+        parts.column.addChild(node)
       }
     }
   }
 
-  /** Grass, flowers, bushes, mushrooms, reeds, pebbles and chaos crystals. */
-  private _drawDecor(g: Graphics, cell: Cell, topY: number, parts: CellParts) {
+  /** The strands of one side, each hanging from (0, 0). */
+  private _drawVines(cell: Cell, side: number): DecorItem[] {
     const rand = (salt: number) => cellNoise(cell, this._seed, salt)
-    // a point on the tile top, away from the center where fighters stand
+    const items: DecorItem[] = []
+    const strands = 1 + Math.floor(rand(300 + side) * 3)
+    for (let i = 0; i < strands; i++) {
+      // where on the top edge of that face (along it)
+      const t = 0.15 + rand(310 + i * 7 + side) * 0.7
+      const g = new Graphics()
+      let x = 0
+      let y = 0
+      const length = 10 + rand(320 + i * 7 + side) * 22
+      const sway = (rand(330 + i * 7 + side) - 0.5) * 4
+      g.moveTo(x, y)
+      const points: [number, number][] = []
+      for (let k = 1; k <= 4; k++) {
+        const nx = x + Math.sin(k * 1.3 + sway) * 1.5
+        const ny = y + length / 4
+        g.quadraticCurveTo((x + nx) / 2 + sway * 0.3, (y + ny) / 2, nx, ny)
+        points.push([nx, ny])
+        x = nx
+        y = ny
+      }
+      g.stroke({ width: 1.3, color: 0x2b5d1f, alpha: 0.95 })
+      points.forEach(([px, py], k) => {
+        const dir = k % 2 === 0 ? 1 : -1
+        g.ellipse(px + dir * 1.6, py - 2, 1.6, 0.9).fill(
+          k % 2 ? 0x4f8a2f : 0x3f7a25,
+        )
+      })
+      items.push({ at: { x: t, y: 0 }, node: g })
+    }
+    return items
+  }
+
+  /** Detaches and frees the cached decor of a cell (drawn again later). */
+  private _forgetDecor(parts: CellParts) {
+    const nodes: Container[] = [
+      ...(parts.decor ?? []).map((d) => d.node),
+      ...[...parts.vines.values()].flat().map((d) => d.node),
+    ]
+    if (parts.shimmer) nodes.push(parts.shimmer)
+    for (const node of nodes) node.destroy({ children: true })
+    parts.decor = null
+    parts.vines.clear()
+    parts.shimmer = null
+  }
+
+  /** Puts the decor of a cell where the camera sees its spots. */
+  private _placeDecor(cell: Cell, topY: number, parts: CellParts) {
+    parts.decor ??= this._drawDecor(cell)
+    for (const item of parts.decor) {
+      const p = project(item.at.x, item.at.y)
+      item.node.position.set(p.x, topY + p.y)
+      parts.column.addChild(item.node)
+      if (item.animated) parts.animated.push(item.animated)
+    }
+  }
+
+  /** A light grain on the grass. */
+  private _drawGrain(g: Graphics, cell: Cell, topY: number) {
+    const e = cell.elevation
+    if (e < 0) return
+    const top = GROUND_TOP[e] ?? GROUND_TOP[0]
+    // specks of a pixel or two: squares, in one fill per color
+    for (const odd of [0, 1]) {
+      for (let i = odd; i < 7; i += 2) {
+        const p = this._spot(cell, 200 + i * 2)
+        const at = project(p.x, p.y)
+        g.rect(at.x - 0.7, topY + at.y - 0.7, 1.4, 1.4)
+      }
+      g.fill({ color: shade(top, odd ? 0.72 : 1.28), alpha: 0.5 })
+    }
+  }
+
+  /** A point of the top (grid offset), away from where fighters stand. */
+  private _spot(cell: Point, salt: number): Point {
+    const rand = (k: number) => cellNoise(cell, this._seed, k)
+    let u = rand(salt) * 1.4 - 0.7
+    const v = rand(salt + 1) * 1.4 - 0.7
+    if (Math.abs(u) < 0.3 && Math.abs(v) < 0.3) u = Math.sign(u || 1) * 0.45
+    return { x: u * 0.5, y: v * 0.5 }
+  }
+
+  /**
+   * Grass, flowers, bushes, mushrooms, reeds, pebbles and chaos crystals:
+   * each piece drawn around (0, 0), facing the screen, and placed on its
+   * spot of the top by `_placeDecor`.
+   */
+  private _drawDecor(cell: Cell): DecorItem[] {
+    const rand = (salt: number) => cellNoise(cell, this._seed, salt)
+    const items: DecorItem[] = []
+    // each spot starts a new piece, drawn by `g` around p = (0, 0)
+    let item: DecorItem = { at: { x: 0, y: 0 }, node: new Graphics() }
+    let g = item.node as Graphics
     const spot = (salt: number) => {
-      let u = rand(salt) * 1.4 - 0.7
-      const v = rand(salt + 1) * 1.4 - 0.7
-      if (Math.abs(u) < 0.3 && Math.abs(v) < 0.3) u = Math.sign(u || 1) * 0.45
-      const p = project(u * 0.5, v * 0.5)
-      return { x: p.x, y: topY + p.y }
+      g = new Graphics()
+      item = { at: this._spot(cell, salt), node: new Container() }
+      item.node.addChild(g)
+      items.push(item)
+      return { x: 0, y: 0 }
     }
     const e = cell.elevation
     const shore = this._board
@@ -659,15 +795,6 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       const top = GROUND_TOP[e] ?? GROUND_TOP[0]
       const dark = shade(top, 0.72)
       const light = shade(top, 1.28)
-
-      // a light grain on the grass
-      for (let i = 0; i < 7; i++) {
-        const p = spot(200 + i * 2)
-        g.circle(p.x, p.y, 0.8).fill({
-          color: i % 2 ? dark : light,
-          alpha: 0.5,
-        })
-      }
 
       // tufts of curved blades
       const tufts = 1 + Math.floor(rand(1) * 3)
@@ -825,9 +952,10 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       glow.blendMode = "add"
       glow.scale.set(28 / 64)
       glow.position.set(p.x, p.y - 6)
-      parts.column.addChild(crystal, glow)
-      parts.animated.push(glow)
+      item.node.addChild(crystal, glow)
+      item.animated = glow
     }
+    return items
   }
 
   /**
@@ -871,7 +999,19 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       const depth = this._depths[cell.y][cell.x]
       const origin = toScreen(cell)
       for (let k = 0; k < depth; k++) {
-        drawBlock(blocks, origin, COLUMN_BOTTOM + k * BLOCK_HEIGHT, k + 1)
+        // a face against the neighbor's block of the same level is hidden
+        const hidden = (d: Point) => {
+          const n = { x: cell.x + d.x, y: cell.y + d.y }
+          return this._board.inBounds(n) && this._depths[n.y][n.x] > k
+        }
+        drawBlock(
+          blocks,
+          origin,
+          COLUMN_BOTTOM + k * BLOCK_HEIGHT,
+          k + 1,
+          undefined,
+          hidden,
+        )
       }
     }
     container.addChild(blocks)

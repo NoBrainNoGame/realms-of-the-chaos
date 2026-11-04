@@ -1,5 +1,5 @@
 import { Container, Graphics, Sprite, Texture } from "pixi.js"
-import { softCircle } from "./effects"
+import { softCircle, starDot } from "./effects"
 import { drawFloatingIsland } from "./islands"
 import {
   type Camera,
@@ -126,6 +126,11 @@ export interface Mote {
   last: { x: number; y: number } | null
 }
 
+/** Points along a star trail (its arc), from the last view to this one. */
+const TRAIL_STEPS = 4
+/** How much the camera turns before the distant islands are redrawn (°). */
+export const ISLAND_REDRAW_ANGLE = 0.6
+
 /** Field of view across the screen's width, for the stars (°). */
 export const SKY_FOV = 90
 
@@ -177,9 +182,22 @@ const CUT = 0.25
  */
 export default class Backdrop extends ViewChip {
   private _sky!: Sprite
-  private _stars!: Graphics
+  /**
+   * The stars: sprites (a dot each, and a stretched square per piece of
+   * trail), made once, only moved and faded after (hidden: transparent).
+   * Drawing them as shapes would rebuild a thousand shapes at each move
+   * of the camera, and adding or hiding sprites rebuilds the render list.
+   */
+  private _stars!: Container
+  /** The sprites of each star (same order as the list). */
+  private _starSprites: { dot: Sprite; pieces: Sprite[] }[] = []
   private _motes: Mote[] = []
   private _starList: Star[] = []
+  /** Indices of the stars drawn last frame (their sprites are lit). */
+  private _lit: number[] = []
+  private _trig: Float64Array | null = null
+  private readonly _pathX = new Float64Array(TRAIL_STEPS + 1)
+  private readonly _pathY = new Float64Array(TRAIL_STEPS + 1)
   /** Sky angle and tilt of the camera when the stars were last drawn. */
   private _skyView: SkyView | null = null
   private _starsDirty = true
@@ -198,7 +216,9 @@ export default class Backdrop extends ViewChip {
 
   protected _onActivate() {
     this._sky = new Sprite(Backdrop.gradient())
-    this._stars = new Graphics()
+    this._stars = new Container()
+    // its own render group: its sprites never touch the rest of the scene
+    this._stars.isRenderGroup = true
     this._container.addChild(this._sky, this._stars)
     // the stars all around, more than the screen ever shows at once
     for (let i = 0; i < 1100; i++) {
@@ -214,6 +234,20 @@ export default class Backdrop extends ViewChip {
         y: 0,
         trail: 0,
       })
+    }
+    for (const _ of this._starList) {
+      const dot = new Sprite(starDot())
+      dot.anchor.set(0.5)
+      const pieces: Sprite[] = []
+      for (let k = 0; k < TRAIL_STEPS; k++) {
+        const piece = new Sprite(Texture.WHITE)
+        piece.anchor.set(0, 0.5)
+        pieces.push(piece)
+      }
+      dot.alpha = 0
+      for (const piece of pieces) piece.alpha = 0
+      this._stars.addChild(dot, ...pieces)
+      this._starSprites.push({ dot, pieces })
     }
 
     // distant islands of the Clair, blued by the distance
@@ -376,7 +410,7 @@ export default class Backdrop extends ViewChip {
     const w = this._width
     const h = this._height
     // the trail follows the arc: a few steps between the two views
-    const steps = cut || !moved ? 0 : 6
+    const steps = cut || !moved ? 0 : TRAIL_STEPS
     const views: SkyView[] = []
     for (let i = 0; i <= steps; i++) {
       const t = steps ? i / steps : 1
@@ -385,51 +419,109 @@ export default class Backdrop extends ViewChip {
         pitch: last.pitch + (sky.pitch - last.pitch) * t,
       })
     }
-    const g = this._stars
-    g.clear()
     const margin = 20
-    const inside = (p: { x: number; y: number }) =>
-      p.x > -margin && p.x < w + margin && p.y > -margin && p.y < h + margin
-    for (const star of this._starList) {
-      const path = views
-        .map((view) => skyPoint(star, view, w, h))
-        .filter((p): p is { x: number; y: number } => p !== null)
-      const now = path[path.length - 1]
+    // per view: the trigonometry shared by all the stars
+    const f = w / 2 / Math.tan((SKY_FOV / 2) * DEG)
+    const viewTrig = views.map((view) => {
+      const t = (view.turn + 90) * DEG
+      const p = view.pitch * DEG
+      return {
+        ct: Math.cos(t),
+        st: Math.sin(t),
+        cp: Math.cos(p),
+        sp: Math.sin(p),
+      }
+    })
+    const trig = this._starTrig()
+    // no allocation per star: thousands of them, every frame
+    const px = this._pathX
+    const py = this._pathY
+    // only the sprites lit last frame need to be put out
+    for (const index of this._lit) {
+      const { dot, pieces } = this._starSprites[index]
+      dot.alpha = 0
+      for (const piece of pieces) piece.alpha = 0
+    }
+    const lit: number[] = []
+    const stars = this._starList
+    for (let index = 0; index < stars.length; index++) {
+      const star = stars[index]
+      const o = index * 4
+      const sa = trig[o]
+      const ca = trig[o + 1]
+      const se = trig[o + 2]
+      const ce = trig[o + 3]
+      let n = 0
+      let seen = false
+      for (const v of viewTrig) {
+        const sinA = sa * v.ct + ca * v.st
+        const cosA = ca * v.ct - sa * v.st
+        const x = ce * sinA
+        const z = ce * cosA
+        const up = se * v.cp + z * v.sp
+        const forward = -se * v.sp + z * v.cp
+        if (forward < 0.05) continue
+        const sx = w / 2 + (f * x) / forward
+        const sy = h / 2 - (f * up) / forward
+        px[n] = sx
+        py[n] = sy
+        n++
+        if (sx > -margin && sx < w + margin && sy > -margin && sy < h + margin)
+          seen = true
+      }
       star.trail = 0
-      if (!now) {
+      if (n === 0) {
         star.x = Number.NaN
         star.y = Number.NaN
         continue
       }
-      star.x = now.x
-      star.y = now.y
-      for (let i = 1; i < path.length; i++)
-        star.trail += Math.hypot(
-          path[i].x - path[i - 1].x,
-          path[i].y - path[i - 1].y,
-        )
+      star.x = px[n - 1]
+      star.y = py[n - 1]
+      for (let i = 1; i < n; i++)
+        star.trail += Math.hypot(px[i] - px[i - 1], py[i] - py[i - 1])
       if (star.trail < 0.5) star.trail = 0
-      if (!path.some(inside)) continue
-      if (star.trail === 0) {
-        g.circle(now.x, now.y, star.radius).fill({
-          color: 0xffffff,
-          alpha: star.alpha,
-        })
-        continue
-      }
-      // the same light spread along the trail
+      if (!seen) continue
+      const { dot, pieces } = this._starSprites[index]
+      lit.push(index)
       const width = star.radius * 2
-      g.moveTo(path[0].x, path[0].y)
-      for (let i = 1; i < path.length; i++) g.lineTo(path[i].x, path[i].y)
-      g.stroke({
-        color: 0xffffff,
-        width,
-        cap: "round",
-        join: "round",
-        alpha:
-          star.alpha * Math.max(0.35, (width * 2) / (width * 2 + star.trail)),
-      })
+      // the same light spread along the trail
+      const alpha =
+        star.trail === 0
+          ? star.alpha
+          : star.alpha * Math.max(0.35, (width * 2) / (width * 2 + star.trail))
+      dot.position.set(star.x, star.y)
+      dot.width = dot.height = width
+      dot.alpha = alpha
+      // the trail along the arc, piece by piece
+      for (let i = 1; i < n; i++) {
+        const dx = px[i] - px[i - 1]
+        const dy = py[i] - py[i - 1]
+        const length = Math.hypot(dx, dy)
+        if (length < 0.01) continue
+        const piece = pieces[i - 1]
+        piece.position.set(px[i - 1], py[i - 1])
+        piece.rotation = Math.atan2(dy, dx)
+        piece.width = length
+        piece.height = width
+        piece.alpha = alpha
+      }
     }
+    this._lit = lit
+  }
+
+  /** Sine and cosine of each star's azimuth and elevation, computed once. */
+  private _starTrig() {
+    if (this._trig?.length !== this._starList.length * 4) {
+      const trig = new Float64Array(this._starList.length * 4)
+      this._starList.forEach((star, index) => {
+        trig[index * 4] = Math.sin(star.azimuth * DEG)
+        trig[index * 4 + 1] = Math.cos(star.azimuth * DEG)
+        trig[index * 4 + 2] = Math.sin(star.elevation * DEG)
+        trig[index * 4 + 3] = Math.cos(star.elevation * DEG)
+      })
+      this._trig = trig
+    }
+    return this._trig
   }
 
   /**
@@ -466,14 +558,17 @@ export default class Backdrop extends ViewChip {
     }
   }
 
-  /** Draws the islands again when the camera moved. */
+  /**
+   * Draws the islands again when the camera moved enough to be seen (far
+   * and small, they need less than the board).
+   */
   private _drawIslands() {
     const drawn = this._drawn
     if (
       drawn &&
       drawn.quarter === camera.quarter &&
-      drawn.pitch === camera.pitch &&
-      drawn.yaw === camera.yaw
+      Math.abs(drawn.pitch - camera.pitch) < ISLAND_REDRAW_ANGLE &&
+      Math.abs(drawn.yaw - camera.yaw) < ISLAND_REDRAW_ANGLE
     )
       return
     this._drawn = { ...camera }

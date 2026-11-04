@@ -2,6 +2,7 @@ import * as booyah from "@ghom/booyah"
 import { Application, TextureStyle } from "pixi.js"
 import { params } from "./params"
 import Game from "./view/Game"
+import { Quality } from "./view/quality"
 import { COLORS, FONT } from "./view/theme"
 
 // crisp pixel art everywhere
@@ -15,9 +16,17 @@ await app.init({
   background: COLORS.background,
   antialias: false,
   autoDensity: true,
-  resolution: window.devicePixelRatio || 1,
+  // capped: past 2, the pixels cost more than they show
+  resolution: Math.min(2, window.devicePixelRatio || 1),
 })
 document.body.appendChild(app.canvas)
+
+// small configurations: fewer pixels when the frames stay slow
+const quality = new Quality(app.renderer.resolution)
+app.ticker.add((ticker) => {
+  const resolution = quality.frame(ticker.deltaMS)
+  if (resolution !== null) app.renderer.resolution = resolution
+})
 
 // wait for the pixel font so texts are measured correctly
 try {
@@ -31,5 +40,5 @@ const game = new Game(params)
 const runner = new booyah.Runner(game, {
   rootContext: { container: app.stage },
 })
-if (params.debug) Object.assign(window, { game, runner })
+if (params.debug) Object.assign(window, { game, runner, app })
 runner.start()
