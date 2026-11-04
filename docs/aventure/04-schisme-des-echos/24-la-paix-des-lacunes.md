@@ -99,9 +99,11 @@ Choix :
 [`nom.propositions += nyx`]
 
 Choix :
-1. « Lisière. » [`nom = nyx`, `confiance.nyx +1`] → **Nyx IV** : « Bon. Je l'écrirai mal dans la prochaine Chronique. C'est la tradition. »
-2. « Garde-le pour plus tard. » [`nom` inchangé] → **Nyx IV** : « Il sera là. Les noms, ça attend bien. »
-3. « Je n'en veux pas. » [`nom` inchangé] → **Nyx IV** : « Tant mieux. Moi non plus, je n'en voulais pas, du mien. »
+1. « Lisière. Je m'en souviendrai. » [`confiance.nyx +1` ; la proposition reste] → **Nyx IV** : « Bon. Je l'écrirai mal dans la prochaine Chronique. C'est la tradition. »
+2. « Garde-le pour plus tard. » [la proposition reste] → **Nyx IV** : « Il sera là. Les noms, ça attend bien. »
+3. « Je n'en veux pas. » [la proposition est retirée de `nom.propositions`] → **Nyx IV** : « Tant mieux. Moi non plus, je n'en voulais pas, du mien. »
+
+*Le nom ne se prend qu'à la Nomination (ch. 28).*
 
 *Si le héros a déjà un nom :* **Nyx IV** — « Tu as un nom. Je ne le dis pas : je le dirais mal. » *(aucun effet)*
 
@@ -226,7 +228,7 @@ Légende : `x` cases de Lacune, `.` sol, `1`-`3` hauteurs (la roche sombre à l'
 | Alliance révoquée en combat | `alliance_nyx = faux` | — |
 | Retour d'un parti | `retour.<lignée> = vrai` | Il est dans l'équipe en ère V. |
 | Q20 répondue (dans les deux versions) | `carnet.Q20 = repondue` | — |
-| Nom « Lisière » accepté | `nom = nyx`, `nom.propositions += nyx` | Les Chroniques et les écrans de l'ère V le déforment. |
+| Nom « Lisière » retenu | `nom.propositions += nyx` | Il pourra être pris à la Nomination (ch. 28). |
 | Rester dans le gris | `transformation.IV = A` | Peau d'ombre. |
 | Se placer devant les siens | `transformation.IV = B` | Cicatrices de lumière. |
 | Sel emportée par le Lacunaire géant | `confiance.nyx −2`, `sel_emportee = vrai` | Ère V : un Double de Sel, adulte, dans une branche voisine. |

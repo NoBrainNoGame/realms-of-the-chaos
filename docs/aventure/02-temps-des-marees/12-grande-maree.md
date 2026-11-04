@@ -87,9 +87,11 @@ La Grande Marée arrive. Eva a tout recalculé : trois îles comptent, Sauge, Lu
 - **Squalor** *(confiance.squalor ≥ 3, s'il est là)* — « **Reste.** Ce qu'on garde pour plus tard, quand on n'a plus faim. Ne fais pas cette tête. Chez nous, c'est ce qu'il y a de plus précieux. » [`nom.propositions += squalor`]
 - **Le Lacunaire** *(confiance.lacunaire ≥ 3)* — « **Premier.** Le premier qui nous a… parlé. Pas touché. Parlé. » [`nom.propositions += lacunaire`]
 
-1. *Accepter l'un des noms proposés.* [`nom = <lignée>` ; confiance de cette lignée +1]
-2. « Gardez-les pour moi. Je les reprendrai plus tard. » [les propositions restent ; `nom` inchangé]
-3. « Je n'en veux pas. Pas encore. » [`nom` inchangé ; aucune perte de Confiance]
+*Un nom ne se prend pas ici : il se **retient**, et ne se prendra qu'à la Nomination (ch. 28).*
+
+1. « Je m'en souviendrai. » *(pour l'un des noms proposés)* [cette lignée reste dans `nom.propositions` ; sa confiance +1]
+2. « Gardez-les pour moi. » [toutes les propositions restent dans `nom.propositions`]
+3. « Je n'en veux pas. » [les propositions de cette veillée sont retirées de `nom.propositions` ; aucune perte de Confiance]
 
 *Paires de veillée (une au choix, faute de temps) :*
 - **Néréa – Eva.** **Eva** : « Tu crois qu'on se souviendra de nous ? » — **Néréa** : « On se souviendra de quelque chose. Ce ne sera pas nous. Ce sera un chant. » — **Eva** : « Alors j'espère qu'il sera faux dans le bon sens. »

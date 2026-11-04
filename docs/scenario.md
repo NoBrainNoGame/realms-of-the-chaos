@@ -281,7 +281,7 @@ En ère V, on peut le combattre, le convaincre, ou **se coupler avec lui**, ce q
 
 Il y a trois façons pour le héros d'obtenir un nom :
 - **donné par un Écho** à forte Confiance : chacun en propose un différent, qui révèle sa vision du héros ;
-- **choisi par le joueur** ;
+- **jamais tapé par le joueur** : à la Nomination (ch. 28), il choisit dans une liste. Elle contient le nom retenu, si son parcours le lui fait connaître, mélangé à deux leurres : les étiquettes que d'autres lui ont données (« le Dormeur », « l'Anomalie », « le Couplé »). Sinon, elle ne contient que des leurres ;
 - **jamais reçu**, ce qui ouvre une variante de la fin secrète.
 
 Le nom apparaît dans les Chroniques des ères suivantes, souvent déformé.

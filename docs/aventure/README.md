@@ -89,8 +89,8 @@ Les choix du joueur sont mémorisés sous forme de **drapeaux**. Tous les chapit
 | `carnet.<Qxx>` | `ouverte` / `repondue` / `fausse` | État de chaque question : `fausse` si le héros a accepté une réponse rassurante mais fausse — arc C |
 | `archives.lues` | compteur | Archives lues (chacune coûte un peu d'Usure) — arc D |
 | `ghom_dechu.verite` | 0 à 3 | Ce qu'on sait du Ghom du Chaos — arc E |
-| `nom` | `aucun` / `<lignée>` / `choisi` | Origine du nom du héros — arc F |
-| `nom.propositions` | liste | Lignées qui ont proposé un nom — arc F |
+| `nom` | `aucun` / `<lignée>` / `faux` | Nom du héros, pris à la Nomination (ch. 28) : celui d'une lignée, aucun, ou un leurre (une étiquette que d'autres lui ont donnée) — arc F |
+| `nom.propositions` | liste | Lignées dont le héros a **retenu** le nom proposé — arc F |
 | `usure` | 0 à 10 | Usure du héros — arc G (≥ 8 en ère V : risque de Dispersion) |
 | `cristaux.gardes`, `cristaux.portes`, `cristaux.donnes` | compteurs | Usage des Cristaux d'intrication — arc H |
 | `cristaux.extraits` | compteur | Cristaux brisés pour un gain immédiat (ère III) — arc A et fins |
@@ -170,6 +170,7 @@ Les chapitres définissent ces drapeaux en détail. Valeurs des drapeaux existan
 - **Répliques :** `**Lyra** — « … »`. Didascalies en italique.
 - **Objectifs :** ★ un objectif secondaire **annoncé** (souvent plus important que la victoire), ◆ un objectif **caché**, découvert en le réussissant.
 - **Cartes ASCII :** la légende de `Board.fromAscii`, plus `x` pour une case de Lacune et `?` (en surimpression) pour une case en Superposition. Ces deux symboles restent à ajouter au moteur.
+- **Pas de saisie de texte :** voir la règle 8 de la bible (la bonne option et deux leurres si le parcours la fait connaître, sinon des leurres seulement).
 - **Choix du héros :** listes numérotées, avec l'effet entre crochets : `1. « Qui es-tu ? » [confiance.lyra +1]`.
 - **Combats :** les noms d'actions et de pouvoirs sont **ceux du lore** (§ 14 du plan) : Influences, Réparation, Intrication, Dispersion…
 - **Longueur :** un chapitre fait de 150 à 400 lignes. On écrit les répliques clés et la structure complète, pas chaque ligne de chaque dialogue.

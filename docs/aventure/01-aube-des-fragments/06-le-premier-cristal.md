@@ -261,7 +261,7 @@ Les deux îles se sont touchées. L'équipe a affronté Nyx, Merlin et Vesce sur
 
 **Narration** — *Elle revient. Elle repart. Elle revient. Pour moi, c'est une minute. Pour elle… Je ne veux pas compter.*
 
-*(si `premier_cristal.lieu = cairn`)* *À côté de la silhouette de Lyra, une autre, massive, empile des pierres sur le cairn, pierre après pierre, très vite : le cairn grandit à vue d'œil.*
+*(si `premier_cristal.lieu = cairn`)* *À côté de la silhouette de Lyra, une autre, massive, de pierre grise et lisse, empile des pierres sur le cairn, pierre après pierre, très vite : le cairn grandit à vue d'œil.* *(C'est Gorr, bien avant sa première question. Personne ne le nomme ; le joueur le reconnaîtra à l'ère III.)*
 
 *Puis la silhouette de Lyra ne revient plus. Le ciel clignote si vite qu'il devient gris. La lumière est violette, puis d'un blanc bleuté, et elle baigne le fond du Puits d'une clarté douce.*
 

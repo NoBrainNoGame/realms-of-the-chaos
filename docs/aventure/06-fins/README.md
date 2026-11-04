@@ -40,7 +40,7 @@ Le résultat est mémorisé dans le drapeau **`fin`** (`cristal` / `equilibre` /
 | `F` (fausses) | nombre de `carnet.Qxx = fausse` | Les réponses rassurantes acceptées. Seules les questions ouvertes peuvent être fausses. |
 | `ouvertes_gardees` | vrai si **toutes** les questions de `OUVERTES` sont `ouverte` | Condition de la fin secrète. |
 | `carnet_riche` | `R ≥ 14` **et** `F ≤ 1` **et** `carnet.Q28 = ouverte` | Condition de la vraie fin. |
-| `nom_donne` | `nom` est une lignée (`lyra`, `brutus`, `eva`, `nerea`, `nyx`, `merlin`, `gorr`, `squalor`, `lacunaire`, `chroniqueur`) | Le héros a été nommé par un Écho. `choisi` et `aucun` ne comptent pas. |
+| `nom_donne` | `nom` est une lignée (`lyra`, `brutus`, `eva`, `nerea`, `nyx`, `merlin`, `gorr`, `squalor`, `lacunaire`, `chroniqueur`) | Le héros a pris, à la Nomination, le nom qu'un Écho lui a donné. `faux` (un leurre) et `aucun` ne comptent pas. |
 | `habitees_majoritaires` | `lacunes.habitees ≥ lacunes.recousues` **et** `lacunes.habitees ≥ lacunes.elargies` | Le héros a surtout habité les Lacunes. |
 
 **Les scores d'Ordre et de Chaos** (pour les fins par défaut) :
@@ -109,8 +109,8 @@ fin.monde = ouvert     si couplage_ghom_dechu et habitees_majoritaires et confia
 
 | Situation | Résultat | Commentaire |
 | --- | --- | --- |
-| Toutes les conditions de l'Intrication, mais `nom = aucun` | Pas d'Intrication. Si `ouvertes_gardees`, le dernier geste est proposé : le joueur choisit entre le Découplage et une fin par défaut. | C'est voulu : un héros sans nom n'a pas été « tenu » par un Écho. Au ch. 28, l'héritière d'une promesse de l'ère I peut donner le nom gardé (`nom.promesse`), Nyx IV peut redonner « Lisière » (si elle l'a proposé au ch. 24) et Gorr peut proposer « Fissure » (si `confiance.gorr ≥ 2`) : c'est le vrai carrefour entre les deux fins hautes. |
-| `nom = choisi` | Ni Intrication ni Découplage. | Se nommer soi-même, c'est ne pas être nommé par un lien, et ne pas rester sans nom. Le choix du nom (arc F) l'indique d'une phrase : **Les branches** — « *Dans une autre branche, quelqu'un nous aurait appelés.* » |
+| Toutes les conditions de l'Intrication, mais `nom = aucun` | Pas d'Intrication. Si `ouvertes_gardees`, le vrai geste (« Tu peux partir ») figure parmi les trois gestes du dernier geste, avec deux faux ; sinon, seuls des faux gestes sont proposés (ch. 28). | C'est voulu : un héros sans nom n'a pas été « tenu » par un Écho. Au ch. 28, l'héritière d'une promesse de l'ère I peut proposer le nom gardé (« Aube »), Nyx IV rappelle « Lisière » (s'il a été retenu au ch. 24) et Gorr peut proposer « Fissure » (si `confiance.gorr ≥ 2`). Puis vient la Nomination, où le nom connu figure parmi des leurres : c'est le vrai carrefour entre les deux fins hautes. |
+| `nom = faux` | Ni Intrication ni Découplage. | Prendre une étiquette (« le Dormeur », « l'Anomalie », « le Couplé »), c'est ne pas être nommé par un lien, et ne pas rester sans nom. La Nomination l'indique d'une phrase : **Les branches** — « *Dans une autre branche, quelqu'un nous aurait appelés.* » Le joueur ne voit les leurres seuls que si son parcours ne lui a laissé aucun nom connu. |
 | Le dernier geste est fait, mais le Ghom ne se retire pas | Calcul normal, sans Découplage ; Intrication impossible (pas de nom). | Le Ghom reste, et ce n'est pas un échec : la fin par défaut obtenue a une phrase de plus (« *La pression resta, plus douce.* »). |
 | `confiance ≤ -6` et conditions du Découplage réunies | **La Dispersion**. | Le Ghom ne peut pas se retirer d'un monde qui a déjà défait celui qui le lui demandait. |
 | `heros_disperse` et `couplage_ghom_dechu` et Cœur habité | **La Dispersion**, `fin.monde = ouvert` (si `confiance ≥ 0`). | La plus douce des fins amères : le réseau se fait, sans le héros. |

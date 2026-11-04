@@ -164,6 +164,8 @@ Surcouche (`H` héros, `L` Lyra III, `E` Eva III ou Squalor III, `C` le Chroniqu
 
 *Le silence de la Fonderie. Même les fours ont l'air d'écouter.*
 
+*(si `premier_cristal.lieu = cairn` et que le héros est sur la case de Gorr)* *Les facettes de Gorr se tournent vers le héros, très lentement, comme on se tourne vers un bruit ancien.* **Gorr** — « Gorr a porté des pierres. Pour toi. Avant. » *(Il ne sait pas dire quand. Il ne sait pas encore ce qu'est « avant ». C'est lui, la silhouette du cairn, au ch. 6.)* [`confiance.gorr +1`]
+
 **Répliques de combat :**
 - **Lyra III** (soigne Gorr pendant l'Intrication) — « Ne bouge pas. Je répare. Ça va me coûter, à moi. Pas à toi. »
 - **Eva III** (pendant l'Intrication) — « Je ne calcule plus rien. Je… c'est la première fois que ça me fait plaisir. »

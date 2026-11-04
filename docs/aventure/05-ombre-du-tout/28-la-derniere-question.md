@@ -95,31 +95,38 @@ Chaque Écho présent dit **une phrase**, dans cet ordre (on saute les absents) 
 
 *Le héros n'y répond pas ici : elles reviendront au nœud 5.*
 
-**Le nom (dernière chance, arc F).** Si `nom = aucun` **et** `confiance.gorr ≥ 2` :
+**Les derniers noms (arc F).** *Ici, on propose encore des noms, mais aucun ne se prend : tout se joue à la Nomination, juste après. Le nom retenu d'une lignée est sa **dernière** proposition.*
 
-**Gorr** — « Tu n'as pas de nom. Gorr en a un. Gorr te donne un nom, si tu veux. *(Il pose un doigt de cristal sur la fissure lumineuse de son propre flanc, celle qui s'est ouverte sous la Frange.)* Fissure. Gorr a une fissure. Par elle, la lumière sort. Par la fissure, la chaleur monte, et les pierres croissent. Par toi, la question est venue dans Gorr. »
+- **Le nom gardé.** Si `nom.promesse` désigne une lignée présente (un ancien de la lignée de Lyra ou de Néréa a promis, à l'ère I, de garder un nom pour le héros), l'héritière parle en premier :
 
-1. « Fissure. Oui. » [`nom = gorr` ; `nom.propositions += gorr` ; `confiance.gorr +1`] — **Gorr** : « Fissure. » *(Il le répète, pour l'apprendre.)* « Fissure. »
-2. « Garde-le. Je n'en veux pas encore. » [`nom` reste `aucun` ; `nom.propositions += gorr`] — **Gorr** : « Gorr garde. Gorr sait garder. »
+  **Lyra** *(ou **Néréa**)* — « Ma lignée garde quelque chose pour toi depuis l'Aube. On se le transmet avec le métier, de mère en apprentie, sans savoir à quoi il servirait. **Aube.** C'est le nom qu'on t'a gardé : tu es arrivé avec elle. Je ne sais pas s'il te va encore. Il a beaucoup attendu. »
 
-**Le nom gardé.** Si `nom = aucun` et que `nom.promesse` désigne une lignée présente (un ancien de la lignée de Lyra ou de Néréa a promis, à l'ère I, de garder un nom pour le héros), l'héritière parle en premier :
+  1. « Je m'en souviendrai. » [`nom.propositions += <lignée de la promesse>` ; `confiance.<lignée> +1`] — « Alors la promesse est presque tenue. Ça ne m'était jamais arrivé, de tenir une promesse vieille de mille ans. »
+  2. « Garde-le encore. » [la proposition n'est pas retenue] — « Il attendra. Il sait faire. »
 
-**Lyra** *(ou **Néréa**)* — « Ma lignée garde quelque chose pour toi depuis l'Aube. On se le transmet avec le métier, de mère en apprentie, sans savoir à quoi il servirait. *(Elle dit le nom gardé.)* Je ne sais pas s'il te va encore. Il a beaucoup attendu. »
+- **Lisière, encore.** Si Nyx IV est présente et que « Lisière » a été retenu (`nyx` dans `nom.propositions`) : **Nyx** — « Lisière tient toujours. Je te l'ai dit : les noms, ça attend bien. *(Un temps.)* Ou prends celui de la pierre. Ou aucun. Je m'en fiche. Non, c'est faux. Je ne m'en fiche pas. » *(sans choix : la proposition reste)*
 
-1. *Le prendre.* [`nom = <lignée de la promesse>` ; `confiance.<lignée> +1`] — « Alors la promesse est tenue. Ça ne m'était jamais arrivé, de tenir une promesse vieille de mille ans. »
-2. « Garde-le encore. » [`nom` reste `aucun`] — « Il attendra. Il sait faire. »
+- **Fissure.** Si `confiance.gorr ≥ 2` : **Gorr** — « Tu n'as pas de nom. Gorr en a un. Gorr te donne un nom, si tu veux. *(Il pose un doigt de cristal sur la fissure lumineuse de son propre flanc, celle qui s'est ouverte sous la Frange.)* Fissure. Gorr a une fissure. Par elle, la lumière sort. Par la fissure, la chaleur monte, et les pierres croissent. Par toi, la question est venue dans Gorr. »
 
-**Lisière, encore.** Si `nom = aucun`, que Nyx IV est présente et qu'elle a déjà proposé « Lisière » au ch. 24 (`nyx` dans `nom.propositions`), elle parle avant Gorr :
+  1. « Je m'en souviendrai. » [`nom.propositions += gorr` (Fissure remplace « Chaud », ch. 18) ; `confiance.gorr +1`] — **Gorr** : « Fissure. » *(Il le répète, pour l'apprendre.)* « Fissure. »
+  2. « Garde-le. » [la proposition n'est pas retenue] — **Gorr** : « Gorr garde. Gorr sait garder. »
 
-**Nyx** — « Lisière tient toujours. Je te l'ai dit : les noms, ça attend bien. *(Un temps.)* Ou prends celui de la pierre. Ou aucun. Je m'en fiche. Non, c'est faux. Je ne m'en fiche pas. »
+**La Nomination.** *Gorr se tourne vers le héros.* **Gorr** — « Gorr dit les noms, avant la question. Gorr dit le nom de chacun. *(Il les dit, un par un, ceux de l'équipe.)* Et toi ? Quel nom, Gorr dit ? »
 
-1. « Lisière. » [`nom = nyx` ; `confiance.nyx +1`] *(Gorr ne propose alors pas « Fissure » ; il dit seulement : « Lisière. Gorr apprend. »)*
-2. *Attendre la proposition de Gorr.* [aucun effet]
-3. « Ni l'un ni l'autre. » [`nom` reste `aucun`] — **Nyx** : « Bon. Tu restes au bord. C'est ce que je disais. »
+*Le joueur ne tape jamais de nom : il choisit dans une liste, dans un ordre mélangé.*
 
-*Si le héros a déjà un nom, Gorr le prononce simplement, pour la première fois : « Gorr dit ton nom. » Et il le dit.*
+- **Le nom connu.** Parmi les lignées de `nom.propositions` dont la confiance est d'au moins +1, c'est celle qui a la plus haute Confiance (en cas d'égalité, la proposition la plus récente). Son nom retenu fait partie de la liste : Marne (Néréa), Écart (Eva), Reste (Squalor), Premier (le Lacunaire), Constante (Merlin), Reprise (Lyra), Lisière (Nyx), Fissure ou Chaud (Gorr), Aube (le nom gardé).
+- **Les leurres :** les étiquettes que d'autres ont données au héros. Ce sont les noms des légendes, pas des liens : « le Dormeur » (la légende de l'ère II), « l'Anomalie » (le rapport de l'ère III), « le Couplé » (les chants de l'ère IV).
+- **S'il y a un nom connu :** il est proposé avec deux leurres.
+- **Sinon :** les trois leurres seulement. Rien n'indique qu'un autre nom aurait pu exister.
+- **Toujours en plus :** « Je n'ai pas de nom. »
 
-*Si `nom = aucun` et que Gorr ne propose rien (Confiance trop basse), personne ne propose : **Les branches** — « *Dans une autre branche, nous t'aurions appelé. Ici, tu restes comme tu es venu.* »*
+Effets :
+- **Le nom connu** → [`nom = <lignée>` ; `confiance.<lignée> +1`] — **Gorr** : *(il le dit, lentement, pour l'apprendre)*. L'Écho de cette lignée, s'il est là : « … C'est le mien. Je veux dire : c'est celui que je t'ai donné. Il te va. »
+- **Un leurre** → [`nom = faux`] — **Gorr** dit l'étiquette, sans comprendre. **Les branches** — « *Dans une autre branche, quelqu'un nous aurait appelés.* »
+- **« Je n'ai pas de nom. »** → [`nom` reste `aucun`] — **Gorr** : « Gorr non plus, avant. Ça va. »
+
+*Si le héros a déjà un nom de lignée* (ce qui ne peut plus arriver avec la règle de la Nomination, sauf sauvegarde ancienne)*, Gorr le prononce simplement : « Gorr dit ton nom. » Et il le dit.*
 
 ### 3. Rencontre — La question de Gorr
 
@@ -275,16 +282,24 @@ Calque : la Lacune du Cœur (`x`, convention de l'ère IV) et les quatre **ancre
 
 **Gorr écrit.** *Quelle que soit la réponse, Gorr prend le Carnet, et, très lentement, avec un éclat de cristal, il écrit sous Q28 la réponse du héros, ou rien. Puis il rend le Carnet. Q28 reste dans la colonne des questions ouvertes, sauf si elle est barrée d'un trait fin (fausse).*
 
-**Le dernier geste (fin secrète).** Ce choix n'apparaît que si **toutes** les conditions suivantes sont réunies :
+**Le dernier geste (fin secrète).** *La scène a toujours lieu. Le héros se tourne vers la pression qui l'entoure depuis le prologue. Il ne lève pas les yeux : le Ghom n'est pas en haut. Il est autour.* Il peut lui demander une dernière chose. Les options apparaissent dans un ordre mélangé.
+
+**Le vrai geste** n'est proposé que si **toutes** ces conditions sont réunies, autrement dit si le parcours a mené jusque-là :
 
 - `nom = aucun` ;
 - **aucune** question ouverte n'est `fausse` : Q00, Q06, Q11, Q12, Q19, Q21, Q24, Q25 et Q28 sont toutes `ouverte` ;
 - `heros_disperse` est absent.
 
-*Le héros se tourne vers la pression qui l'entoure depuis le prologue. Il ne lève pas les yeux : le Ghom n'est pas en haut. Il est autour.*
+*Si les conditions sont réunies : le vrai geste et deux faux gestes. Sinon : trois faux gestes. Rien n'indique qu'un autre geste aurait existé.*
 
-1. « Ghom. Tu peux partir. Nous continuerons. » [le héros demande ; → l'Influence « Se retirer » apparaît]
-2. *Ne rien demander.* [→ calcul des fins, sans Découplage possible]
+| Geste | Vrai ou faux | Effet |
+| --- | --- | --- |
+| « Ghom. Tu peux partir. Nous continuerons. » | **vrai** | L'Influence « Se retirer » apparaît (ci-dessous). |
+| « Ghom. Montre-toi. » | faux | Rien ne se montre : *la pression ne change pas. Il n'y a rien à voir, ou rien de visible.* → calcul des fins. |
+| « Ghom. Réponds-moi. » | faux | Rien ne répond : *le Ghom ne parle pas. Il n'a jamais parlé.* → calcul des fins. |
+| « Ghom. Reste avec nous. » | faux | *La pression reste, comme toujours.* → calcul des fins. |
+
+*Les faux gestes ne ferment rien qui fût encore ouvert : ils sont simplement ce que le héros pouvait demander sans avoir fait tout le chemin.*
 
 **L'Influence « Se retirer »** *(aucun texte d'aide ; comme au ch. 27, le Ghom ne parle pas, il agit ou non)* :
 
@@ -302,8 +317,9 @@ Calque : la Lacune du Cœur (`x`, convention de l'ère IV) et les quatre **ancre
 | Choix ou objectif | Drapeaux | Effet plus tard |
 | --- | --- | --- |
 | Héritier revenu | `confiance.<lignée> +1` ; `confiance +1` (une fois) | Présent dans l'épilogue de la fin obtenue. |
-| Nom de Gorr accepté | `nom = gorr` | Ouvre la condition de nom de **L'Intrication** ; ferme **Le Découplage**. |
-| Nom de Gorr refusé | `nom.propositions += gorr` | Garde ouvert **Le Découplage**. |
+| Nomination : le nom connu | `nom = <lignée>` | Ouvre la condition de nom de **L'Intrication** ; ferme **Le Découplage**. |
+| Nomination : un leurre | `nom = faux` | Ferme **L'Intrication** et **Le Découplage**. |
+| Nomination : « Je n'ai pas de nom. » | `nom = aucun` | Garde ouvert **Le Découplage**. |
 | Première question de Gorr (sans `gorr_question`) | `gorr_question` ; `carnet.Q16 = repondue` | Richesse du Carnet. |
 | Voie Recoudre | `derniere_lacune = recousue` ; `lacunes.recousues +2` | Score d'Ordre ; départage. |
 | Voie Élargir | `derniere_lacune = elargie` ; `lacunes.elargies +2` | Score de Chaos ; départage. |

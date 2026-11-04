@@ -18,7 +18,11 @@
 5. **Le Ghom ne parle jamais.** Son influence se ressent : une pression dans l'air, un temps qui ralentit, le sol qui bouge. Ce qu'il est reste un **mystère** (Décision 3) : les Échos en débattent, le récit ne tranche pas.
 6. **Le héros parle peu.** Ses répliques sont des **choix du joueur**, de deux à quatre options, courtes. Il n'a pas de nom avant l'arc F.
 7. **Les questions restent des questions.** On ne donne jamais une réponse que la science n'a pas. Quand un personnage ne sait pas, il le dit.
-8. **Le ton** est mélancolique et lumineux. Les Échos ont de l'humour, des doutes et des contradictions. **Le Chaos n'est pas le mal, et l'Ordre n'est pas le bien.**
+8. **Jamais de texte à taper.** Le joueur ne saisit jamais de texte libre : un nom, une réponse ou un geste décisif se choisit toujours dans une liste.
+   - **Si le parcours permet de connaître la bonne option** (un nom vraiment proposé et retenu, les conditions d'une fin remplies), la liste contient **cette option et deux leurres plausibles**, dans un ordre mélangé (déterministe, à partir de la seed de la partie).
+   - **Sinon, la liste ne contient que des leurres.** Rien n'indique au joueur qu'une autre option aurait existé.
+   - S'applique au nom du héros (la Nomination, ch. 28) et au dernier geste qui ouvre la fin secrète (ch. 28).
+9. **Le ton** est mélancolique et lumineux. Les Échos ont de l'humour, des doutes et des contradictions. **Le Chaos n'est pas le mal, et l'Ordre n'est pas le bien.**
 
 ---
 
@@ -60,7 +64,7 @@ Ce qui suit est le résumé du lore. Le détail et les statuts (Établi, Hypoth�
 
 - **Dans l'Archipel, un nom est une fonction, pas une personne.** Des siècles séparent les ères : la Néréa, le Merlin, la Lyra que l'on croise à chaque ère sont des **héritiers** qui portent le nom de la lignée et son métier.
 - **On les distingue par un ordinal ou un surnom** dans les textes, jamais à l'écran sans nécessité : « Néréa des Strates », « Merlin, troisième du nom ».
-- **Exceptions :** Gorr, organisme minéral à la vie très longue, traverse les ères III à V lui-même, et le héros, grâce au Puits.
+- **Exceptions :** Gorr, organisme minéral à la vie très longue, traverse lui-même les ères, et le héros, grâce au Puits. Gorr est déjà là à l'ère I, sans question ni parole : c'est **la silhouette massive qui empile les pierres du cairn** pendant la descente dans le Puits (ch. 6). Personne ne le nomme ; on le reconnaît à l'ère III.
 
 ---
 
@@ -75,7 +79,7 @@ Ce qui suit est le résumé du lore. Le détail et les statuts (Établi, Hypoth�
 | **Néréa** (lignée des Ondines, lectrices de strates) | Ordre | Lente, imagée. Pense en couches et en profondeur : « Tout ce qui tombe finit par se déposer. » |
 | **Nyx** (lignée des Ombres) | Chaos | Laconique, provocatrice, tutoie tout le monde, même le Ghom. Parle de distance et de contact : « Personne ne me touche. Donc je suis libre. » |
 | **Merlin** (lignée des Thermistes, savants du feu et du froid) | Chaos, puis Ordre | Précis et ironique, phrases longues, aime les mesures exactes. Orgueil de savant, mais honnête quand une mesure le contredit. |
-| **Gorr** (organisme minéral) | Chaos | **Muet** avant le chapitre 16. Ensuite, phrases très courtes, au présent, sans article au début : « Gorr croît. » Puis il s'affine au fil des ères. Sa première question est le pivot de son arc. |
+| **Gorr** (organisme minéral) | Chaos | Simple silhouette à l'ère I (ch. 6). **Muet** avant le chapitre 16. Ensuite, phrases très courtes, au présent, sans article au début : « Gorr croît. » Puis il s'affine au fil des ères. Sa première question est le pivot de son arc. |
 | **Squalor** (lignée des Squales) | Chaos | Rude et direct, humour noir, parle de faim et de chasse. Loyal à sa façon. |
 | **Le Lacunaire stabilisé** | Neutre | Ère II : il dit **« nous »**, hésite entre plusieurs formes, et ses phrases bifurquent (« je… nous… »). Il finit par dire « je ». |
 | **Le Chroniqueur** (lignée des Chroniqueurs) | Ordre, puis libre | Verbeux, se corrige sans cesse, cite ses sources. S'il a rejoint (`chroniqueur_rejoint`), sa lignée annote en marge les Chroniques de l'ère IV. |

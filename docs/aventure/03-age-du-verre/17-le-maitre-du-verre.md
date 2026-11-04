@@ -227,7 +227,7 @@ Les cases gelées par le Gel de Merlin ne ralentissent pas le héros. **Merlin I
 
 **Merlin III** — « Prenez-la. Je préfère qu'elle soit dans les mains de quelqu'un qui bouge. » [`carte_des_lacunes` = vrai] [confiance.merlin +2]
 
-*Si `confiance.merlin` ≥ 3, il ajoute :* « Et… si je peux me permettre. Vous n'avez pas de nom, je crois. J'en aurais un. » *Il le propose (arc F, `nom.propositions` += `merlin` ; le nom proposé par la lignée de Merlin dit sa vision du héros : un nom de mesure, d'unité, de constante, à fixer par la rédaction de l'arc F).*
+*Si `confiance.merlin` ≥ 3, il ajoute :* « Et… si je peux me permettre. Vous n'avez pas de nom, je crois. J'en aurais un. » « **Constante.** Ce qui ne change pas quand tout le reste change. Je vous ai mesuré à trois époques : vous êtes la seule valeur qui revienne. » *(arc F : le héros répond « Je m'en souviendrai » [`nom.propositions` += `merlin`] ou « Non » ; le nom ne se prend qu'à la Nomination, ch. 28.)*
 
 ### Si Merlin n'est pas convaincu
 

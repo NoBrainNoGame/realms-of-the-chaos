@@ -103,11 +103,11 @@ Vitrelle se fend. Ce n'est pas une attaque, ni une Marée : c'est la cité elle-
 *Le joueur ne choisit pas ici : le choix se fait en combat, au cœur de la Fêlure.*
 
 **Arc F — un nom, peut-être.** *Si `nom` = `aucun` :*
-- **Si `confiance.lyra` ≥ 3 :** **Lyra III** — « Tu n'as pas de nom. Dans ma famille, on donne aux enfants le nom de ce qu'on a réussi à réparer. J'en ai un pour toi. » *(Le nom proposé par la lignée de Lyra dit sa vision du héros : quelqu'un qui recoud. À fixer par la rédaction de l'arc F.)* [`nom.propositions` += `lyra`]
+- **Si `confiance.lyra` ≥ 3 :** **Lyra III** — « Tu n'as pas de nom. Dans ma famille, on donne aux enfants le nom de ce qu'on a réussi à réparer. J'en ai un pour toi : **Reprise**. C'est le point qui refait un tissu troué, fil par fil, sans qu'on voie où il a cédé. » [`nom.propositions` += `lyra`]
 - **Si `gorr_question` et `confiance.gorr` ≥ 3 :** **Gorr** — *Il pose un doigt de cristal sur la poitrine du héros.* « Chaud. » *Un temps.* « Toi : Chaud. » *Tout le monde comprend que c'est un nom.* [`nom.propositions` += `gorr`]
-- Choix du héros, pour chaque proposition :
-  1. Accepter. [`nom` = `<lignée>`]
-  2. « Pas encore. » [`nom` reste `aucun` ; la proposition est gardée]
+- Choix du héros, pour chaque proposition *(un nom ne se prend qu'à la Nomination, ch. 28)* :
+  1. « Je m'en souviendrai. » [la proposition reste dans `nom.propositions` ; confiance de cette lignée +1]
+  2. « Non. » [la proposition est retirée de `nom.propositions`]
 
 ## Combats
 
