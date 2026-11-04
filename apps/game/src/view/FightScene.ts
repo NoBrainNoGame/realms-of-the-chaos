@@ -175,6 +175,8 @@ export default class FightScene extends ViewChip<SceneEvents> {
   private _playing = false
   private _inputReady = false
   private _mode: Mode = { type: "move" }
+  /** Action (or "pass") hovered in the action bar. */
+  private _hoverChoice: string | null = null
   private _hovered: Point | null = null
   private _speed: number
   private _lastActive: Fighter | null = null
@@ -305,6 +307,10 @@ export default class FightScene extends ViewChip<SceneEvents> {
     this._subscribe(this._hud, "action", (id) => this._selectAction(id))
     this._subscribe(this._hud, "divine", (id) => this._selectDivine(id))
     this._subscribe(this._hud, "pass", () => this._pass())
+    this._subscribe(this._hud, "hoverChoice", (choice) => {
+      this._hoverChoice = choice
+      this._hud.setLanding(this.landingPreview())
+    })
     this._subscribe(this._hud, "endAction", (id) => this.emit("endAction", id))
     this._subscribe(this._hud, "quit", () => this.emit("quit"))
     this._hud.setQuittable(!!this._options.quittable)
@@ -929,6 +935,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
 
   private _refreshAll() {
     this._hud.setPreview(this.movePreview())
+    this._hud.setLanding(this.landingPreview())
     this._hud.setActions(
       this._activeHuman,
       this.combat,
@@ -1104,6 +1111,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
     this._refreshCard()
     // the cost of a move goes to the HUD, out of the way of the board
     this._hud.setPreview(this.movePreview())
+    this._hud.setLanding(this.landingPreview())
     const fighter = this._hovered ? this._fighterAt(this._hovered) : null
     if (fighter) {
       const statuses = fighter.statuses
@@ -1117,6 +1125,37 @@ export default class FightScene extends ViewChip<SceneEvents> {
     } else {
       this._hud.hideTooltip()
     }
+  }
+
+  /**
+   * Where the active fighter lands on the timeline if it does what the
+   * player is pointing at: a hovered action button (or Passer), or the
+   * selected action on the hovered cell (a sprint depends on the cell;
+   * without one, its longest reach).
+   */
+  landingPreview(): { fighter: Fighter; delay: number } | null {
+    const fighter = this._activeHuman
+    if (!fighter || !this._inputReady) return null
+    const choice =
+      this._hoverChoice ??
+      (this._mode.type === "action" ? this._mode.action.id : null)
+    if (!choice) return null
+    if (choice === "pass")
+      return { fighter, delay: this.combat.passDelay(fighter) }
+    const action = this.combat.actionsOf(fighter).find((a) => a.id === choice)
+    if (!action) return null
+    const onCell =
+      !this._hoverChoice && action.movement && this._hovered
+        ? this.combat.turnDelayOf(fighter, {
+            type: "action",
+            actionId: choice,
+            target: this._hovered,
+          })
+        : null
+    const delay =
+      onCell ??
+      this.combat.turnDelayOf(fighter, { type: "action", actionId: choice })
+    return delay === null ? null : { fighter, delay }
   }
 
   /**

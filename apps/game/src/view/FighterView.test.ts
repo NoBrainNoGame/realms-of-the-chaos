@@ -148,3 +148,49 @@ describe("movement cost previews", () => {
     expect(internals._hud.previewText).toBe("")
   })
 })
+
+describe("landing preview on the timeline", () => {
+  test("hovering an action, Passer or a sprint cell shows where the fighter lands", () => {
+    const scene = mount(
+      new FightScene(
+        classicFight({
+          seed: 8,
+          speed: 4,
+          spectate: false,
+          playerTeam: ["eva", "brutus"],
+          enemyTeam: ["gorr"],
+        }),
+      ),
+    )
+    const internals = scene as any
+    tickUntil(scene, () => internals._inputReady)
+    const me = scene.combat.activeFighter!
+    const hud = internals._hud
+    expect(hud.landingGhost).toBeNull()
+
+    const action = scene.combat.actionsOf(me).find((a) => !a.movement)!
+    hud.emit("hoverChoice", action.id)
+    expect(scene.landingPreview()!.delay).toBeCloseTo(
+      scene.combat.turnDelayOf(me, { type: "action", actionId: action.id })!,
+    )
+    expect(hud.landingGhost).not.toBeNull()
+
+    hud.emit("hoverChoice", "pass")
+    expect(scene.landingPreview()!.delay).toBeCloseTo(
+      scene.combat.passDelay(me),
+    )
+    hud.emit("hoverChoice", null)
+    expect(hud.landingGhost).toBeNull()
+
+    // the sprint: its landing depends on the hovered cell
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "c" }))
+    const targets = scene.combat.getValidTargets(me, internals._mode.action)
+    const delays = new Set<number>()
+    for (const target of targets) {
+      internals._board.emit("cellOver", target)
+      delays.add(Math.round(scene.landingPreview()!.delay))
+      expect(hud.landingGhost).not.toBeNull()
+    }
+    expect(delays.size).toBeGreaterThan(1)
+  })
+})

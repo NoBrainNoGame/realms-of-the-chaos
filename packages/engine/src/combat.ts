@@ -1014,15 +1014,54 @@ export class Combat {
    * ally: allies could otherwise hand the turn to each other forever).
    */
   private _pass(fighter: Fighter) {
+    const delay = this.passDelay(fighter)
+    this._emit({ type: "turnPassed", fighterId: fighter.id })
+    this._endTurn(fighter, delay)
+  }
+
+  /** Time until the fighter's next turn if it passed now. */
+  passDelay(fighter: Fighter) {
     const enemies = this.aliveFighters.filter((f) => this.isEnemy(fighter, f))
     const others = enemies.length
       ? enemies
       : this.aliveFighters.filter((f) => f !== fighter)
-    const nextOther = Math.min(...others.map((f) => f.nextActionAt))
+    const nextOther = others.length
+      ? Math.min(...others.map((f) => f.nextActionAt))
+      : this._time
     const max = this.baseDelay(fighter) * this.delayMultiplier(fighter)
-    const delay = Math.min(max, Math.max(1, nextOther + 1 - this._time))
-    this._emit({ type: "turnPassed", fighterId: fighter.id })
-    this._endTurn(fighter, delay)
+    return Math.min(max, Math.max(1, nextOther + 1 - this._time))
+  }
+
+  /**
+   * Time until the fighter's next turn if it did this now (HUD previews of
+   * where it lands on the timeline). For a movement action without a
+   * target: its longest reachable sprint. null: not possible.
+   */
+  turnDelayOf(
+    fighter: Fighter,
+    choice:
+      | { type: "pass" }
+      | { type: "action"; actionId: string; target?: Point | null },
+  ): number | null {
+    if (choice.type === "pass") return this.passDelay(fighter)
+    const action = this.actionsOf(fighter).find((a) => a.id === choice.actionId)
+    if (!action) return null
+    if (action.movement) {
+      const paths = this.movementPaths(fighter, action.movement.maxSteps)
+      if (choice.target) {
+        const path = paths.get(keyOf(choice.target))
+        return path ? this.movementTime(fighter, path) : null
+      }
+      let longest: number | null = null
+      for (const path of paths.values()) {
+        const time = this.movementTime(fighter, path)
+        if (longest === null || time > longest) longest = time
+      }
+      return longest
+    }
+    return (
+      this.baseDelay(fighter) * action.timeCost * this.delayMultiplier(fighter)
+    )
   }
 
   private _useAction(

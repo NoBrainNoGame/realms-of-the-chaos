@@ -156,3 +156,40 @@ describe("movement previews", () => {
     expect(combat.turnsFor(eva, time)).toBeGreaterThan(1)
   })
 })
+
+describe("turn delay previews", () => {
+  test("the delay of an action, a sprint or a pass matches what happens", () => {
+    for (const choice of ["strike", "sprint", "pass"] as const) {
+      const combat = duel(new Board(9, 9), { x: 0, y: 0 }, { x: 8, y: 8 })
+      const me = combat.activeFighter!
+      const action = combat.actionsOf(me).find((a) => !a.movement)!
+      let expected: number | null
+      if (choice === "pass") {
+        expected = combat.turnDelayOf(me, { type: "pass" })
+        combat.pass()
+      } else if (choice === "sprint") {
+        const target = { x: 2, y: 1 }
+        expected = combat.turnDelayOf(me, {
+          type: "action",
+          actionId: "sprint",
+          target,
+        })
+        // no target: the longest sprint, at least this one
+        expect(
+          combat.turnDelayOf(me, { type: "action", actionId: "sprint" })!,
+        ).toBeGreaterThanOrEqual(expected!)
+        expect(combat.useAction("sprint", target).ok).toBe(true)
+      } else {
+        expected = combat.turnDelayOf(me, {
+          type: "action",
+          actionId: action.id,
+        })
+        const target = combat.getValidTargets(me, action)[0]
+        if (!target) continue
+        expect(combat.useAction(action.id, target).ok).toBe(true)
+      }
+      const now = combat.time
+      expect(me.nextActionAt - now).toBeCloseTo(expected!)
+    }
+  })
+})

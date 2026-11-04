@@ -250,7 +250,13 @@ describe("timeline: real durations", () => {
     expect(gapBig).toBeGreaterThan(gapSmall * 5)
     // close turns are stacked on another row
     expect(second.y).not.toBe(first.y)
-    expect(texts(timeline)).toContain("maintenant")
+    // the axis spans exactly from the first portrait to the last one
+    const labels = texts(timeline)
+    expect(labels).toContain("10")
+    expect(labels).toContain("80")
+    expect(labels).not.toContain("maintenant")
+    const span = third.x - first.x
+    expect(timeline.width).toBeLessThan(span + 44 + 16 + 30)
 
     timeline.emit("pointerleave", {} as any)
     expect(hud.timelineExpanded).toBe(false)
@@ -269,5 +275,34 @@ describe("timeline: real durations", () => {
     hud.toggleTimeline()
     expect(hud.timelineExpanded).toBe(false)
     expect(localStorage.getItem("realms.timeline.expanded")).toBe("0")
+  })
+})
+
+describe("timeline: where the active fighter lands", () => {
+  test("a ghost of the fighter at the wait of the hovered choice", () => {
+    const hud = mount(new Hud())
+    const c = combat()
+    c.run()
+    const me = c.activeFighter!
+    const others = c.fighters.filter((f) => f !== me)
+    others[0].nextActionAt = c.time + 10
+    others[1].nextActionAt = c.time + 50
+    hud.setTimeline(c)
+    expect(hud.landingGhost).toBeNull()
+
+    hud.setLanding({ fighter: me, delay: 30 })
+    const ghost = hud.landingGhost!
+    expect(ghost).not.toBeNull()
+    expect(texts(ghost)).toContain("◌30")
+    // between the fighter due at 10 and the one due at 50
+    const timeline = (hud as any)._timeline as Container
+    const slots = timeline.children.filter(
+      (child) => child.eventMode === "static" || child.label === "landing",
+    )
+    const order = slots.map((slot) => texts(slot as Container).at(-1))
+    expect(order).toEqual(["▶", "10", "◌30", "50"])
+
+    hud.setLanding(null)
+    expect(hud.landingGhost).toBeNull()
   })
 })

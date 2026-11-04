@@ -27,6 +27,8 @@ import ViewChip from "./ViewChip"
 interface HudEvents extends booyah.BaseCompositeEvents {
   action: [actionId: string]
   pass: []
+  /** An action (or pass, or nothing) is hovered in the action bar. */
+  hoverChoice: [choice: string | null]
   divine: [divineId: string]
   endAction: [id: string]
   speed: []
@@ -50,6 +52,7 @@ export default class Hud extends ViewChip<HudEvents> {
   private _timelineCombat: Combat | null = null
   private _timelinePinned = false
   private _timelineHovered = false
+  private _landing: { fighter: Fighter; delay: number } | null = null
   private _actionBar!: Container
   private _card!: Container
   private _divine!: Container
@@ -249,17 +252,55 @@ export default class Hud extends ViewChip<HudEvents> {
     this._redrawTimeline()
   }
 
+  /**
+   * Preview of where a fighter lands on the timeline if it does what is
+   * hovered (an action, a sprint, a pass): a ghost portrait at that wait.
+   * null removes it.
+   */
+  setLanding(landing: { fighter: Fighter; delay: number } | null) {
+    const same =
+      landing?.fighter === this._landing?.fighter &&
+      Math.round(landing?.delay ?? -1) ===
+        Math.round(this._landing?.delay ?? -1)
+    this._landing = landing
+    if (!same) this._redrawTimeline()
+  }
+
+  /** The ghost of the landing preview (tests). */
+  get landingGhost(): Container | null {
+    return (
+      (this._timeline.children.find(
+        (c) => c.label === "landing",
+      ) as Container) ?? null
+    )
+  }
+
   private _redrawTimeline() {
     const combat = this._timelineCombat
     if (!combat) return
     clearChildren(this._timeline)
     const expanded = this.timelineExpanded
-    const order = combat.timelineOrder()
     const size = 44
     const gap = 6
-    const waits = order.map((f) =>
-      Math.max(0, Math.round(f.nextActionAt - combat.time)),
-    )
+    // the fighters in order, and the ghost of the landing preview among
+    // them, at its wait (after the fighters due at the same time)
+    const entries: { fighter: Fighter; wait: number; ghost: boolean }[] = combat
+      .timelineOrder()
+      .map((fighter) => ({
+        fighter,
+        wait: Math.max(0, Math.round(fighter.nextActionAt - combat.time)),
+        ghost: false,
+      }))
+    if (this._landing && combat.activeFighter === this._landing.fighter) {
+      const wait = Math.max(1, Math.round(this._landing.delay))
+      const index = entries.filter((e) => e.wait <= wait).length
+      entries.splice(index, 0, {
+        fighter: this._landing.fighter,
+        wait,
+        ghost: true,
+      })
+    }
+    const waits = entries.map((e) => e.wait)
 
     // where each portrait goes: in a row (compact) or at its real wait
     let width: number
@@ -267,18 +308,20 @@ export default class Hud extends ViewChip<HudEvents> {
     const places: { x: number; y: number }[] = []
     let scale = 0
     let range = 0
+    // the axis spans exactly from the first to the last portrait
+    const first = Math.min(...waits)
     if (!expanded) {
-      width = order.length * (size + gap) - gap + 16
+      width = entries.length * (size + gap) - gap + 16
       height = size + 26
-      order.forEach((_, i) => places.push({ x: 8 + i * (size + gap), y: 6 }))
+      entries.forEach((_, i) => places.push({ x: 8 + i * (size + gap), y: 6 }))
     } else {
-      range = Math.max(40, ...waits) * 1.05
-      scale = Math.min(6, TIMELINE_SPAN / range)
+      range = Math.max(...waits) - first
+      scale = range > 0 ? Math.min(6, TIMELINE_SPAN / range) : 0
       // close turns are stacked on rows so portraits stay readable
       const rowEnds: number[] = []
       let rows = 1
       waits.forEach((wait) => {
-        const x = 8 + wait * scale
+        const x = 8 + (wait - first) * scale
         let row = rowEnds.findIndex((end) => x >= end + 2)
         if (row < 0) row = rowEnds.length
         rowEnds[row] = x + size
@@ -300,8 +343,14 @@ export default class Hud extends ViewChip<HudEvents> {
         .lineTo(8 + size / 2 + range * scale, axisY)
         .stroke({ width: 1.5, color: MEANING.time, alpha: 0.8 })
       const step = range > 200 ? 50 : range > 80 ? 20 : 10
-      for (let t = 0; t <= range; t += step) {
-        const x = 8 + size / 2 + t * scale
+      const last = first + range
+      // the two ends, and round values in between (not too close to them)
+      const ticks = [first]
+      for (let t = Math.ceil((first + 1) / step) * step; t < last; t += step)
+        if (t - first >= step / 2 && last - t >= step / 2) ticks.push(t)
+      if (range > 0) ticks.push(last)
+      for (const t of ticks) {
+        const x = 8 + size / 2 + (t - first) * scale
         axis
           .moveTo(x, axisY - 3)
           .lineTo(x, axisY + 3)
@@ -309,15 +358,19 @@ export default class Hud extends ViewChip<HudEvents> {
             width: 1,
             color: MEANING.time,
           })
+        const start = t === first
+        const end = t === last && range > 0
         const tick = text(t === 0 ? "maintenant" : `${t}`, 10, MEANING.time)
-        tick.anchor.set(t === 0 ? 0 : 0.5, 0)
-        tick.position.set(x - (t === 0 ? 4 : 0), axisY + 5)
+        tick.anchor.set(start ? 0 : end ? 1 : 0.5, 0)
+        tick.position.set(x + (start ? -4 : end ? 4 : 0), axisY + 5)
         this._timeline.addChild(tick)
       }
       this._timeline.addChild(axis)
     } else {
       const hint = text(
-        "→ ordre de jeu · survoler : durées réelles",
+        this._landing
+          ? "→ ordre de jeu · ◌ : votre prochain tour après ce choix"
+          : "→ ordre de jeu · survoler : durées réelles",
         11,
         COLORS.muted,
       )
@@ -325,44 +378,60 @@ export default class Hud extends ViewChip<HudEvents> {
       this._timeline.addChild(hint)
     }
 
-    order.forEach((fighter, i) => {
+    entries.forEach(({ fighter, wait, ghost }, i) => {
       const slot = new Container()
       slot.position.set(places[i].x, places[i].y)
-      const active = combat.activeFighter === fighter
+      const active = !ghost && combat.activeFighter === fighter
       if (expanded) {
         // a tick from the portrait down to its time on the axis
         slot.addChild(
           new Graphics()
             .moveTo(size / 2, size)
             .lineTo(size / 2, height - 26 - places[i].y)
-            .stroke({ width: 1, color: TEAM_COLORS[fighter.team], alpha: 0.6 }),
+            .stroke({
+              width: 1,
+              color: ghost ? MEANING.time : TEAM_COLORS[fighter.team],
+              alpha: ghost ? 1 : 0.6,
+            }),
         )
       }
       slot.addChild(
         new Graphics()
           .roundRect(0, 0, size, size, 4)
-          .fill(0x15121f)
+          .fill({ color: 0x15121f, alpha: ghost ? 0.5 : 1 })
           .stroke({
-            width: active ? 3 : 2,
-            color: active ? 0xffffff : TEAM_COLORS[fighter.team],
+            width: active || ghost ? 3 : 2,
+            color: ghost
+              ? MEANING.time
+              : active
+                ? 0xffffff
+                : TEAM_COLORS[fighter.team],
           }),
       )
       const portrait = new Sprite(characterTexture(fighter.presetId))
       portrait.scale.set(2.5)
       portrait.anchor.set(0.5, 0)
       portrait.position.set(size / 2, 2)
+      portrait.alpha = ghost ? 0.55 : 1
       const mask = new Graphics().rect(2, 2, size - 4, size - 4).fill(0xffffff)
       portrait.mask = mask
       slot.addChild(mask, portrait)
 
-      const wait = waits[i]
-      const label = text(active ? "▶" : `${wait}`, 11, COLORS.text, {
-        stroke: { color: 0x000000, width: 3 },
-      })
+      const label = text(
+        active ? "▶" : ghost ? `◌${wait}` : `${wait}`,
+        11,
+        ghost ? MEANING.time : COLORS.text,
+        { stroke: { color: 0x000000, width: 3 } },
+      )
       label.anchor.set(1, 1)
       label.position.set(size - 3, size - 1)
       slot.addChild(label)
 
+      if (ghost) {
+        slot.label = "landing"
+        this._timeline.addChild(slot)
+        return
+      }
       slot.eventMode = "static"
       slot.on("pointerover", () =>
         this.showTooltip(
@@ -381,6 +450,8 @@ export default class Hud extends ViewChip<HudEvents> {
 
   setActions(fighter: Fighter | null, combat: Combat, selected: string | null) {
     clearChildren(this._actionBar)
+    // the buttons are rebuilt: none of them is hovered any more
+    this.emit("hoverChoice", null)
 
     if (fighter?.controller !== "human" || combat.activeFighter !== fighter) {
       const waiting = text(
@@ -409,13 +480,18 @@ export default class Hud extends ViewChip<HudEvents> {
         hotkey: `${i + 1}`,
         label: cooldown > 0 ? `⌛${cooldown - 1}` : undefined,
         onTap: () => this.emit("action", action.id),
-        onOver: () =>
+        onOver: () => {
           this.showTooltip(
             describeAction(action, combat, fighter),
             b.view.getGlobalPosition(),
             true,
-          ),
-        onOut: () => this.hideTooltip(),
+          )
+          this.emit("hoverChoice", action.id)
+        },
+        onOut: () => {
+          this.hideTooltip()
+          this.emit("hoverChoice", null)
+        },
       })
       b.setState({ enabled: cooldown === 0, selected: selected === action.id })
       // combined actions show the partner who unlocked them
@@ -438,13 +514,18 @@ export default class Hud extends ViewChip<HudEvents> {
       label: "Passer",
       hotkey: "␣",
       onTap: () => this.emit("pass"),
-      onOver: () =>
+      onOver: () => {
         this.showTooltip(
           "Termine le tour sans agir : vous rejouez juste après le prochain personnage.",
           pass.view.getGlobalPosition(),
           true,
-        ),
-      onOut: () => this.hideTooltip(),
+        )
+        this.emit("hoverChoice", "pass")
+      },
+      onOut: () => {
+        this.hideTooltip()
+        this.emit("hoverChoice", null)
+      },
     })
     pass.view.position.set(
       actions.length * (size + 8) + 12 + (combos ? 12 : 0),
