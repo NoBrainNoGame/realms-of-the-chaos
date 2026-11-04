@@ -11,7 +11,12 @@ import Gallery from "./Gallery"
 import Game, { initialScreen, pickedFight } from "./Game"
 import MessageScreen from "./MessageScreen"
 import TeamPicker, { DIFFICULTIES, MAX_TEAM, randomTeam } from "./TeamPicker"
-import TitleScreen, { TITLE_MENU } from "./TitleScreen"
+import TitleScreen, {
+  TITLE_MENU,
+  TITLE_TILT,
+  TITLE_TURN_EVERY,
+} from "./TitleScreen"
+import { camera, ISO, ISO_PITCH, toScreen } from "./theme"
 import { Menu } from "./ui"
 
 const key = (k: string) =>
@@ -64,6 +69,56 @@ describe("title screen", () => {
     key("Enter")
     expect(chosen).toEqual(["arcade"])
     tick(title, 500) // the island bobs
+  })
+
+  test("the island turns a quarter every 7 s and leans towards the mouse", () => {
+    const title = mount(new TitleScreen(4))
+    try {
+      expect(camera.quarter).toBe(0)
+      const first = title.islandSeed
+      const firstBoard = (title as any)._board
+      tick(title, TITLE_TURN_EVERY - 100)
+      expect(camera.quarter).toBe(0)
+      // the island fades out completely, and is replaced while invisible
+      let alphaAtSwap = -1
+      for (let i = 0; i < 40 && alphaAtSwap < 0; i++) {
+        const before = (title as any)._island.alpha
+        tick(title, 16)
+        if (title.islandSeed !== first) alphaAtSwap = before
+      }
+      expect(alphaAtSwap).toBeGreaterThanOrEqual(0)
+      expect(alphaAtSwap).toBeLessThan(0.1)
+      expect(camera.quarter).toBe(1)
+      expect((title as any)._board).not.toBe(firstBoard)
+      expect(firstBoard.state).not.toBe("active")
+      tick(title, 400)
+      expect((title as any)._island.alpha).toBe(1)
+      tick(title, TITLE_TURN_EVERY)
+      expect(camera.quarter).toBe(2)
+
+      // mouse in the top right corner: seen a bit more from above, turned right
+      window.dispatchEvent(
+        new PointerEvent("pointermove", {
+          clientX: window.innerWidth,
+          clientY: 0,
+        }),
+      )
+      expect(title.aim.yaw).toBeCloseTo(TITLE_TILT.yaw)
+      expect(title.aim.pitch).toBeCloseTo(ISO_PITCH + TITLE_TILT.pitch)
+      tick(title, 2000)
+      expect(camera.yaw).toBeCloseTo(TITLE_TILT.yaw, 1)
+      expect(camera.pitch).toBeCloseTo(ISO_PITCH + TITLE_TILT.pitch, 1)
+      // the board's middle stays where it is in the classic view
+      const stage = (title as any)._stage as Container
+      const center = (title as any)._boardCenter
+      const at = toScreen(center, 0, camera)
+      const iso = toScreen(center, 0, ISO)
+      expect(Math.abs(stage.x + at.x - iso.x)).toBeLessThan(1)
+      expect(Math.abs(stage.y + at.y - iso.y)).toBeLessThan(1)
+    } finally {
+      title.terminate()
+    }
+    expect(camera).toEqual({ ...ISO })
   })
 
   test("shows the arcade record when there is one", () => {

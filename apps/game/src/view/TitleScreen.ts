@@ -1,11 +1,11 @@
-import type * as booyah from "@ghom/booyah"
+import * as booyah from "@ghom/booyah"
 import { Board, createRng } from "@realms/engine"
 import { BlurFilter, Container, Sprite } from "pixi.js"
 import { arcadeBest } from "../storage"
 import Backdrop from "./Backdrop"
 import BoardView from "./BoardView"
 import { softCircle } from "./effects"
-import { COLORS } from "./theme"
+import { COLORS, camera, ISO, ISO_PITCH, resetCamera, toScreen } from "./theme"
 import { Menu, type MenuItem, text } from "./ui"
 import ViewChip from "./ViewChip"
 
@@ -20,6 +20,12 @@ export const TAGLINES = [
 ]
 
 export type TitleChoice = "skirmish" | "local" | "arcade" | "gallery"
+
+/** The island of the title screen turns a quarter this often (ms). */
+export const TITLE_TURN_EVERY = 7000
+const TITLE_TURN_DURATION = 420
+/** How far the view leans towards the mouse at the screen's edges (°). */
+export const TITLE_TILT = { pitch: 6, yaw: 6 }
 
 export const TITLE_MENU: MenuItem[] = [
   { id: "skirmish", label: "Escarmouche" },
@@ -55,6 +61,19 @@ export default class TitleScreen extends ViewChip<TitleEvents> {
   private _record!: ReturnType<typeof text>
   private _time = 0
   private _islandBase = { x: 0, y: 0 }
+  /** The board inside the island, moved so its middle stays put. */
+  private _stage!: Container
+  private _board!: BoardView
+  private _boardCenter = { x: 0, y: 0 }
+  /** Seed of the island shown (a new one at each quarter turn). */
+  private _islandSeed = 0
+  /** Pitch and yaw aimed at by the mouse (eased). */
+  private _aim = { pitch: ISO_PITCH, yaw: 0 }
+  /** Eased lean (before the swing of a quarter turn). */
+  private _lean = { pitch: ISO_PITCH, yaw: 0 }
+  private _drawn = { ...ISO }
+  private _nextTurn = TITLE_TURN_EVERY
+  private _turn: { to: number; elapsed: number; swapped: boolean } | null = null
 
   constructor(private readonly _seed = Math.floor(Math.random() * 1e6)) {
     super()
@@ -65,6 +84,7 @@ export default class TitleScreen extends ViewChip<TitleEvents> {
   }
 
   protected _onActivate() {
+    resetCamera()
     this._activateChildChip(new Backdrop())
 
     // a random floating island, slowly bobbing
@@ -74,23 +94,8 @@ export default class TitleScreen extends ViewChip<TitleEvents> {
     this._halo.alpha = 0.35
     this._halo.blendMode = "add"
     this._island = new Container()
-    const entities = new Container()
-    entities.sortableChildren = true
-    const top = new Container()
-    // the island of the title screen always has some water
-    let board = Board.generate(createRng(this._seed))
-    for (
-      let i = 1;
-      i < 30 && !board.cells.some((c) => c.terrain === "water");
-      i++
-    ) {
-      board = Board.generate(createRng(this._seed + i))
-    }
     this._container.addChild(this._halo, this._island)
-    this._activateChildChip(new BoardView(board, entities, top, this._seed), {
-      context: { container: this._island },
-    })
-    this._island.addChild(entities)
+    this._buildIsland(this._seed)
 
     // title with a soft glow
     this._title = new Container()
@@ -150,11 +155,133 @@ export default class TitleScreen extends ViewChip<TitleEvents> {
     this._subscribe(window, "keydown", (e: KeyboardEvent) => {
       if (this._menu.handleKey(e.key)) e.preventDefault()
     })
+    // the view leans slightly towards the mouse
+    this._subscribe(window, "pointermove", (e: PointerEvent) => {
+      const u = Math.max(
+        -1,
+        Math.min(1, (e.clientX / window.innerWidth) * 2 - 1),
+      )
+      const v = Math.max(
+        -1,
+        Math.min(1, (e.clientY / window.innerHeight) * 2 - 1),
+      )
+      this._aim = {
+        pitch: ISO_PITCH - v * TITLE_TILT.pitch,
+        yaw: u * TITLE_TILT.yaw,
+      }
+    })
+  }
+
+  protected _onTerminate() {
+    resetCamera()
+  }
+
+  /** A random island with some water, replacing the one shown. */
+  private _buildIsland(seed: number) {
+    if (this._board) this._terminateChildChip(this._board)
+    this._stage?.destroy({ children: true })
+    this._islandSeed = seed
+    let board = Board.generate(createRng(seed))
+    for (
+      let i = 1;
+      i < 30 && !board.cells.some((c) => c.terrain === "water");
+      i++
+    ) {
+      board = Board.generate(createRng(seed + i))
+    }
+    const entities = new Container()
+    entities.sortableChildren = true
+    this._stage = new Container()
+    this._island.addChild(this._stage)
+    this._boardCenter = { x: (board.width - 1) / 2, y: (board.height - 1) / 2 }
+    this._board = new BoardView(board, entities, new Container(), seed)
+    this._activateChildChip(this._board, {
+      context: { container: this._stage },
+    })
+    this._stage.addChild(entities)
+    this._drawn = { ...camera }
+    this._centerStage()
+  }
+
+  /** Seed of the island shown, for tests. */
+  get islandSeed() {
+    return this._islandSeed
+  }
+
+  /** Pitch and yaw aimed at (the mouse), for tests. */
+  get aim(): Readonly<{ pitch: number; yaw: number }> {
+    return this._aim
   }
 
   protected _onTick() {
-    this._time += this._lastTickInfo.timeSinceLastTick
+    const dt = this._lastTickInfo.timeSinceLastTick
+    this._time += dt
+    this._updateCamera(dt)
     this._place()
+  }
+
+  /** A quarter turn every few seconds, and the lean towards the mouse. */
+  private _updateCamera(dt: number) {
+    this._nextTurn -= dt
+    if (!this._turn && this._nextTurn <= 0) {
+      this._nextTurn += TITLE_TURN_EVERY
+      this._turn = { to: (camera.quarter + 1) % 4, elapsed: 0, swapped: false }
+    }
+    const k = 1 - Math.exp(-dt / 250)
+    for (const key of ["pitch", "yaw"] as const) {
+      this._lean[key] += (this._aim[key] - this._lean[key]) * k
+      if (Math.abs(this._lean[key] - this._aim[key]) < 0.05)
+        this._lean[key] = this._aim[key]
+    }
+    let swing = 0
+    if (this._turn) {
+      // small turn out and fade, the quarter, small turn back and show
+      const turn = this._turn
+      turn.elapsed += dt
+      const half = TITLE_TURN_DURATION / 2
+      if (!turn.swapped && turn.elapsed >= half) {
+        // invisible: the quarter turns and a new island takes its place
+        turn.swapped = true
+        camera.quarter = turn.to
+        this._buildIsland(this._islandSeed + 7919)
+      }
+      if (turn.elapsed < half) {
+        const u = booyah.easeInCubic(turn.elapsed / half)
+        swing = 20 * u
+        // gone a little before the middle: never seen while it changes
+        this._island.alpha =
+          1 - booyah.easeInCubic(Math.min(1, turn.elapsed / (half * 0.8)))
+      } else {
+        const u = booyah.easeOutCubic(Math.min(1, (turn.elapsed - half) / half))
+        swing = -20 * (1 - u)
+        this._island.alpha = u
+      }
+      if (turn.elapsed >= TITLE_TURN_DURATION) {
+        swing = 0
+        this._island.alpha = 1
+        this._turn = null
+      }
+    }
+    camera.pitch = this._lean.pitch
+    camera.yaw = this._lean.yaw + swing
+    // redraw only for a visible change (a redraw costs a few milliseconds)
+    const drawn = this._drawn
+    if (
+      drawn.quarter === camera.quarter &&
+      Math.abs(drawn.pitch - camera.pitch) < 0.1 &&
+      Math.abs(drawn.yaw - camera.yaw) < 0.1
+    )
+      return
+    this._drawn = { ...camera }
+    this._board.redraw()
+    this._centerStage()
+  }
+
+  /** Keeps the board's middle where it is in the classic view. */
+  private _centerStage() {
+    const at = toScreen(this._boardCenter, 0, camera)
+    const iso = toScreen(this._boardCenter, 0, ISO)
+    this._stage.position.set(iso.x - at.x, iso.y - at.y)
   }
 
   private _place() {
