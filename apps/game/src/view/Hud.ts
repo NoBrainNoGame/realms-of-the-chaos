@@ -167,6 +167,12 @@ export default class Hud extends ViewChip<HudEvents> {
     }
   }
 
+  /** Where the action bar is on the screen (it widens with the actions). */
+  get actionBarBounds() {
+    const bar = this._actionBar
+    return { x: bar.x, y: bar.y, width: bar.width, height: bar.height }
+  }
+
   protected _onResize(width: number, height: number) {
     this._width = width
     this._height = height

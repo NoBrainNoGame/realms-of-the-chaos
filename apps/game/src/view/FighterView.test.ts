@@ -515,14 +515,18 @@ describe("camera tilt and turns", () => {
     }
   })
 
-  test("the curved arrows under the island turn it a quarter", () => {
-    const { scene, internals, middle } = setup()
+  test("the curved arrows beside the action bar turn the island a quarter", () => {
+    const { scene, internals } = setup()
     try {
       const [left, right] = internals._turnButtons as Container[]
-      // on each side under the board's middle
-      expect(left.x).toBeLessThan(middle().x)
-      expect(right.x).toBeGreaterThan(middle().x)
-      expect(left.y).toBeGreaterThan(middle().y)
+      // on each side of the action bar, at its height
+      const bar = internals._hud.actionBarBounds
+      expect(bar.width).toBeGreaterThan(0)
+      expect(left.x).toBeLessThan(bar.x)
+      expect(right.x).toBeGreaterThan(bar.x + bar.width)
+      expect(left.y).toBeGreaterThan(bar.y)
+      expect(left.y).toBeLessThan(bar.y + Math.max(56, bar.height))
+      expect(right.y).toBe(left.y)
       const at = () => [left.x, left.y, right.x, right.y]
       const before = at()
       // (within a pixel: the fit is rounded)
@@ -533,7 +537,7 @@ describe("camera tilt and turns", () => {
       right.emit("pointertap", {} as any)
       tick(scene, TURN_DURATION * 2)
       expect(camera.quarter).toBe(1)
-      // they stay at the same place under the board, turned or tilted
+      // they stay beside the bar, turned or tilted
       still()
       scene.aimCamera(70, 10)
       tick(scene, 1000)

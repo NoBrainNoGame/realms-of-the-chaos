@@ -693,7 +693,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
       this._fit.x + this._pan.x + dx,
       this._fit.y + this._pan.y + dy,
     )
-    this._placeTurnButtons(scale)
+    this._placeTurnButtons()
     this._lens.update(
       this._fit.width,
       this._fit.height,
@@ -713,27 +713,14 @@ export default class FightScene extends ViewChip<SceneEvents> {
   }
 
   /** The curved arrows on each side under the island, kept on screen. */
-  private _placeTurnButtons(scale: number) {
-    const { width: w, height: h } = this.combat.board
-    const middle = toScreen({ x: (w - 1) / 2, y: (h - 1) / 2 }, 0, ISO)
-    const front = toScreen({ x: w - 1, y: h - 1 }, 0, ISO)
-    // anchored to the middle of the board as drawn now, offset as in the
-    // classic view: the arrows don't follow the turns and tilts
-    const now = toScreen({ x: (w - 1) / 2, y: (h - 1) / 2 })
-    const x = this._world.x + now.x * scale
-    const y =
-      this._world.y +
-      (now.y + front.y + TILE_HEIGHT + COLUMN_BOTTOM - middle.y) * scale
-    // a third of the way to the left and right corners
-    const corner = toScreen({ x: w - 1, y: 0 }, 0, ISO)
-    const spread = Math.max(60, (corner.x - middle.x) * scale * 0.35)
-    const { width, height } = this._fit
-    this._turnButtons.forEach((view, i) => {
-      view.position.set(
-        Math.min(width - 30, Math.max(30, x + (i ? spread : -spread))),
-        Math.min(height - 130, Math.max(30, y + 20)),
-      )
-    })
+  /** The curved arrows on each side of the action bar. */
+  private _placeTurnButtons() {
+    if (!this._hud) return
+    const bar = this._hud.actionBarBounds
+    const y = bar.y + Math.max(28, bar.height / 2)
+    const gap = 16 + 22
+    this._turnButtons[0]?.position.set(bar.x - gap, y)
+    this._turnButtons[1]?.position.set(bar.x + bar.width + gap, y)
   }
 
   /** Screen shake; a stronger shake overrides a weaker one. */
