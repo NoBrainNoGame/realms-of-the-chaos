@@ -4,11 +4,7 @@ import { Container } from "pixi.js"
 import { mount, tick } from "../test/harness"
 import { tickUntil } from "../test/play"
 import FighterView from "./FighterView"
-import FightScene, {
-  classicFight,
-  PAN_MIN_ZOOM,
-  TURN_DURATION,
-} from "./FightScene"
+import FightScene, { classicFight, MIN_ZOOM, TURN_DURATION } from "./FightScene"
 import { MAX_LENS_BLUR } from "./lens"
 import { camera, ISO_PITCH, MAX_PITCH, MAX_YAW, toScreen } from "./theme"
 
@@ -457,7 +453,7 @@ describe("camera tilt and turns", () => {
     }
   })
 
-  test("grabbing the board moves the camera, unless zoomed out", () => {
+  test("grabbing the board moves the camera, unless zoomed out to the most", () => {
     const { scene, internals, world } = setup()
     try {
       const drag = (from: { x: number; y: number }, dx: number, dy: number) => {
@@ -470,7 +466,10 @@ describe("camera tilt and turns", () => {
         press("pointerup", from.x + dx, from.y + dy)
       }
       const cell = scene.combat.fighters[0].position
-      // zoomed out: on the board too, it turns
+      // zoomed out to the most: on the board too, it turns
+      scene.zoomAt({ x: 640, y: 360 }, -20)
+      tick(scene, 1500)
+      expect(scene.zoom).toBe(MIN_ZOOM)
       internals._board.emit("cellOver", cell)
       drag({ x: 600, y: 300 }, 0, 60)
       tick(scene, 800)
@@ -478,9 +477,21 @@ describe("camera tilt and turns", () => {
       scene.resetView()
       tick(scene, 1000)
 
+      // any other zoom (here the fitted one, and a bit out): it moves
+      for (const steps of [0, -1]) {
+        scene.zoomAt({ x: 640, y: 360 }, steps)
+        tick(scene, 1500)
+        expect(scene.zoom).toBeGreaterThan(MIN_ZOOM)
+        const at = { x: world.x, y: world.y }
+        internals._board.emit("cellOver", cell)
+        drag({ x: 600, y: 300 }, -40, 30)
+        tick(scene, 100)
+        expect(world.x).toBeCloseTo(at.x - 40, 0)
+        expect(world.y).toBeCloseTo(at.y + 30, 0)
+        expect(camera.pitch).toBe(ISO_PITCH)
+      }
       scene.zoomAt({ x: 640, y: 360 }, 8)
       tick(scene, 1500)
-      expect(scene.zoom).toBeGreaterThan(PAN_MIN_ZOOM)
       const before = { x: world.x, y: world.y }
       internals._board.emit("cellOver", cell)
       drag({ x: 600, y: 300 }, -40, 30)

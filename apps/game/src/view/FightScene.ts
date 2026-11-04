@@ -134,8 +134,6 @@ export const MIN_ZOOM = 0.6
 export const MAX_ZOOM = 3
 /** Length of a quarter turn of the camera (ms). */
 export const TURN_DURATION = 420
-/** Below this zoom, dragging the board turns it instead of moving it. */
-export const PAN_MIN_ZOOM = 1.2
 
 export const DEFAULT_END_ACTIONS: EndAction[] = [
   { id: "restart", label: "Rejouer" },
@@ -433,11 +431,12 @@ export default class FightScene extends ViewChip<SceneEvents> {
 
   private _onPointerDown(e: PointerEvent) {
     if (e.button !== 1 && e.button !== 2) return
-    // grabbing the board moves the camera, unless zoomed too far out
+    // grabbing the board moves the camera, unless zoomed out to the most
     const onBoard = this._hovered !== null
+    const zoomedOut = this._zoom.target <= MIN_ZOOM + 1e-3
     this._drag = {
       button: e.button,
-      kind: onBoard && this._zoom.target >= PAN_MIN_ZOOM ? "pan" : "turn",
+      kind: onBoard && !zoomedOut ? "pan" : "turn",
       x: e.clientX ?? 0,
       y: e.clientY ?? 0,
       pitch: this._aim.pitch,
@@ -621,11 +620,11 @@ export default class FightScene extends ViewChip<SceneEvents> {
     this._clampPan()
   }
 
-  /** Zoomed in, the board can't leave the screen. */
+  /** The board can't leave the screen (more slack the further the zoom). */
   private _clampPan() {
     const extra = this._zoom.value - 1
-    const mx = Math.max(0, (this._fit.width / 2) * extra + 80)
-    const my = Math.max(0, (this._fit.height / 2) * extra + 60)
+    const mx = (this._fit.width / 2) * Math.abs(extra) + 80
+    const my = (this._fit.height / 2) * Math.abs(extra) + 60
     // the slack grows with the zoom, centered on where the fit puts it
     const cx = (this._fit.width / 2 - this._fit.x) * extra
     const cy = (this._fit.height / 2 - this._fit.y) * extra
