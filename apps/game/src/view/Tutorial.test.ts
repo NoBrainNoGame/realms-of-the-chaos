@@ -37,6 +37,23 @@ describe("placeBubble", () => {
     expect(below.y).toBeGreaterThanOrEqual(top.y + top.height)
   })
 
+  test("slides aside rather than cover what it must not", () => {
+    const rect = { x: 600, y: 600, width: 80, height: 40 }
+    const target = { x: 620, y: 350, width: 50, height: 70 }
+    const p = placeBubble(
+      { rect, kind: "ui", prefer: ["above"], avoid: [target] },
+      size,
+      screen,
+    )
+    expect(p.side).toBe("above")
+    const overlaps =
+      p.x < target.x + target.width &&
+      p.x + size.width > target.x &&
+      p.y < target.y + target.height &&
+      p.y + size.height > target.y
+    expect(overlaps).toBe(false)
+  })
+
   test("always inside the screen", () => {
     const rect = { x: 1250, y: 700, width: 20, height: 10 }
     const p = placeBubble(
@@ -96,11 +113,22 @@ describe("Tutorial", () => {
     t.next()
     expect(t.step?.id).toBe("sprint")
 
-    // the Course takes Merlin to Eva: they meet, and Gorr enters in reach
+    // the Course takes Merlin to Eva
     hud.emit("action", "sprint")
     board.emit("cellDown", eva.position, 0)
     tick(t, 4000)
     expect(merlin.position).toEqual(eva.position)
+
+    // the camera, before aiming: a quarter turn
+    expect(t.step?.id).toBe("camera")
+    expect(combat.offstage.has(gorr.id)).toBe(true)
+    const quarter = camera.quarter
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "e" }))
+    // the quarter turn is animated
+    tick(t, 2000)
+    expect(camera.quarter).not.toBe(quarter)
+
+    // they meet, and Gorr enters in reach
     expect(combat.offstage.has(gorr.id)).toBe(false)
     expect(combat.offstage.has(squalor.id)).toBe(true)
     expect(t.step?.id).toBe("join")
@@ -110,7 +138,14 @@ describe("Tutorial", () => {
     t.next()
     expect(t.step?.id).toBe("combo")
 
-    // the combo on Gorr
+    // the combo on Gorr, who stays in sight: the bubble does not cover him
+    tick(t, 100)
+    const body = t.scene.cellOnScreen(gorr.position)
+    const b = t.bubble.getBounds()
+    const inside = (x: number, y: number) =>
+      x >= b.x && x <= b.x + b.width && y >= b.y && y <= b.y + b.height
+    expect(inside(body.x, body.y)).toBe(false)
+    expect(inside(body.x, body.y - 30 * t.scene.zoom)).toBe(false)
     const hp = gorr.hp
     hud.emit("action", combo.id)
     board.emit("cellDown", gorr.position, 0)
@@ -120,12 +155,7 @@ describe("Tutorial", () => {
     // one Avancer in all: nobody waited for anyone
     expect(playerPasses()).toBe(1)
 
-    while (t.step && (t.step.id as string) !== "camera") t.next()
-    const quarter = camera.quarter
-    window.dispatchEvent(new KeyboardEvent("keydown", { key: "e" }))
-    // the quarter turn is animated
-    tick(t, 2000)
-    expect(camera.quarter).not.toBe(quarter)
+    t.next()
     expect(t.step?.id).toBe("fight")
 
     // the fight: Squalor enters in the lake, the enemies play soon

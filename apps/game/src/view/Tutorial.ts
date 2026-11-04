@@ -78,6 +78,8 @@ export interface Anchor {
   kind: "ui" | "cell"
   /** Sides of the target where the bubble goes, by preference. */
   prefer: Side[]
+  /** What the bubble must not cover (the target of an attack). */
+  avoid?: Bounds[]
 }
 
 export interface TutorialStep {
@@ -111,6 +113,8 @@ export interface TutorialStep {
 const FOE_DELAY = 30
 
 const ARROW = 16
+/** Between the bubble and what it must not cover. */
+const GAP = 12
 const MARGIN = 10
 const BUBBLE_WIDTH = 340
 
@@ -131,6 +135,17 @@ function cell(t: Tutorial, p: Point | undefined, ...prefer: Side[]) {
     kind: "cell",
     prefer,
   } satisfies Anchor
+}
+
+/** Where a fighter is on the screen: its cell and its body above. */
+function fighterRect(t: Tutorial, presetId: string): Bounds[] {
+  const f = fighter(t, presetId)
+  if (!f || t.scene.combat.offstage.has(f.id)) return []
+  const top = t.scene.cellOnScreen(f.position)
+  const z = t.scene.zoom
+  return [
+    { x: top.x - 26 * z, y: top.y - 60 * z, width: 52 * z, height: 76 * z },
+  ]
 }
 
 /** The local fighter waiting for orders (null: someone else is playing). */
@@ -275,12 +290,23 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
       `La {move:Course} (touche C) : jusqu'à {move:3 cases} tout de suite, sans attendre son tour. Elle coûte le {time:temps} du trajet et termine le tour.\n\nFaites courir {ally:${name(t)}} jusqu'à {ally:${partner(t)?.name ?? "son allié"}} : choisissez la Course, puis sa case.`,
   },
   {
+    id: "camera",
+    title: "La caméra",
+    anchor: (t) => ui(t.scene.turnButtonsBounds, "above"),
+    done: (t) => camera.quarter !== t.quarter,
+    text: () =>
+      "Ces flèches (ou Q et E) font tourner l'île d'un quart de tour : un Écho caché derrière un relief, ou une case masquée, réapparaît. Utile pour viser !\n\nLa molette zoome, le clic droit glissé déplace ou fait pivoter la vue, V la remet d'aplomb. Essayez !",
+  },
+  {
     id: "join",
     allows: (input, t) =>
       input.type === "pass" || clicks(input, partner(t)?.position),
     title: "Les combos",
     needsTurn: true,
-    anchor: (t) => cell(t, partner(t)?.position, "above", "right"),
+    anchor: (t) => {
+      const anchor = cell(t, partner(t)?.position, "above", "right")
+      return anchor && { ...anchor, avoid: fighterRect(t, "gorr") }
+    },
     // Gorr enters, in reach of the combo: it has a target
     enter: (t) => t.bringIn("gorr", foeEntry(t)),
     done: (t) =>
@@ -302,11 +328,13 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     button: "Passer l'étape",
     anchor: (t) => {
       const action = combo(t)
-      return ui(
+      const anchor = ui(
         (action && t.scene.hud.buttonBounds(action.id)) ??
           t.scene.hud.partBounds("actionBar"),
         "above",
       )
+      // Gorr stays in sight: he is the target
+      return anchor && { ...anchor, avoid: fighterRect(t, "gorr") }
     },
     done: (t) => used(t, (id) => id.startsWith("combo:")),
     text: (t) => {
@@ -322,14 +350,6 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     anchor: (t) => ui(t.scene.hud.partBounds("divine"), "left", "below"),
     text: () =>
       "Vos pouvoirs, à vous le Ghom. Ils coûtent de l'{elan:Élan} ✦, qui se remplit avec le {time:temps} (plus vite quand vos Échos tombent).\n\n{time:Distorsion} avance ou retarde un tour, {move:Séisme} soulève ou creuse une case, {heal:Réparation} soigne toute l'équipe.",
-  },
-  {
-    id: "camera",
-    title: "La caméra",
-    anchor: (t) => ui(t.scene.turnButtonsBounds, "above"),
-    done: (t) => camera.quarter !== t.quarter,
-    text: () =>
-      "Ces flèches (ou Q et E) font tourner l'île d'un quart de tour : un Écho caché derrière un relief réapparaît.\n\nLa molette zoome, le clic droit glissé déplace ou fait pivoter la vue, V la remet d'aplomb. Essayez !",
   },
   {
     id: "fight",
@@ -380,11 +400,34 @@ export function placeBubble(
         return { x: r.x - ARROW - size.width, y: clampY(cy - size.height / 2) }
     }
   }
+  const avoid = anchor.avoid ?? []
+  const covers = (p: { x: number; y: number }) =>
+    avoid.some(
+      (a) =>
+        p.x < a.x + a.width &&
+        p.x + size.width > a.x &&
+        p.y < a.y + a.height &&
+        p.y + size.height > a.y,
+    )
   const fits = (p: { x: number; y: number }) =>
     p.x >= MARGIN &&
     p.y >= MARGIN &&
     p.x + size.width <= screen.width - MARGIN &&
-    p.y + size.height <= screen.height - MARGIN
+    p.y + size.height <= screen.height - MARGIN &&
+    !covers(p)
+  // on a side, slid along it out of what it must not cover
+  const slid = (side: Side, p: { x: number; y: number }) =>
+    avoid.flatMap((a) =>
+      side === "above" || side === "below"
+        ? [
+            { ...p, x: a.x - size.width - GAP },
+            { ...p, x: a.x + a.width + GAP },
+          ]
+        : [
+            { ...p, y: a.y - size.height - GAP },
+            { ...p, y: a.y + a.height + GAP },
+          ],
+    )
   const sides: Side[] = [
     ...anchor.prefer,
     ...(["above", "below", "right", "left"] as const).filter(
@@ -394,6 +437,8 @@ export function placeBubble(
   for (const side of sides) {
     const p = at(side)
     if (fits(p)) return { ...p, side }
+    const out = slid(side, p).find(fits)
+    if (out) return { ...out, side }
   }
   const side = sides[0]
   const p = at(side)
