@@ -1,5 +1,5 @@
 import type * as booyah from "@ghom/booyah"
-import type { Fighter, Point } from "@realms/engine"
+import { equals, type Fighter, type Point } from "@realms/engine"
 import { Container, Graphics } from "pixi.js"
 import { settings } from "../settings"
 
@@ -31,9 +31,16 @@ export const TUTORIAL_CELLS = {
   walk: { x: 3, y: 8 },
   pond: { x: 5, y: 7 },
   hill: { x: 3, y: 6 },
+  /** Where Gorr enters: in reach of the allies' combo. */
+  foe: { x: 6, y: 6 },
+  /** Where Squalor enters, for the fight: the deep lake. */
+  lake: { x: 6, y: 1 },
 }
 
-/** The tutorial fight: Eva and Merlin against Gorr and Squalor (weakened). */
+/**
+ * The tutorial fight: Eva and Merlin against Gorr and Squalor (weakened),
+ * who wait in the Clair until a lesson needs them.
+ */
 export function tutorialScene(speed: number): SceneOptions {
   return {
     seed: 7,
@@ -45,10 +52,7 @@ export function tutorialScene(speed: number): SceneOptions {
         { x: 0, y: 8 },
         { x: 1, y: 8 },
       ],
-      [
-        { x: 6, y: 4 },
-        { x: 6, y: 1 },
-      ],
+      [TUTORIAL_CELLS.foe, TUTORIAL_CELLS.lake],
     ],
     endActions: [
       { id: "again", label: "Rejouer le tutoriel" },
@@ -88,14 +92,23 @@ export interface TutorialStep {
   needsTurn?: boolean
   /** Label of the button (default "Suivant", or "Passer l'étape"). */
   button?: string
+  /** When the step begins. */
+  enter?: (t: Tutorial) => void
   /** When the step ends (by itself or with the button). */
   leave?: (t: Tutorial) => void
   /**
-   * What else the player may use during a lesson to try (walking and the
-   * camera always go): an action of the bar, the timeline.
+   * What the player may do to try the lesson (the camera always goes):
+   * the cell it points at, an action of the bar, the timeline. None: the
+   * player reads, the bubble covers the rest.
    */
-  allows?: (input: SceneInput) => boolean
+  allows?: (input: SceneInput, t: Tutorial) => boolean
 }
+
+/**
+ * When an enemy entering during the lessons comes on the timeline: after
+ * the allies' next turns (held until the fight, it would only pass).
+ */
+const FOE_DELAY = 30
 
 const ARROW = 16
 const MARGIN = 10
@@ -143,13 +156,39 @@ const partner = (t: Tutorial) => {
     (f) => f.team === fighter?.team && f !== fighter,
   )
 }
+const fighter = (t: Tutorial, presetId: string) =>
+  t.scene.combat.fighters.find((f) => f.presetId === presetId)
+const clicks = (input: SceneInput, p: Point | undefined) =>
+  input.type === "cell" && !!p && equals(input.at, p)
+
+/**
+ * Where Gorr enters: his cell, if the allies' combo reaches it from where
+ * they are, else the farthest free cell it reaches.
+ */
+export function foeEntry(t: Tutorial): Point {
+  const combat = t.scene.combat
+  const eva = fighter(t, "eva")!
+  const gorr = fighter(t, "gorr")!
+  const action = combat.actionsOf(eva).find((a) => a.combo)
+  if (!action) return TUTORIAL_CELLS.foe
+  const reaches = (p: Point) =>
+    combat.inLaunchZone(action, eva.position, p) &&
+    (!action.lineOfSight || combat.board.hasLineOfSight(eva.position, p)) &&
+    combat.fightersAt(p).length === 0 &&
+    combat.board.canStand(p, gorr.locomotion)
+  if (reaches(TUTORIAL_CELLS.foe)) return TUTORIAL_CELLS.foe
+  const cells = combat.board.cells.filter(reaches)
+  const far = (p: Point) =>
+    Math.abs(p.x - eva.position.x) + Math.abs(p.y - eva.position.y)
+  return cells.sort((a, b) => far(b) - far(a))[0] ?? TUTORIAL_CELLS.foe
+}
 
 export const TUTORIAL_STEPS: TutorialStep[] = [
   {
     id: "welcome",
     title: "Bienvenue sur ce Fragment",
     text: () =>
-      "Deux Échos, {ally:Eva} et {ally:Merlin}, affrontent {foe:Gorr} et {foe:Squalor}. Le combat est au tour par tour, mais sans tours fixes : tout se joue sur le {time:temps}.\n\nPendant les leçons, vos adversaires attendent sagement.",
+      "Deux Échos, {ally:Eva} et {ally:Merlin}, vont affronter {foe:Gorr} et {foe:Squalor}. Le combat est au tour par tour, mais sans tours fixes : tout se joue sur le {time:temps}.\n\nVos adversaires rôdent encore dans le Clair : ils entreront sur ce Fragment quand une leçon aura besoin d'eux.",
   },
   {
     id: "timeline",
@@ -178,16 +217,19 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   },
   {
     id: "move",
+    allows: (input) => clicks(input, TUTORIAL_CELLS.walk),
     title: "Se déplacer",
     needsTurn: true,
     anchor: (t) => cell(t, TUTORIAL_CELLS.walk, "below", "right"),
     done: (t) =>
       t.scene.combat.fighters.some((f) => f.team === 0 && f.path.length > 0),
     text: () =>
-      "Les cases teintées de {move:bleu} sont accessibles : ici, presque toute l'île. Cliquez-en une, par exemple celle-ci : le trajet s'affiche {path:en jaune}.\n\nChaque pas coûte du {time:temps} : on avance pendant que les autres jouent. Un autre clic ajoute une étape, Retour arrière efface le trajet.",
+      "Les cases teintées de {move:bleu} sont accessibles : ici, presque toute l'île. Cliquez celle-ci : le trajet s'affiche {path:en jaune}.\n\nChaque pas coûte du {time:temps} : on avance pendant que les autres jouent. Hors du tutoriel, un autre clic ajoute une étape ; Retour arrière efface le trajet.",
   },
   {
     id: "walk",
+    allows: (input) =>
+      input.type === "pass" || clicks(input, TUTORIAL_CELLS.walk),
     title: "Avancer",
     needsTurn: true,
     anchor: (t) =>
@@ -217,10 +259,11 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   },
   {
     id: "sprint",
-    allows: (input) => input.type === "action" && input.id === "sprint",
+    allows: (input, t) =>
+      (input.type === "action" && input.id === "sprint") ||
+      clicks(input, partner(t)?.position),
     title: "La course",
     needsTurn: true,
-    button: "Passer l'étape",
     anchor: (t) =>
       ui(
         t.scene.hud.buttonBounds("sprint") ??
@@ -228,27 +271,32 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
         "above",
       ),
     done: (t) => used(t, (id) => id === "sprint"),
-    text: () =>
-      "La {move:Course} (touche C) : jusqu'à {move:3 cases} tout de suite, sans attendre son tour. Elle coûte le {time:temps} du trajet et termine le tour.\n\nEssayez : choisissez-la, puis une case.",
+    text: (t) =>
+      `La {move:Course} (touche C) : jusqu'à {move:3 cases} tout de suite, sans attendre son tour. Elle coûte le {time:temps} du trajet et termine le tour.\n\nFaites courir {ally:${name(t)}} jusqu'à {ally:${partner(t)?.name ?? "son allié"}} : choisissez la Course, puis sa case.`,
   },
   {
     id: "join",
+    allows: (input, t) =>
+      input.type === "pass" || clicks(input, partner(t)?.position),
     title: "Les combos",
     needsTurn: true,
-    button: "Passer l'étape",
     anchor: (t) => cell(t, partner(t)?.position, "above", "right"),
+    // Gorr enters, in reach of the combo: it has a target
+    enter: (t) => t.bringIn("gorr", foeEntry(t)),
     done: (t) =>
       t.scene.combat.aliveFighters.some(
         (f) => f.team === 0 && t.scene.combat.actionsOf(f).some((a) => a.combo),
       ),
     text: (t) =>
       combo(t)
-        ? `Deux alliés sur la même case combinent leurs talents : c'est un {combo:combo}. {ally:${active(t)?.name}} et {ally:${partner(t)?.name}} sont déjà réunis : leur combo est dans la barre d'actions.`
+        ? `Deux alliés sur la même case combinent leurs talents : c'est un {combo:combo}. {ally:${active(t)?.name}} et {ally:${partner(t)?.name}} sont réunis : leur combo est dans la barre d'actions.\n\nEt voici {foe:Gorr}, sorti du Clair : il est à portée.`
         : `Deux alliés sur la même case combinent leurs talents : c'est un {combo:combo}. Cliquez la case de {ally:${partner(t)?.name ?? "votre allié"}} pour l'y rejoindre, puis {suggest:Avancer}.\n\nLe combo apparaîtra quand ils seront réunis.`,
   },
   {
     id: "combo",
-    allows: (input) => input.type === "action" && input.id.startsWith("combo:"),
+    allows: (input) =>
+      (input.type === "action" && input.id.startsWith("combo:")) ||
+      input.type === "cell",
     title: "Utiliser un combo",
     needsTurn: true,
     button: "Passer l'étape",
@@ -264,7 +312,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     text: (t) => {
       const action = combo(t)
       const label = action ? `{combo:${action.name}}` : "Le {combo:combo}"
-      return `${label}, bordé de {combo:turquoise} : la première action de l'Écho, enrichie par l'affinité de son partenaire ({damage:énergisé}, {range:précis : +2 de portée}…). Elle ajoute {time:1 tour} de recharge.\n\nUtilisez-le sur un ennemi ! S'il n'est pas dans la barre, attendez le tour d'un Écho réuni.`
+      return `${label}, bordé de {combo:turquoise} : la première action de l'Écho, enrichie par l'affinité de son partenaire ({damage:énergisé}, {range:précis : +2 de portée}…). Elle ajoute {time:1 tour} de recharge.\n\nUtilisez-le sur {foe:Gorr} : choisissez-le, puis cliquez Gorr.`
     },
   },
   {
@@ -288,8 +336,11 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     title: "À vous de jouer !",
     button: "Combattre",
     text: () =>
-      "{foe:Gorr} et {foe:Squalor} se réveillent. Utilisez le relief, l'{water:eau} et vos {combo:combos}.\n\nLe bouton Menu, en haut à droite, ramène à l'écran titre.",
-    leave: (t) => t.release(),
+      "{foe:Squalor} surgit à son tour, dans le lac, et {foe:Gorr} cesse d'attendre. Utilisez le relief, l'{water:eau} et vos {combo:combos}.\n\nLe bouton Menu, en haut à droite, ramène à l'écran titre.",
+    leave: (t) => {
+      t.bringIn("squalor", TUTORIAL_CELLS.lake)
+      t.release()
+    },
   },
 ]
 
@@ -402,9 +453,20 @@ export default class Tutorial extends ViewChip<TutorialEvents> {
     const combat = this._scene.combat
     // the enemies wait for the end of the lessons; Eva plays first
     combat.holding.add(1)
-    const delays: Record<string, number> = { eva: 0, merlin: 2 }
-    for (const fighter of combat.fighters)
-      fighter.nextActionAt = delays[fighter.presetId] ?? 4
+    for (const f of combat.fighters) if (f.team === 1) combat.offstage.add(f.id)
+    // Merlin plays as soon as Eva reaches the cell of the walk lesson
+    const eva = fighter(this, "eva")!
+    let arrival = 0
+    let from = eva.position
+    for (const p of [
+      { x: 1, y: 8 },
+      { x: 2, y: 8 },
+    ]) {
+      arrival += combat.stepDelay(eva, from, p)
+      from = p
+    }
+    eva.nextActionAt = 0
+    fighter(this, "merlin")!.nextActionAt = arrival + 0.5
     this._scene.guard = (input) => this.allows(input)
     this._activateChildChip(this._scene)
     this._subscribe(this._scene, "quit", () => this.emit("exit"))
@@ -456,9 +518,8 @@ export default class Tutorial extends ViewChip<TutorialEvents> {
       if (this._bubble.visible) this.next()
       return false
     }
-    if (step.allows?.(input)) return true
-    // a lesson to try: the fighter can always walk (cells, Avancer)
-    return !reading && (input.type === "cell" || input.type === "pass")
+    if (this._doneAtStart) return false
+    return step.allows?.(input, this) ?? false
   }
 
   /** Ends the current lesson. */
@@ -468,13 +529,25 @@ export default class Tutorial extends ViewChip<TutorialEvents> {
     this._begin()
   }
 
-  /** The enemies fight from now on. */
+  /** An enemy enters the island; it waits (held) until `release`. */
+  bringIn(presetId: string, at: Point) {
+    const foe = fighter(this, presetId)
+    if (foe) this._scene.bringIn(foe.id, at, FOE_DELAY)
+  }
+
+  /** The enemies fight from now on, soon. */
   release() {
-    this._scene.combat.holding.clear()
+    const combat = this._scene.combat
+    combat.holding.clear()
+    for (const f of combat.aliveFighters)
+      if (f.team === 1)
+        f.nextActionAt = Math.min(f.nextActionAt, combat.time + 4)
+    this._scene.refresh()
   }
 
   private _begin() {
     // already done (the allies met by chance): still read, then Suivant
+    this.step?.enter?.(this)
     this._doneAtStart = !!this.step?.done?.(this)
     this.mark = this._scene.combat.log.length
     this.quarter = camera.quarter

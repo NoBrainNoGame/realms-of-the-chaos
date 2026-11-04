@@ -405,6 +405,15 @@ export function deathFx(ctx: FxContext, at: Point) {
   }
 }
 
+/**
+ * An Echo enters the island: light gathers out of the void on its cell,
+ * then flashes as it takes shape.
+ */
+export function arrivalFx(ctx: FxContext, at: Point, color: number) {
+  ctx.spawn(converge(ctx.layer, above(ctx, at, -24), color, ctx.ms(650), 16))
+  ctx.spawn(lightFlash(ctx.layer, above(ctx, at, -24), color, 40, ctx.ms(700)))
+}
+
 /** Divine powers. */
 export function divineFx(
   ctx: FxContext,

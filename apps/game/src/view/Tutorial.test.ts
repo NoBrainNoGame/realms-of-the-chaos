@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test"
 import { mount, tick } from "../test/harness"
-import Tutorial, { placeBubble, TUTORIAL_STEPS } from "./Tutorial"
+import Tutorial, {
+  placeBubble,
+  TUTORIAL_CELLS,
+  TUTORIAL_STEPS,
+} from "./Tutorial"
 import { camera } from "./theme"
 
 const screen = { width: 1280, height: 720 }
@@ -47,56 +51,90 @@ describe("placeBubble", () => {
 })
 
 describe("Tutorial", () => {
-  test("the lessons go on one by one, the enemies wait until the end", () => {
+  test("a scripted walkthrough: no waiting, a foe in reach of the combo", () => {
     const t = mount(new Tutorial(4))
     const combat = t.scene.combat
+    const hud = (t.scene as any)._hud
+    const board = (t.scene as any)._board
+    const find = (id: string) => combat.fighters.find((f) => f.presetId === id)!
+    const [eva, merlin, gorr, squalor] = [
+      "eva",
+      "merlin",
+      "gorr",
+      "squalor",
+    ].map(find)
+    const playerPasses = () =>
+      combat.log.filter((c) => c.type === "pass").length
+
+    // the enemies wait in the Clair: off the island and the timeline
     expect(t.step?.id).toBe("welcome")
-    expect(combat.holding.has(1)).toBe(true)
+    expect(combat.aliveFighters).toEqual([eva, merlin])
+    expect(combat.timelineOrder().map((f) => f.presetId)).toEqual([
+      "eva",
+      "merlin",
+    ])
     tick(t, 100)
     expect(t.bubble.visible).toBe(true)
-
-    // reading lessons: the button goes on
-    t.next()
-    tick(t, 3000)
-    expect(t.step?.id).toBe("timeline")
-    expect(t.bubble.visible).toBe(true)
-    expect(t.scene.hud.partBounds("timeline")).not.toBeNull()
-    t.next()
-    t.next()
-    t.next()
-    expect(t.step?.id).toBe("move")
-
-    // a walk planned: the lesson is done
+    while (t.step?.id !== "move") t.next()
     tick(t, 100)
-    const me = combat.activeFighter!
-    expect(me.team).toBe(0)
-    const cell = combat.getReachableCells(me)[0]
-    ;(t.scene as any)._board.emit("cellDown", cell, 0)
+    expect(combat.activeFighter).toBe(eva)
+
+    // only the cell shown: elsewhere, nothing
+    board.emit("cellDown", { x: 1, y: 7 }, 0)
+    expect(eva.path).toEqual([])
+    board.emit("cellDown", TUTORIAL_CELLS.walk, 0)
     tick(t, 100)
     expect(t.step?.id).toBe("walk")
 
-    // walking on ends the turn
-    ;(t.scene as any)._hud.emit("pass")
-    tick(t, 3000)
+    // Avancer: Eva walks, Merlin plays once she is there
+    hud.emit("pass")
+    tick(t, 4000)
     expect(t.step?.id).toBe("water")
+    expect(combat.activeFighter).toBe(merlin)
+    expect(eva.position).toEqual(TUTORIAL_CELLS.walk)
+    t.next()
+    t.next()
+    expect(t.step?.id).toBe("sprint")
 
-    // the enemies only passed so far
-    const foes = combat.log.filter(
-      (c) =>
-        c.type !== "pass" && "fighterId" in c && c.fighterId.includes("-1-"),
-    )
-    expect(foes).toEqual([])
+    // the Course takes Merlin to Eva: they meet, and Gorr enters in reach
+    hud.emit("action", "sprint")
+    board.emit("cellDown", eva.position, 0)
+    tick(t, 4000)
+    expect(merlin.position).toEqual(eva.position)
+    expect(combat.offstage.has(gorr.id)).toBe(false)
+    expect(combat.offstage.has(squalor.id)).toBe(true)
+    expect(t.step?.id).toBe("join")
+    expect(combat.activeFighter).toBe(eva)
+    const combo = combat.actionsOf(eva).find((a) => a.combo)!
+    expect(combat.getValidTargets(eva, combo)).toContainEqual(gorr.position)
+    t.next()
+    expect(t.step?.id).toBe("combo")
 
-    while (t.step && t.step.id !== "camera") t.next()
+    // the combo on Gorr
+    const hp = gorr.hp
+    hud.emit("action", combo.id)
+    board.emit("cellDown", gorr.position, 0)
+    tick(t, 4000)
+    expect(gorr.hp).toBeLessThan(hp)
+    expect(t.step?.id).toBe("divine")
+    // one Avancer in all: nobody waited for anyone
+    expect(playerPasses()).toBe(1)
+
+    while (t.step && (t.step.id as string) !== "camera") t.next()
     const quarter = camera.quarter
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "e" }))
     // the quarter turn is animated
     tick(t, 2000)
     expect(camera.quarter).not.toBe(quarter)
     expect(t.step?.id).toBe("fight")
+
+    // the fight: Squalor enters in the lake, the enemies play soon
     t.next()
     expect(t.step).toBeNull()
     expect(combat.holding.size).toBe(0)
+    expect(squalor.position).toEqual(TUTORIAL_CELLS.lake)
+    expect(combat.aliveFighters).toContain(squalor)
+    expect(gorr.nextActionAt).toBeLessThanOrEqual(combat.time + 4)
   }, 30_000)
 
   test("a lesson lets through only what it asks: the bubble covers the rest", () => {
@@ -131,24 +169,25 @@ describe("Tutorial", () => {
     expect(t.step?.id).toBe("card")
     expect(combat.log.length).toBe(commands)
 
-    // the walk lesson: walking goes on (a new step, Avancer), no attack
+    // the walk lesson: the cell shown and Avancer, no attack
     while (t.step && t.step.id !== "move") t.next()
     tick(t, 100)
-    board.emit("cellDown", combat.getReachableCells(me)[0], 0)
+    board.emit("cellDown", TUTORIAL_CELLS.walk, 0)
     tick(t, 100)
     expect(t.step?.id).toBe("walk")
-    expect(t.allows({ type: "cell" })).toBe(true)
+    expect(t.allows({ type: "cell", at: TUTORIAL_CELLS.walk })).toBe(true)
+    expect(t.allows({ type: "cell", at: { x: 1, y: 7 } })).toBe(false)
     expect(t.allows({ type: "action", id: first.id })).toBe(false)
     expect(t.allows({ type: "cancel" })).toBe(true)
     expect(t.allows({ type: "pass" })).toBe(true)
     expect(t.allows({ type: "camera" })).toBe(true)
-    // the course lesson: the Course, and walking
+    // the course lesson: the Course, to the ally's cell only
     while (t.step && t.step.id !== "sprint") t.next()
     expect(t.allows({ type: "action", id: "sprint" })).toBe(true)
     expect(t.allows({ type: "action", id: first.id })).toBe(
       first.id === "sprint",
     )
-    expect(t.allows({ type: "cell" })).toBe(true)
+    expect(t.allows({ type: "cell", at: { x: 8, y: 0 } })).toBe(false)
 
     // once the lessons are over, everything goes
     while (t.step) t.next()

@@ -22,6 +22,7 @@ import { Container, Graphics } from "pixi.js"
 import { settings } from "../settings"
 import {
   ACTION_POSE,
+  arrivalFx,
   comboFx,
   deathFx,
   divineFx,
@@ -163,7 +164,7 @@ type Mode =
  * Menu, Réglages and the speed are always allowed.
  */
 export type SceneInput =
-  | { type: "cell" }
+  | { type: "cell"; at: Point }
   | { type: "action"; id: string }
   | { type: "divine"; id: string }
   /** Avancer / Passer (`key`: Espace or Entrée). */
@@ -355,6 +356,8 @@ export default class FightScene extends ViewChip<SceneEvents> {
       this._activateChildChip(view, { context: { container: this._entities } })
       this._views.set(fighter.id, view)
       this._cells.set(fighter.id, fighter.position)
+      // not on the island yet: shown when it enters (bringIn)
+      view.container.visible = !this.combat.offstage.has(fighter.id)
     }
     this._settleAll()
 
@@ -545,6 +548,45 @@ export default class FightScene extends ViewChip<SceneEvents> {
     this._refreshAll()
     // every screen in place (the board's room, the tutorial's bubbles…)
     window.dispatchEvent(new Event("resize"))
+  }
+
+  /**
+   * An offstage fighter enters the island at `at` (a tutorial's foe, when
+   * a lesson needs it): light gathers there, then it takes shape, facing
+   * the closest enemy. It plays `delay` from now.
+   */
+  bringIn(fighterId: string, at: Point, delay: number) {
+    if (!this.combat.offstage.has(fighterId)) return
+    this.combat.bringIn(fighterId, at, delay)
+    const fighter = this.combat.getFighter(fighterId)!
+    const view = this._views.get(fighterId)!
+    this._cells.set(fighterId, fighter.position)
+    const enemies = this.combat.aliveFighters.filter((o) =>
+      this.combat.isEnemy(fighter, o),
+    )
+    if (enemies.length) {
+      const closest = enemies.reduce((a, b) =>
+        manhattan(a.position, at) <= manhattan(b.position, at) ? a : b,
+      )
+      view.setFacing(facingBetween(at, closest.position))
+    }
+    const color = fighter.team === this.playerTeam ? MEANING.ally : MEANING.foe
+    arrivalFx(this._fx, at, color)
+    view.container.visible = true
+    view.container.alpha = 0
+    this._activateChildChip(
+      new booyah.Tween({
+        from: 0,
+        to: 1,
+        duration: this._ms(500),
+        onTick: (t) => {
+          view.container.alpha = t
+        },
+      }),
+    )
+    this._hud.log(`✧ ${fighter.name} entre sur le Fragment`)
+    this._settleAll()
+    this._refreshAll()
   }
 
   /** Back to the classic view (the zoom too). */
@@ -1592,7 +1634,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
     if (this._settings) return
     // the right button cancels on release, unless it dragged the camera
     if (button === 2) return
-    if (!this.allows({ type: "cell" })) return
+    if (!this.allows({ type: "cell", at: p })) return
     const fighter = this._activeHuman
     if (!fighter) return
 

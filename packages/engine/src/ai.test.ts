@@ -185,13 +185,42 @@ describe("teams on hold", () => {
     const events = c.run(2000)
     const gorr = c.fighters[1]
     const acted = (e: FightEvent) =>
-      (e.type === "actionUsed" || e.type === "moved") &&
-      e.fighterId === gorr.id
+      (e.type === "actionUsed" || e.type === "moved") && e.fighterId === gorr.id
     expect(events.filter(acted)).toHaveLength(0)
     expect(
       events.some((e) => e.type === "turnPassed" && e.fighterId === gorr.id),
     ).toBe(true)
     c.holding.delete(1)
     if (c.state !== "ended") expect(c.run(2000).some(acted)).toBe(true)
+  })
+})
+
+describe("fighters offstage", () => {
+  test("no turn, no cell, no defeat until they come in", () => {
+    const c = new Combat({
+      seed: 3,
+      board: new Board(9, 9),
+      teams: [
+        { controller: "ai", fighters: ["eva"] },
+        { controller: "ai", fighters: ["gorr"] },
+      ],
+      positions: [[{ x: 0, y: 0 }], [{ x: 8, y: 8 }]],
+    })
+    const [eva, gorr] = c.fighters
+    c.offstage.add(gorr.id)
+    expect(c.aliveFighters).toEqual([eva])
+    expect(c.fightersAt({ x: 8, y: 8 })).toEqual([])
+    expect(c.timelineOrder()).toEqual([eva])
+    const events = c.run(500)
+    // a team still to come is not beaten
+    expect(c.state).not.toBe("ended")
+    expect(
+      events.some((e) => "fighterId" in e && e.fighterId === gorr.id),
+    ).toBe(false)
+    c.bringIn(gorr.id, { x: 4, y: 4 }, 1)
+    expect(gorr.position).toEqual({ x: 4, y: 4 })
+    expect(c.fightersAt({ x: 4, y: 4 })).toEqual([gorr])
+    expect(gorr.nextActionAt).toBeCloseTo(c.time + 1)
+    expect(c.timelineOrder()).toContain(gorr)
   })
 })

@@ -148,6 +148,11 @@ export class Combat {
    * the lesson is over). Delete a team to let it fight.
    */
   readonly holding = new Set<number>()
+  /**
+   * Fighters not on the island yet (a tutorial's foes, until a lesson
+   * needs them): no turn, no cell, out of reach. `bringIn` lets one in.
+   */
+  readonly offstage = new Set<string>()
 
   private _time = 0
   private _state: CombatState = "running"
@@ -283,11 +288,24 @@ export class Combat {
   }
 
   get aliveFighters() {
-    return this.fighters.filter((f) => f.alive)
+    return this.fighters.filter((f) => f.alive && !this.offstage.has(f.id))
   }
 
   fightersAt(p: Point) {
-    return this.fighters.filter((f) => f.alive && equals(f.position, p))
+    return this.aliveFighters.filter((f) => equals(f.position, p))
+  }
+
+  /**
+   * An offstage fighter enters the island at `position`; it plays `delay`
+   * from now.
+   */
+  bringIn(fighterId: string, position: Point, delay: number) {
+    const fighter = this.getFighter(fighterId)
+    if (!fighter || !this.offstage.delete(fighterId)) return
+    fighter.position = { ...position }
+    fighter.path = []
+    fighter.waypoints = []
+    fighter.nextActionAt = this._time + delay
   }
 
   /** Character sheet a fighter was created from. */
@@ -667,8 +685,7 @@ export class Combat {
       }
     }
 
-    for (const fighter of this.fighters) {
-      if (!fighter.alive) continue
+    for (const fighter of this.aliveFighters) {
       if (fighter.path.length > 0) consider("move", fighter, fighter.nextMoveAt)
       consider("turn", fighter, fighter.nextActionAt)
     }
@@ -1436,7 +1453,13 @@ export class Combat {
   }
 
   private _checkVictory() {
-    const teams = new Set(this.aliveFighters.map((f) => f.team))
+    // a team still to come is not beaten
+    const waiting = this.fighters.filter(
+      (f) => f.alive && this.offstage.has(f.id),
+    )
+    const teams = new Set(
+      [...this.aliveFighters, ...waiting].map((f) => f.team),
+    )
     if (teams.size <= 1) this._end(teams.size === 1 ? [...teams][0] : null)
   }
 
