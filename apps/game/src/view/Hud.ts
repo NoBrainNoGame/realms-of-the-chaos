@@ -1,4 +1,4 @@
-import type * as booyah from "@ghom/booyah"
+import * as booyah from "@ghom/booyah"
 import {
   type ActionDefinition,
   CHARACTERS,
@@ -44,12 +44,17 @@ export const LOCOMOTION_TRAITS: Record<Locomotion, string | null> = {
 
 /** Browser storage key of the pinned timeline view. */
 const TIMELINE_KEY = "realms.timeline.expanded"
+/** Duration of the timeline expanding or collapsing (ms). */
+const TIMELINE_ANIMATION = 500
 
 export default class Hud extends ViewChip<HudEvents> {
   private _timeline!: Container
   private _timelineCombat: Combat | null = null
   private _timelinePinned = false
   private _timelineHovered = false
+  /** Drawn expansion (0 compact … 1 real scale), animated. */
+  private _expansion = 0
+  private _expansionTween: booyah.Tween | null = null
   private _landing: { fighter: Fighter; delay: number } | null = null
   private _actionBar!: Container
   private _card!: Container
@@ -75,11 +80,11 @@ export default class Hud extends ViewChip<HudEvents> {
     this._timeline.cursor = "pointer"
     this._timeline.on("pointerenter", () => {
       this._timelineHovered = true
-      this._redrawTimeline()
+      this._syncExpansion()
     })
     this._timeline.on("pointerleave", () => {
       this._timelineHovered = false
-      this._redrawTimeline()
+      this._syncExpansion()
     })
     this._timeline.on("pointertap", () => this.toggleTimeline())
     try {
@@ -88,6 +93,7 @@ export default class Hud extends ViewChip<HudEvents> {
     } catch {
       // storage blocked: compact by default
     }
+    this._expansion = this._timelinePinned ? 1 : 0
     this._actionBar = new Container()
     this._card = new Container()
     this._divine = new Container()
@@ -242,7 +248,7 @@ export default class Hud extends ViewChip<HudEvents> {
     } catch {
       // storage blocked: the choice lasts for this session only
     }
-    this._redrawTimeline()
+    this._syncExpansion()
   }
 
   setTimeline(combat: Combat) {
@@ -273,11 +279,52 @@ export default class Hud extends ViewChip<HudEvents> {
     )
   }
 
+  /** Animates the timeline towards its current target view. */
+  private _syncExpansion() {
+    const target = this.timelineExpanded ? 1 : 0
+    if (this._expansionTween) {
+      if (this._expansionTween.state === "active")
+        this._terminateChildChip(this._expansionTween)
+      this._expansionTween = null
+    }
+    if (this._expansion === target) {
+      this._redrawTimeline()
+      return
+    }
+    if (this.state !== "active") {
+      this._expansion = target
+      this._redrawTimeline()
+      return
+    }
+    // a full change lasts half a second, an interrupted one less
+    const tween = new booyah.Tween({
+      from: this._expansion,
+      to: target,
+      duration: TIMELINE_ANIMATION * Math.abs(target - this._expansion),
+      easing: booyah.easeInOutCubic,
+      onTick: (value) => {
+        this._expansion = value
+        this._redrawTimeline()
+      },
+      onTerminate: () => {
+        this._expansion = target
+        this._redrawTimeline()
+      },
+    })
+    this._expansionTween = tween
+    this._activateChildChip(tween)
+  }
+
+  /** How expanded the timeline is drawn (0 compact … 1 real scale). */
+  get timelineExpansion() {
+    return this._expansion
+  }
+
   private _redrawTimeline() {
     const combat = this._timelineCombat
     if (!combat) return
     clearChildren(this._timeline)
-    const expanded = this.timelineExpanded
+    const t = this._expansion
     const size = 44
     const gap = 6
     // the fighters in order, and the ghost of the landing preview among
@@ -300,14 +347,6 @@ export default class Hud extends ViewChip<HudEvents> {
     }
     const waits = entries.map((e) => e.wait)
 
-    // where each portrait goes: in a row (compact) or at its real wait
-    let width: number
-    let height: number
-    const places: { x: number; y: number }[] = []
-    let scale = 0
-    let range = 0
-    // the axis spans exactly from the first to the last portrait
-    const first = Math.min(...waits)
     const hint = text(
       this._landing
         ? "→ ordre de jeu · ◌ : votre prochain tour après ce choix"
@@ -315,89 +354,112 @@ export default class Hud extends ViewChip<HudEvents> {
       11,
       COLORS.muted,
     )
-    // compact width: the portraits, and the hint under them
-    const compact = Math.max(
+    // compact: the portraits in a row, and the hint under them
+    const compactWidth = Math.max(
       entries.length * (size + gap) - gap + 16,
       Math.ceil(hint.width) + 16,
     )
-    if (!expanded) {
-      width = compact
-      height = size + 26
-      entries.forEach((_, i) => places.push({ x: 8 + i * (size + gap), y: 6 }))
-    } else {
-      // at least twice as wide as the compact view, on a single row
-      const axis = 2 * compact - 16 - size
-      range = Math.max(...waits) - first
-      scale = range > 0 ? axis / range : 0
-      // real positions, then pushed apart (keeping the order) so close
-      // turns never overlap
-      const xs = waits.map((wait) => (wait - first) * scale)
-      const spacing = size + 2
-      for (let i = 1; i < xs.length; i++)
-        xs[i] = Math.max(xs[i], xs[i - 1] + spacing)
-      for (let i = xs.length - 1; i >= 0; i--) {
-        const limit = i === xs.length - 1 ? axis : xs[i + 1] - spacing
-        xs[i] = Math.max(0, Math.min(xs[i], limit))
-      }
-      for (const x of xs) places.push({ x: 8 + x, y: 6 })
-      width = 16 + size + axis
-      height = 6 + size + 40
+    const compactPlaces = entries.map((_, i) => 8 + i * (size + gap))
+
+    // real scale: at least twice as wide, on a single row; the axis spans
+    // exactly from the first to the last portrait
+    const first = Math.min(...waits)
+    const axis = 2 * compactWidth - 16 - size
+    const range = Math.max(...waits) - first
+    const scale = range > 0 ? axis / range : 0
+    // real positions, then pushed apart (keeping the order) so close
+    // turns never overlap
+    const xs = waits.map((wait) => (wait - first) * scale)
+    const spacing = size + 2
+    for (let i = 1; i < xs.length; i++)
+      xs[i] = Math.max(xs[i], xs[i - 1] + spacing)
+    for (let i = xs.length - 1; i >= 0; i--) {
+      const limit = i === xs.length - 1 ? axis : xs[i + 1] - spacing
+      xs[i] = Math.max(0, Math.min(xs[i], limit))
     }
+    const expandedWidth = 16 + size + axis
+
+    const ease = (a: number, b: number) => a + (b - a) * t
+    const width = ease(compactWidth, expandedWidth)
+    const height = ease(size + 26, size + 46)
+    const places = entries.map((_, i) => ({
+      x: ease(compactPlaces[i], 8 + xs[i]),
+      y: 6,
+    }))
+    const axisY = height - 26
 
     this._timeline.addChild(
-      panel(width, height, expanded ? MEANING.time : COLORS.panelBorder),
+      panel(width, height, t > 0.5 ? MEANING.time : COLORS.panelBorder),
     )
-    if (expanded) {
-      // the time axis, in the meaning color of time
-      const axisY = height - 26
-      const axis = new Graphics()
+    if (t > 0) {
+      // the time axis, in the meaning color of time, fading in
+      const scaleNode = new Container()
+      scaleNode.alpha = t
+      const line = new Graphics()
         .moveTo(8 + size / 2, axisY)
-        .lineTo(8 + size / 2 + range * scale, axisY)
+        .lineTo(8 + size / 2 + axis * t, axisY)
         .stroke({ width: 1.5, color: MEANING.time, alpha: 0.8 })
       const step = range > 200 ? 50 : range > 80 ? 20 : 10
       const last = first + range
       // the two ends, and round values in between (not too close to them)
       const ticks = [first]
-      for (let t = Math.ceil((first + 1) / step) * step; t < last; t += step)
-        if (t - first >= step / 2 && last - t >= step / 2) ticks.push(t)
+      for (let v = Math.ceil((first + 1) / step) * step; v < last; v += step)
+        if (v - first >= step / 2 && last - v >= step / 2) ticks.push(v)
       if (range > 0) ticks.push(last)
-      for (const t of ticks) {
-        const x = 8 + size / 2 + (t - first) * scale
-        axis
+      for (const v of ticks) {
+        const x = 8 + size / 2 + (v - first) * scale * t
+        line
           .moveTo(x, axisY - 3)
           .lineTo(x, axisY + 3)
           .stroke({
             width: 1,
             color: MEANING.time,
           })
-        const start = t === first
-        const end = t === last && range > 0
-        const tick = text(t === 0 ? "maintenant" : `${t}`, 10, MEANING.time)
+        const start = v === first
+        const end = v === last && range > 0
+        const tick = text(v === 0 ? "maintenant" : `${v}`, 10, MEANING.time)
         tick.anchor.set(start ? 0 : end ? 1 : 0.5, 0)
         tick.position.set(x + (start ? -4 : end ? 4 : 0), axisY + 5)
-        this._timeline.addChild(tick)
+        scaleNode.addChild(tick)
       }
-      this._timeline.addChild(axis)
-    } else {
+      scaleNode.addChild(line)
+      this._timeline.addChild(scaleNode)
+    }
+    if (t < 1) {
+      hint.alpha = 1 - t
       hint.position.set(8, size + 9)
       this._timeline.addChild(hint)
+    }
+    if (this._timelinePinned) {
+      // locked on the real scale (a click unlocks it)
+      const lock = new Graphics()
+        .roundRect(0, 5, 10, 8, 1.5)
+        .fill(MEANING.time)
+        .moveTo(2.5, 5)
+        .lineTo(2.5, 2.5)
+        .arc(5, 2.5, 2.5, Math.PI, 0)
+        .lineTo(7.5, 5)
+        .stroke({ width: 1.6, color: MEANING.time })
+      lock.label = "lock"
+      lock.position.set(width - 16, height - 18)
+      this._timeline.addChild(lock)
     }
 
     entries.forEach(({ fighter, wait, ghost }, i) => {
       const slot = new Container()
       slot.position.set(places[i].x, places[i].y)
       const active = !ghost && combat.activeFighter === fighter
-      if (expanded) {
-        // a tick from the portrait down to its time on the axis
-        const real = 8 + (wait - first) * scale - places[i].x
+      if (t > 0) {
+        // a line from the portrait down to its exact time on the axis
+        const real = 8 + (wait - first) * scale * t - places[i].x
         slot.addChild(
           new Graphics()
             .moveTo(size / 2, size)
-            .lineTo(size / 2 + real, height - 26 - places[i].y)
+            .lineTo(size / 2 + real, axisY - places[i].y)
             .stroke({
               width: 1,
               color: ghost ? MEANING.time : TEAM_COLORS[fighter.team],
-              alpha: ghost ? 1 : 0.6,
+              alpha: (ghost ? 1 : 0.6) * t,
             }),
         )
       }

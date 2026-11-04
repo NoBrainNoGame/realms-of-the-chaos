@@ -242,7 +242,15 @@ describe("timeline: real durations", () => {
 
     timeline.emit("pointerenter", {} as any)
     expect(hud.timelineExpanded).toBe(true)
-    expect(timeline.width).toBeGreaterThan(compact)
+    // it grows over half a second, eased
+    tick(hud, 100)
+    const growing = timeline.width
+    expect(growing).toBeGreaterThan(compact)
+    expect(hud.timelineExpansion).toBeGreaterThan(0)
+    expect(hud.timelineExpansion).toBeLessThan(0.5) // eased: slow start
+    tick(hud, 500)
+    expect(hud.timelineExpansion).toBe(1)
+    expect(timeline.width).toBeGreaterThan(growing)
     const [first, second, third] = slots()
     // spacing follows the waits, not the order
     const gapSmall = second.x - first.x
@@ -265,20 +273,28 @@ describe("timeline: real durations", () => {
 
     timeline.emit("pointerleave", {} as any)
     expect(hud.timelineExpanded).toBe(false)
+    tick(hud, 250)
+    expect(timeline.width).toBeGreaterThan(compact)
+    tick(hud, 400)
     expect(timeline.width).toBe(compact)
   })
 
   test("a click keeps the expanded view, another one collapses it", () => {
     const { hud, timeline } = setup()
+    const lock = () => timeline.children.find((c) => c.label === "lock")
+    timeline.emit("pointerenter", {} as any)
+    expect(lock()).toBeUndefined() // hovered only: not locked
     timeline.emit("pointertap", {} as any)
     timeline.emit("pointerleave", {} as any)
     expect(hud.timelineExpanded).toBe(true)
+    expect(lock()).toBeDefined() // a padlock shows it is locked
     expect(localStorage.getItem("realms.timeline.expanded")).toBe("1")
     // remembered by a new HUD
     const again = mount(new Hud())
     expect(again.timelineExpanded).toBe(true)
     hud.toggleTimeline()
     expect(hud.timelineExpanded).toBe(false)
+    expect(lock()).toBeUndefined()
     expect(localStorage.getItem("realms.timeline.expanded")).toBe("0")
   })
 })
