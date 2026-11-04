@@ -32,12 +32,28 @@ export const style = (
   }
 }
 
+/**
+ * The resolution texts are drawn at: the screen's pixels, times the
+ * interface size, with some room for the menus that grow with the window.
+ * Never below what they are shown at: a text is never stretched (blurry or
+ * pixelated), whatever the settings.
+ */
+export function textResolution() {
+  const screen = Math.min(2, globalThis.devicePixelRatio || 1)
+  return screen * Math.max(1, settings().uiSize) * 1.25
+}
+
 export const text = (
   value: string,
   size: number,
   color = COLORS.text,
   extra: TextStyleOptions = {},
-) => new Text({ text: value, style: style(size, color, extra) })
+) =>
+  new Text({
+    text: value,
+    style: style(size, color, extra),
+    resolution: textResolution(),
+  })
 
 export function panel(
   width: number,

@@ -324,6 +324,52 @@ describe("game routing", () => {
     expect(bigBar.y + bigBar.height).toBeLessThanOrEqual(window.innerHeight)
   })
 
+  test("the settings open during a fight: it waits, then takes the new sizes", () => {
+    resetSettings()
+    const g = game("?seed=3")
+    const scene = g.current as FightScene
+    const hud = (scene as any)._hud
+    hud.emit("settings")
+    expect(scene.settingsOpen).toBe(true)
+    // the fight waits and the board takes no key while they are open
+    const turn = scene.combat.time
+    const mode = (scene as any)._mode
+    tick(g, 60)
+    key("2")
+    expect(scene.combat.time).toBe(turn)
+    expect((scene as any)._mode).toBe(mode)
+    // the interface and text sizes apply at once, in the fight
+    key("ArrowDown")
+    key("ArrowRight")
+    key("ArrowUp")
+    key("ArrowRight")
+    expect(settings()).toEqual({ textSize: 1.15, uiSize: 1.15 })
+    expect(hud.container.scale.x).toBe(1.15)
+    const help = hud.container.children.find(
+      (c: Container) => c.label === "help",
+    )
+    expect(help.style.fontSize).toBe(Math.round(12 * 1.15))
+    // Échap closes them, the fight goes on (still there, not left)
+    key("Escape")
+    expect(scene.settingsOpen).toBe(false)
+    expect(g.current).toBe(scene)
+    expect(g.screen.type).not.toBe("title")
+    resetSettings()
+  })
+
+  test("texts are drawn at the interface size: never stretched", () => {
+    resetSettings()
+    const small = game("?seed=3").current as FightScene
+    const at1 = (small as any)._hud._settings.resolution
+    updateSettings({ uiSize: 1.3 })
+    const big = game("?seed=3").current as FightScene
+    const at13 = (big as any)._hud._settings.resolution
+    expect(at13).toBeCloseTo(at1 * 1.3, 5)
+    // the drawn resolution covers the scale it is shown at
+    expect(at13).toBeGreaterThanOrEqual(1.3)
+    resetSettings()
+  })
+
   test("the Menu button leaves a fight; Escape leaves the gallery (?gallery)", () => {
     const g = game("?seed=3")
     const scene = g.current as FightScene

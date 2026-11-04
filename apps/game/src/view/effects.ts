@@ -2,6 +2,7 @@ import * as booyah from "@ghom/booyah"
 import { Container, Graphics, Sprite, Text, Texture } from "pixi.js"
 import { iconTexture } from "./textures"
 import { FONT } from "./theme"
+import { textResolution } from "./ui"
 
 export type XY = { x: number; y: number }
 
@@ -468,6 +469,8 @@ export function floatingText(
       fill: color,
       stroke: { color: 0x000000, width: 4 },
     },
+    // the board zooms: drawn finer than the screen, never stretched
+    resolution: textResolution() * 1.5,
   })
   label.anchor.set(0.5)
   label.zIndex = 1_000_000

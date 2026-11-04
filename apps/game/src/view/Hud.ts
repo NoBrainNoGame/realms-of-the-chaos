@@ -25,8 +25,10 @@ import {
   panel,
   richText,
   type Segment,
+  style,
   tag,
   text,
+  textResolution,
 } from "./ui"
 import ViewChip from "./ViewChip"
 
@@ -43,6 +45,8 @@ interface HudEvents extends booyah.BaseCompositeEvents {
   endAction: [id: string]
   speed: []
   quit: []
+  /** Open the settings (text and interface sizes). */
+  settings: []
 }
 
 /** Water traits shown on the character card. */
@@ -83,6 +87,9 @@ export default class Hud extends ViewChip<HudEvents> {
   /** One-line preview above the action bar (e.g. the cost of a move). */
   private _preview!: Container
   private _quit!: Text
+  private _settings!: Text
+  /** The texts built once, with their base size (resized by the settings). */
+  private _fixedTexts: [Text, number][] = []
   private _width = 0
   private _height = 0
 
@@ -140,6 +147,13 @@ export default class Hud extends ViewChip<HudEvents> {
     this._quit.visible = false
     this._quit.on("pointertap", () => this.emit("quit"))
 
+    this._settings = text("Réglages", 13, COLORS.muted)
+    this._settings.label = "hud:settings"
+    this._settings.anchor.set(1, 0)
+    this._settings.eventMode = "static"
+    this._settings.cursor = "pointer"
+    this._settings.on("pointertap", () => this.emit("settings"))
+
     const help = text(
       "Clic : se déplacer · C : course · 1-5 : actions · Espace : passer · Échap / clic droit : annuler",
       12,
@@ -147,6 +161,13 @@ export default class Hud extends ViewChip<HudEvents> {
     )
     help.position.set(12, 10)
     help.label = "help"
+    this._fixedTexts = [
+      [help, 12],
+      [this._speed, 13],
+      [this._quit, 13],
+      [this._settings, 13],
+      [this._banner, 30],
+    ]
 
     this._container.addChild(
       this._timeline,
@@ -158,6 +179,7 @@ export default class Hud extends ViewChip<HudEvents> {
       help,
       this._speed,
       this._quit,
+      this._settings,
       this._banner,
       this._tooltip,
       this._end,
@@ -238,7 +260,11 @@ export default class Hud extends ViewChip<HudEvents> {
     this._log.position.set(12, h - 140)
     this._speed.position.set(w - 12, 10)
     this._placePreview()
-    this._quit.position.set(w - 110, 10)
+    // right to left: speed, Menu, Réglages (their widths follow the text size)
+    let right = this._speed.x - this._speed.width - 20
+    this._quit.position.set(right, 10)
+    if (this._quit.visible) right -= this._quit.width + 20
+    this._settings.position.set(right, 10)
     this._banner.position.set(w / 2, h * 0.3)
     if (this._end.visible) this._centerEnd()
   }
@@ -279,10 +305,24 @@ export default class Hud extends ViewChip<HudEvents> {
   /** Shows the Menu button (leave the fight). */
   setQuittable(quittable: boolean) {
     this._quit.visible = quittable
+    if (this._width) this._layout()
+  }
+
+  /**
+   * The settings changed (during the fight): the texts built once take the
+   * new text size, and everything the new interface size.
+   */
+  applySettings() {
+    for (const [label, size] of this._fixedTexts) {
+      label.style.fontSize = style(size).fontSize ?? size
+      label.resolution = textResolution()
+    }
+    this.resize()
   }
 
   setSpeed(speed: number) {
     this._speed.text = `Vitesse x${speed}`
+    if (this._width) this._layout()
   }
 
   // ─── Timeline ─────────────────────────────────────────────────────────────

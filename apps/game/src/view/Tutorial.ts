@@ -421,7 +421,8 @@ export default class Tutorial extends ViewChip<TutorialEvents> {
   protected _onTick() {
     this._time += this._lastTickInfo.timeSinceLastTick
     const step = this.step
-    if (!step) return this._hide()
+    // the settings are open over the fight: the lesson waits behind them
+    if (!step || this._scene.settingsOpen) return this._hide()
     if (!this._doneAtStart && step.done?.(this)) return this.next()
     const waiting =
       step.needsTurn &&

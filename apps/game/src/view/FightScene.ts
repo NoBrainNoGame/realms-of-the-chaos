@@ -47,6 +47,7 @@ import FighterView, { STATUS_COLORS, type WaterState } from "./FighterView"
 import Hud from "./Hud"
 import { Lens } from "./lens"
 import { facingBetween } from "./Puppet"
+import SettingsScreen from "./SettingsScreen"
 import {
   type Camera,
   COLORS,
@@ -244,6 +245,8 @@ export default class FightScene extends ViewChip<SceneEvents> {
     follow: { x: number; y: number; elevation: number } | null
   } | null = null
   /** Right or middle button held on the screen (camera drag). */
+  /** The settings open over the fight (null: closed). */
+  private _settings: { screen: SettingsScreen; shade: Graphics } | null = null
   private _drag: {
     button: number
     /** On the board (zoomed in): moves the camera; elsewhere: turns it. */
@@ -390,6 +393,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
     })
     this._subscribe(this._hud, "endAction", (id) => this.emit("endAction", id))
     this._subscribe(this._hud, "quit", () => this.emit("quit"))
+    this._subscribe(this._hud, "settings", () => this.openSettings())
     this._hud.setQuittable(!!this._options.quittable)
     this._subscribe(this._hud, "speed", () => this._toggleSpeed())
     this._subscribe(window, "keydown", (e: KeyboardEvent) => this._onKey(e))
@@ -469,6 +473,47 @@ export default class FightScene extends ViewChip<SceneEvents> {
     if (this._hud) this._refreshAll()
   }
 
+  /** The settings, open over the fight (which waits meanwhile). */
+  get settingsOpen() {
+    return this._settings !== null
+  }
+
+  /** Opens the settings over the fight: the board waits, and takes no input. */
+  openSettings() {
+    if (this._settings) return
+    this._drag = null
+    // a shade over the board and the HUD: their clicks stop there
+    const shade = new Graphics()
+      .rect(0, 0, 1, 1)
+      .fill({ color: 0x000000, alpha: 0.55 })
+    shade.eventMode = "static"
+    shade.label = "settings:shade"
+    shade.scale.set(this._fit.width, this._fit.height)
+    this._container.addChild(shade)
+    const screen = new SettingsScreen({ backdrop: false })
+    this._settings = { screen, shade }
+    this._activateChildChip(screen)
+    this._subscribe(screen, "changed", this._settingsChanged)
+    this._subscribeOnce(screen, "back", () => this.closeSettings())
+  }
+
+  closeSettings() {
+    const open = this._settings
+    if (!open) return
+    this._settings = null
+    this._unsubscribe(open.screen, "changed", this._settingsChanged)
+    if (open.screen.state === "active") this._terminateChildChip(open.screen)
+    open.shade.destroy()
+  }
+
+  /** A setting changed: the HUD and the layout follow at once. */
+  private readonly _settingsChanged = () => {
+    this._hud.applySettings()
+    this._refreshAll()
+    // every screen in place (the board's room, the tutorial's bubbles…)
+    window.dispatchEvent(new Event("resize"))
+  }
+
   /** Back to the classic view (the zoom too). */
   resetView() {
     this._aim = { pitch: ISO_PITCH, yaw: 0 }
@@ -488,6 +533,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
   }
 
   private _onPointerDown(e: PointerEvent) {
+    if (this._settings) return
     if (e.button !== 1 && e.button !== 2) return
     // grabbing the board moves the camera, unless zoomed out to the most
     const onBoard = this._hovered !== null
@@ -588,6 +634,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
   protected _onResize(width: number, height: number) {
     this._fit.width = width
     this._fit.height = height
+    this._settings?.shade.scale.set(width, height)
     this._layoutFit()
   }
 
@@ -651,6 +698,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
 
   private _onWheel(e: WheelEvent) {
     e.preventDefault()
+    if (this._settings) return
     // a trackpad pinch comes as a wheel with ctrl, in small steps
     const steps = -e.deltaY / (e.ctrlKey ? 25 : 100)
     this.zoomAt(
@@ -801,7 +849,8 @@ export default class FightScene extends ViewChip<SceneEvents> {
 
   protected _onTick() {
     this._updateJuice()
-    if (this._playing) return
+    // the settings are open: the fight waits
+    if (this._playing || this._settings) return
 
     if (this._pending) {
       const pending = this._pending
@@ -1504,6 +1553,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
   }
 
   private _onCellDown(p: Point, button: number) {
+    if (this._settings) return
     // the right button cancels on release, unless it dragged the camera
     if (button === 2) return
     const fighter = this._activeHuman
@@ -1550,6 +1600,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
   }
 
   private _onKey(e: KeyboardEvent) {
+    if (this._settings) return
     if (e.key === "f" || e.key === "F") return this._toggleSpeed()
     if (e.key === "q" || e.key === "Q") return this.turnCamera(-1)
     if (e.key === "e" || e.key === "E") return this.turnCamera(1)

@@ -40,6 +40,8 @@ export const SETTING_ROWS: SettingRow[] = [
 
 interface SettingsEvents extends booyah.BaseCompositeEvents {
   back: []
+  /** A setting changed (the screens behind can relayout). */
+  changed: []
 }
 
 const WIDTH = 560
@@ -57,12 +59,18 @@ export default class SettingsScreen extends ViewChip<SettingsEvents> {
   /** Rebuilt on the next tick (never under the pointer's own event). */
   private _dirty = false
 
+  /** `backdrop: false` over a fight (the pause menu). */
+  constructor(private readonly _options: { backdrop?: boolean } = {}) {
+    super()
+  }
+
   get focus() {
     return this._focus
   }
 
   protected _onActivate() {
-    this._activateChildChip(new Backdrop())
+    if (this._options.backdrop !== false)
+      this._activateChildChip(new Backdrop())
     this._box = new Container()
     this._container.addChild(this._box)
     this._build()
@@ -116,6 +124,7 @@ export default class SettingsScreen extends ViewChip<SettingsEvents> {
     const value = stepChoice(row.choices, settings()[id], step)
     if (value === settings()[id]) return
     updateSettings({ [id]: value })
+    this.emit("changed")
     // rebuilt: the texts and the box take the new sizes
     this._dirty = true
   }
