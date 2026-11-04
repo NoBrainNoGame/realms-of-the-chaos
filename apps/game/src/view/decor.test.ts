@@ -6,7 +6,7 @@ import Backdrop from "./Backdrop"
 import BoardView from "./BoardView"
 import FightScene, { classicFight } from "./FightScene"
 import { drawFloatingIsland, undersideDepths } from "./islands"
-import { camera, resetCamera } from "./theme"
+import { camera, depthAlong, resetCamera } from "./theme"
 
 describe("island underside (inverted pyramid of blocks)", () => {
   test("deterministic for a seed, deeper in the middle, irregular", () => {
@@ -95,6 +95,37 @@ describe("everything floats, each at its own pace", () => {
     tick(backdrop, 1500)
     const after = islands.map((i) => i.node.y)
     expect(after).not.toEqual(before)
+  })
+
+  test("distant islands nearer than the board are solid and in front of it", () => {
+    const backdrop = mount(new Backdrop())
+    ;(backdrop as any)._onResize(1280, 720)
+    try {
+      for (let quarter = 0; quarter < 4; quarter++) {
+        camera.quarter = quarter
+        tick(backdrop, 16)
+        for (const island of backdrop.islands) {
+          const a = (island.angle * Math.PI) / 180
+          const near = depthAlong({ x: Math.cos(a), y: Math.sin(a) }) > 0
+          if (near) {
+            expect(island.node.parent).toBe(backdrop.front)
+            expect(island.node.alpha).toBe(1)
+            expect(island.graphics.tint).toBe(0xffffff)
+          } else {
+            expect(island.node.parent).not.toBe(backdrop.front)
+            expect(island.node.alpha).toBeLessThan(1)
+          }
+        }
+        // turning puts some in front and others behind
+        const front = backdrop.islands.filter(
+          (i) => i.node.parent === backdrop.front,
+        )
+        expect(front.length).toBeGreaterThan(0)
+        expect(front.length).toBeLessThan(backdrop.islands.length)
+      }
+    } finally {
+      resetCamera()
+    }
   })
 
   test("distant islands are seen by the board's camera: they turn and tilt with it", () => {

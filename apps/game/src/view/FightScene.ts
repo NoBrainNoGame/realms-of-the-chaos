@@ -285,7 +285,8 @@ export default class FightScene extends ViewChip<SceneEvents> {
     this._effects.sortableChildren = true
     this._backdrop = new Backdrop()
     this._activateChildChip(this._backdrop)
-    this._container.addChild(this._world)
+    // the distant islands nearer than the board pass in front of it
+    this._container.addChild(this._world, this._backdrop.front)
     this._turnButtons = ([-1, 1] as const).map((dir) => {
       const view = turnButton(dir)
       view.on("pointertap", () => this.turnCamera(dir))

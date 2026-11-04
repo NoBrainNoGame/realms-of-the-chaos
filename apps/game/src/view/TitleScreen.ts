@@ -96,7 +96,8 @@ export default class TitleScreen extends ViewChip<TitleEvents> {
     this._halo.alpha = 0.35
     this._halo.blendMode = "add"
     this._island = new Container()
-    this._container.addChild(this._halo, this._island)
+    // the distant islands nearer than this one pass in front of it
+    this._container.addChild(this._halo, this._island, this._backdrop.front)
     this._buildIsland(this._seed)
 
     // title with a soft glow

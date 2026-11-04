@@ -117,6 +117,8 @@ export default class Backdrop extends ViewChip {
   private _width = 0
   private _height = 0
   private _layer!: Container
+  /** Islands nearer than the board: the scene puts it above the board. */
+  private _front!: Container
   /** Camera the distant islands were last drawn with. */
   private _drawn: Camera | null = null
   /** Screen point the camera looks at (the middle of the board). */
@@ -129,13 +131,13 @@ export default class Backdrop extends ViewChip {
 
     // distant islands of the Clair, blued by the distance
     this._layer = new Container()
-    this._container.addChild(this._layer)
+    this._front = new Container()
+    this._front.eventMode = "none"
+    this._container.addChild(this._layer, this._front)
     const seed = Math.floor(Math.random() * 1e6)
     DISTANT.forEach((spec, i) => {
       const node = new Container()
       const graphics = new Graphics()
-      // atmospheric perspective: the farther, the bluer and the paler
-      graphics.tint = 0x8f86c4
       node.addChild(graphics)
       this._layer.addChild(node)
       this._islands.push({
@@ -217,9 +219,23 @@ export default class Backdrop extends ViewChip {
     this._placeIslands()
   }
 
+  protected _onTerminate() {
+    // the scene may have taken it
+    this._front.destroy({ children: true })
+  }
+
+  /**
+   * The islands nearer to the camera than the board: the scene adds this
+   * layer above the board, so they pass in front of it.
+   */
+  get front(): Container {
+    return this._front
+  }
+
   /** Opacity of the distant islands (they fade with the board's turns). */
   set islandsAlpha(alpha: number) {
     this._layer.alpha = alpha
+    this._front.alpha = alpha
   }
 
   get islandsAlpha() {
@@ -251,7 +267,7 @@ export default class Backdrop extends ViewChip {
     // the ring spans about two thirds of the screen's width
     const cell = TILE_WIDTH / Math.SQRT2
     const k = (0.33 * this._width) / (RING_RADIUS * cell)
-    const order: { node: Container; depth: number }[] = []
+    const order: { island: DistantIsland; depth: number }[] = []
     for (const island of this._islands) {
       const a = (island.angle * Math.PI) / 180
       const r = RING_RADIUS * island.distance
@@ -270,14 +286,28 @@ export default class Backdrop extends ViewChip {
       island.node.scale.set(
         island.size * (this._height / 1000) * (1 + 0.25 * depth),
       )
-      island.node.alpha = Math.min(1, 0.55 + island.size * 0.6 + 0.1 * depth)
-      order.push({ node: island.node, depth })
+      // atmospheric perspective: behind the board, the farther, the bluer
+      // and the paler; in front of it, as solid and as lit as the board
+      const haze = Math.max(0, -depth)
+      island.node.alpha = depth > 0 ? 1 : 0.85 - 0.3 * haze
+      island.graphics.tint = mix(
+        0xffffff,
+        0x8f86c4,
+        depth > 0 ? 0 : 0.4 + 0.6 * haze,
+      )
+      order.push({ island, depth })
     }
-    // the farther behind, the earlier drawn
+    // the farther behind, the earlier drawn; nearer than the board: above it
     order.sort((a, b) => a.depth - b.depth)
-    order.forEach(({ node }, i) => {
-      this._layer.setChildIndex(node, i)
-    })
+    const count = new Map<Container, number>()
+    for (const { island, depth } of order) {
+      const layer = depth > 0 ? this._front : this._layer
+      const index = count.get(layer) ?? 0
+      count.set(layer, index + 1)
+      if (island.node.parent !== layer) layer.addChildAt(island.node, index)
+      else if (layer.getChildIndex(island.node) !== index)
+        layer.setChildIndex(island.node, index)
+    }
   }
 
   protected _onTick() {
@@ -295,4 +325,14 @@ export default class Backdrop extends ViewChip {
       }
     }
   }
+}
+
+/** Linear mix of two colors (t = 0: a, t = 1: b). */
+function mix(a: number, b: number, t: number) {
+  const channel = (shift: number) => {
+    const x = (a >> shift) & 0xff
+    const y = (b >> shift) & 0xff
+    return Math.round(x + (y - x) * t) << shift
+  }
+  return channel(16) | channel(8) | channel(0)
 }
