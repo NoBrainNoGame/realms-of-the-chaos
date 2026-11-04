@@ -4,7 +4,11 @@ import { Container } from "pixi.js"
 import { mount, tick } from "../test/harness"
 import { tickUntil } from "../test/play"
 import FighterView from "./FighterView"
-import FightScene, { classicFight, TURN_DURATION } from "./FightScene"
+import FightScene, {
+  classicFight,
+  PAN_MIN_ZOOM,
+  TURN_DURATION,
+} from "./FightScene"
 import { camera, ISO_PITCH, MAX_PITCH, MAX_YAW, toScreen } from "./theme"
 
 describe("fighter moves", () => {
@@ -397,6 +401,68 @@ describe("camera tilt and turns", () => {
       tick(scene, 1000)
       expect(camera.pitch).toBe(ISO_PITCH)
       expect(camera.yaw).toBe(0)
+    } finally {
+      scene.terminate()
+    }
+  })
+
+  test("grabbing the board moves the camera, unless zoomed out", () => {
+    const { scene, internals, world } = setup()
+    try {
+      const drag = (from: { x: number; y: number }, dx: number, dy: number) => {
+        const press = (type: string, x: number, y: number) =>
+          window.dispatchEvent(
+            new PointerEvent(type, { button: 2, clientX: x, clientY: y }),
+          )
+        press("pointerdown", from.x, from.y)
+        press("pointermove", from.x + dx, from.y + dy)
+        press("pointerup", from.x + dx, from.y + dy)
+      }
+      const cell = scene.combat.fighters[0].position
+      // zoomed out: on the board too, it turns
+      internals._board.emit("cellOver", cell)
+      drag({ x: 600, y: 300 }, 0, 60)
+      tick(scene, 800)
+      expect(camera.pitch).toBeGreaterThan(ISO_PITCH + 5)
+      scene.resetView()
+      tick(scene, 1000)
+
+      scene.zoomAt({ x: 640, y: 360 }, 8)
+      tick(scene, 1500)
+      expect(scene.zoom).toBeGreaterThan(PAN_MIN_ZOOM)
+      const before = { x: world.x, y: world.y }
+      internals._board.emit("cellOver", cell)
+      drag({ x: 600, y: 300 }, -40, 30)
+      tick(scene, 100)
+      // the board follows the pointer, without tilting
+      expect(world.x).toBeCloseTo(before.x - 40, 0)
+      expect(world.y).toBeCloseTo(before.y + 30, 0)
+      expect(camera.pitch).toBe(ISO_PITCH)
+      // out of the board: it turns
+      internals._board.emit("cellOut", cell)
+      drag({ x: 600, y: 300 }, 0, 60)
+      tick(scene, 800)
+      expect(camera.pitch).toBeGreaterThan(ISO_PITCH + 5)
+    } finally {
+      scene.terminate()
+    }
+  })
+
+  test("the curved arrows under the island turn it a quarter", () => {
+    const { scene, internals, middle } = setup()
+    try {
+      const [left, right] = internals._turnButtons as Container[]
+      // on each side under the board's middle
+      expect(left.x).toBeLessThan(middle().x)
+      expect(right.x).toBeGreaterThan(middle().x)
+      expect(left.y).toBeGreaterThan(middle().y)
+      right.emit("pointertap", {} as any)
+      tick(scene, TURN_DURATION * 2)
+      expect(camera.quarter).toBe(1)
+      left.emit("pointertap", {} as any)
+      left.emit("pointertap", {} as any) // ignored while turning
+      tick(scene, TURN_DURATION * 2)
+      expect(camera.quarter).toBe(0)
     } finally {
       scene.terminate()
     }

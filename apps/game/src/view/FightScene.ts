@@ -17,7 +17,7 @@ import {
   type Point,
   STATUSES,
 } from "@realms/engine"
-import { Container } from "pixi.js"
+import { Container, Graphics } from "pixi.js"
 import {
   ACTION_POSE,
   comboFx,
@@ -133,6 +133,8 @@ export const MIN_ZOOM = 0.6
 export const MAX_ZOOM = 3
 /** Length of a quarter turn of the camera (ms). */
 export const TURN_DURATION = 420
+/** Below this zoom, dragging the board turns it instead of moving it. */
+export const PAN_MIN_ZOOM = 1.2
 
 export const DEFAULT_END_ACTIONS: EndAction[] = [
   { id: "restart", label: "Rejouer" },
@@ -231,12 +233,17 @@ export default class FightScene extends ViewChip<SceneEvents> {
   /** Right or middle button held on the screen (camera drag). */
   private _drag: {
     button: number
+    /** On the board (zoomed in): moves the camera; elsewhere: turns it. */
+    kind: "pan" | "turn"
     x: number
     y: number
     pitch: number
     yaw: number
+    pan: { x: number; y: number }
     moved: boolean
   } | null = null
+  /** Curved arrows under the island: quarter turns. */
+  private _turnButtons: Container[] = []
   private _shake = { intensity: 0, remaining: 0, duration: 1 }
 
   constructor(private readonly _options: SceneOptions) {
@@ -277,6 +284,12 @@ export default class FightScene extends ViewChip<SceneEvents> {
     this._effects.sortableChildren = true
     this._activateChildChip(new Backdrop())
     this._container.addChild(this._world)
+    this._turnButtons = ([-1, 1] as const).map((dir) => {
+      const view = turnButton(dir)
+      view.on("pointertap", () => this.turnCamera(dir))
+      this._container.addChild(view)
+      return view
+    })
 
     this._hits = new Container()
     this._board = new BoardView(
@@ -410,12 +423,16 @@ export default class FightScene extends ViewChip<SceneEvents> {
 
   private _onPointerDown(e: PointerEvent) {
     if (e.button !== 1 && e.button !== 2) return
+    // grabbing the board moves the camera, unless zoomed too far out
+    const onBoard = this._hovered !== null
     this._drag = {
       button: e.button,
+      kind: onBoard && this._zoom.target >= PAN_MIN_ZOOM ? "pan" : "turn",
       x: e.clientX ?? 0,
       y: e.clientY ?? 0,
       pitch: this._aim.pitch,
       yaw: this._aim.yaw,
+      pan: { ...this._pan },
       moved: false,
     }
   }
@@ -427,6 +444,12 @@ export default class FightScene extends ViewChip<SceneEvents> {
     const dy = (e.clientY ?? 0) - drag.y
     if (!drag.moved && Math.hypot(dx, dy) < 5) return
     drag.moved = true
+    if (drag.kind === "pan") {
+      this._zoom.target = this._zoom.value
+      this._pan = { x: drag.pan.x + dx, y: drag.pan.y + dy }
+      this._clampPan()
+      return
+    }
     // dragging down looks from higher, sideways turns the board a little
     this.aimCamera(drag.pitch + dy * 0.2, drag.yaw - dx * 0.1)
   }
@@ -594,11 +617,32 @@ export default class FightScene extends ViewChip<SceneEvents> {
   }
 
   private _placeWorld(dx: number, dy: number) {
-    this._world.scale.set(this._fit.scale * this._zoom.value)
+    const scale = this._fit.scale * this._zoom.value
+    this._world.scale.set(scale)
     this._world.position.set(
       this._fit.x + this._pan.x + dx,
       this._fit.y + this._pan.y + dy,
     )
+    this._placeTurnButtons(scale)
+  }
+
+  /** The curved arrows on each side under the island, kept on screen. */
+  private _placeTurnButtons(scale: number) {
+    const { width: w, height: h } = this.combat.board
+    const middle = toScreen({ x: (w - 1) / 2, y: (h - 1) / 2 }, 0, ISO)
+    const front = toScreen({ x: w - 1, y: h - 1 }, 0, ISO)
+    const x = this._world.x + middle.x * scale
+    const y = this._world.y + (front.y + TILE_HEIGHT + COLUMN_BOTTOM) * scale
+    // a third of the way to the left and right corners
+    const corner = toScreen({ x: w - 1, y: 0 }, 0, ISO)
+    const spread = Math.max(60, (corner.x - middle.x) * scale * 0.35)
+    const { width, height } = this._fit
+    this._turnButtons.forEach((view, i) => {
+      view.position.set(
+        Math.min(width - 30, Math.max(30, x + (i ? spread : -spread))),
+        Math.min(height - 130, Math.max(30, y + 20)),
+      )
+    })
   }
 
   /** Screen shake; a stronger shake overrides a weaker one. */
@@ -1693,4 +1737,51 @@ export default class FightScene extends ViewChip<SceneEvents> {
     else this._hud.showEnd("Défaite…", 0xff8787, actions)
     this._board.setHighlights([])
   }
+}
+
+/** A round button with a curved arrow (1: clockwise). */
+function turnButton(dir: 1 | -1) {
+  const view = new Container()
+  view.eventMode = "static"
+  view.cursor = "pointer"
+  const draw = (hover: boolean) => {
+    const r = 11
+    // the arc ends at the arrow head, going the way the board turns
+    const start = (-150 * Math.PI) / 180
+    const end = (120 * Math.PI) / 180
+    const flip = (x: number) => x * dir
+    const at = (a: number, d = r) => ({
+      x: flip(Math.cos(a) * d),
+      y: Math.sin(a) * d,
+    })
+    const tip = at(end)
+    const tangent = { x: flip(-Math.sin(end)), y: Math.cos(end) }
+    const out = { x: flip(Math.cos(end)), y: Math.sin(end) }
+    const color = hover ? COLORS.text : COLORS.muted
+    const g = new Graphics()
+      .circle(0, 0, 22)
+      .fill({ color: COLORS.panel, alpha: 0.85 })
+      .stroke({ width: 2, color: hover ? COLORS.text : COLORS.panelBorder })
+    const from = at(start)
+    g.moveTo(from.x, from.y)
+    for (let i = 1; i <= 24; i++) {
+      const p = at(start + ((end - start) * i) / 24)
+      g.lineTo(p.x, p.y)
+    }
+    g.stroke({ width: 3, color, cap: "round" })
+    g.poly([
+      tip.x + tangent.x * 8,
+      tip.y + tangent.y * 8,
+      tip.x + out.x * 7 - tangent.x * 2,
+      tip.y + out.y * 7 - tangent.y * 2,
+      tip.x - out.x * 7 - tangent.x * 2,
+      tip.y - out.y * 7 - tangent.y * 2,
+    ]).fill({ color })
+    for (const old of view.removeChildren()) old.destroy()
+    view.addChild(g)
+  }
+  draw(false)
+  view.on("pointerover", () => draw(true))
+  view.on("pointerout", () => draw(false))
+  return view
 }
