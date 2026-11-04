@@ -157,6 +157,22 @@ type Mode =
   | { type: "action"; action: ActionDefinition }
   | { type: "divine"; id: string }
 
+/**
+ * What the player tries on the fight (a click or a key), checked by
+ * `FightScene.guard` (the tutorial lets through only what its lesson asks).
+ * Menu, Réglages and the speed are always allowed.
+ */
+export type SceneInput =
+  | { type: "cell" }
+  | { type: "action"; id: string }
+  | { type: "divine"; id: string }
+  /** Avancer / Passer (`key`: Espace or Entrée). */
+  | { type: "pass"; key?: boolean }
+  /** Back out of a selection or a planned walk (always harmless). */
+  | { type: "cancel" }
+  | { type: "camera" }
+  | { type: "timeline" }
+
 interface SceneEvents extends booyah.BaseCompositeEvents {
   /** A button of the end screen was pressed. */
   endAction: [id: string]
@@ -245,6 +261,9 @@ export default class FightScene extends ViewChip<SceneEvents> {
     follow: { x: number; y: number; elevation: number } | null
   } | null = null
   /** Right or middle button held on the screen (camera drag). */
+  /** Lets an input through (none: everything goes). */
+  guard: ((input: SceneInput) => boolean) | null = null
+
   /** The settings open over the fight (null: closed). */
   private _settings: { screen: SettingsScreen; shade: Graphics } | null = null
   private _drag: {
@@ -311,7 +330,9 @@ export default class FightScene extends ViewChip<SceneEvents> {
     lens.addChild(this._world, this._backdrop.front)
     this._turnButtons = ([-1, 1] as const).map((dir) => {
       const view = turnButton(dir)
-      view.on("pointertap", () => this.turnCamera(dir))
+      view.on("pointertap", () => {
+        if (this.allows({ type: "camera" })) this.turnCamera(dir)
+      })
       this._container.addChild(view)
       return view
     })
@@ -383,9 +404,16 @@ export default class FightScene extends ViewChip<SceneEvents> {
     this._subscribe(this._board, "cellDown", (p, button) =>
       this._onCellDown(p, button),
     )
-    this._subscribe(this._hud, "action", (id) => this._selectAction(id))
-    this._subscribe(this._hud, "divine", (id) => this._selectDivine(id))
-    this._subscribe(this._hud, "pass", () => this._pass())
+    this._hud.allows = (input) => this.allows(input)
+    this._subscribe(this._hud, "action", (id) => {
+      if (this.allows({ type: "action", id })) this._selectAction(id)
+    })
+    this._subscribe(this._hud, "divine", (id) => {
+      if (this.allows({ type: "divine", id })) this._selectDivine(id)
+    })
+    this._subscribe(this._hud, "pass", () => {
+      if (this.allows({ type: "pass" })) this._pass()
+    })
     this._subscribe(this._hud, "cancelWalk", () => this._cancelWalk())
     this._subscribe(this._hud, "hoverChoice", (choice) => {
       this._hoverChoice = choice
@@ -473,6 +501,11 @@ export default class FightScene extends ViewChip<SceneEvents> {
     if (this._hud) this._refreshAll()
   }
 
+  /** Whether the player may do this now (see `guard`). */
+  allows(input: SceneInput) {
+    return !this.guard || this.guard(input)
+  }
+
   /** The settings, open over the fight (which waits meanwhile). */
   get settingsOpen() {
     return this._settings !== null
@@ -535,6 +568,8 @@ export default class FightScene extends ViewChip<SceneEvents> {
   private _onPointerDown(e: PointerEvent) {
     if (this._settings) return
     if (e.button !== 1 && e.button !== 2) return
+    // a right click still cancels (on release), the drag moves the camera
+    if (e.button === 1 && !this.allows({ type: "camera" })) return
     // grabbing the board moves the camera, unless zoomed out to the most
     const onBoard = this._hovered !== null
     const zoomedOut = this._zoom.target <= MIN_ZOOM + 1e-3
@@ -556,6 +591,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
     const dx = (e.clientX ?? 0) - drag.x
     const dy = (e.clientY ?? 0) - drag.y
     if (!drag.moved && Math.hypot(dx, dy) < 5) return
+    if (!this.allows({ type: "camera" })) return
     drag.moved = true
     if (drag.kind === "pan") {
       this._zoom.target = this._zoom.value
@@ -698,7 +734,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
 
   private _onWheel(e: WheelEvent) {
     e.preventDefault()
-    if (this._settings) return
+    if (this._settings || !this.allows({ type: "camera" })) return
     // a trackpad pinch comes as a wheel with ctrl, in small steps
     const steps = -e.deltaY / (e.ctrlKey ? 25 : 100)
     this.zoomAt(
@@ -1556,6 +1592,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
     if (this._settings) return
     // the right button cancels on release, unless it dragged the camera
     if (button === 2) return
+    if (!this.allows({ type: "cell" })) return
     const fighter = this._activeHuman
     if (!fighter) return
 
@@ -1602,6 +1639,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
   private _onKey(e: KeyboardEvent) {
     if (this._settings) return
     if (e.key === "f" || e.key === "F") return this._toggleSpeed()
+    if ("qQeEvV".includes(e.key) && !this.allows({ type: "camera" })) return
     if (e.key === "q" || e.key === "Q") return this.turnCamera(-1)
     if (e.key === "e" || e.key === "E") return this.turnCamera(1)
     if (e.key === "v" || e.key === "V") return this.resetView()
@@ -1609,7 +1647,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
     if (!fighter) return
     if (e.key === " " || e.key === "Enter") {
       e.preventDefault()
-      this._pass()
+      if (this.allows({ type: "pass", key: true })) this._pass()
     } else if (e.key === "Escape") {
       this._mode = { type: "move" }
       this._refreshAll()
@@ -1618,10 +1656,12 @@ export default class FightScene extends ViewChip<SceneEvents> {
       this._cancelWalk()
     } else if (e.key === "c" || e.key === "C") {
       const sprint = this.combat.actionsOf(fighter).find((a) => a.movement)
-      if (sprint) this._selectAction(sprint.id)
+      if (sprint && this.allows({ type: "action", id: sprint.id }))
+        this._selectAction(sprint.id)
     } else if (/^[1-9]$/.test(e.key)) {
       const action = this.combat.actionsOf(fighter)[Number(e.key) - 1]
-      if (action) this._selectAction(action.id)
+      if (action && this.allows({ type: "action", id: action.id }))
+        this._selectAction(action.id)
     }
   }
 

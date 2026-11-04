@@ -99,6 +99,55 @@ describe("Tutorial", () => {
     expect(combat.holding.size).toBe(0)
   }, 30_000)
 
+  test("a lesson lets through only what it asks: the bubble covers the rest", () => {
+    const t = mount(new Tutorial(4))
+    const combat = t.scene.combat
+    const hud = (t.scene as any)._hud
+    const board = (t.scene as any)._board
+    const key = (k: string) =>
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: k }))
+    t.next()
+    tick(t, 3000)
+    expect(t.step?.id).toBe("timeline")
+    const me = combat.activeFighter!
+    const commands = combat.log.length
+
+    // reading: no walk, no action, no pass, no camera
+    board.emit("cellDown", combat.getReachableCells(me)[0], 0)
+    expect(me.path).toEqual([])
+    const first = combat.actionsOf(me)[0]
+    hud.emit("action", first.id)
+    key("1")
+    expect((t.scene as any)._mode.type).toBe("move")
+    hud.emit("pass")
+    expect(combat.log.length).toBe(commands)
+    const quarter = camera.quarter
+    key("e")
+    tick(t, 2000)
+    expect(camera.quarter).toBe(quarter)
+    // but the timeline it shows can be clicked, and Entrée reads on
+    expect(t.allows({ type: "timeline" })).toBe(true)
+    key("Enter")
+    expect(t.step?.id).toBe("card")
+    expect(combat.log.length).toBe(commands)
+
+    // the walk lesson: Avancer only (no attack, no new step on the board)
+    while (t.step && t.step.id !== "move") t.next()
+    tick(t, 100)
+    board.emit("cellDown", combat.getReachableCells(me)[0], 0)
+    tick(t, 100)
+    expect(t.step?.id).toBe("walk")
+    expect(t.allows({ type: "cell" })).toBe(false)
+    expect(t.allows({ type: "action", id: first.id })).toBe(false)
+    expect(t.allows({ type: "cancel" })).toBe(true)
+    expect(t.allows({ type: "pass" })).toBe(true)
+
+    // once the lessons are over, everything goes
+    while (t.step) t.next()
+    expect(t.allows({ type: "camera" })).toBe(true)
+    expect(t.allows({ type: "action", id: first.id })).toBe(true)
+  }, 30_000)
+
   test("every lesson has a title and a text", () => {
     const t = mount(new Tutorial(4))
     for (const step of TUTORIAL_STEPS) {

@@ -3,7 +3,7 @@ import type { Fighter, Point } from "@realms/engine"
 import { Container, Graphics } from "pixi.js"
 import { settings } from "../settings"
 
-import FightScene, { type SceneOptions } from "./FightScene"
+import FightScene, { type SceneInput, type SceneOptions } from "./FightScene"
 import type { Bounds } from "./Hud"
 import { COLORS, camera, MEANING } from "./theme"
 import { button, clearChildren, richText, text } from "./ui"
@@ -90,6 +90,11 @@ export interface TutorialStep {
   button?: string
   /** When the step ends (by itself or with the button). */
   leave?: (t: Tutorial) => void
+  /**
+   * What the player may click or press during the lesson (beyond backing
+   * out of a selection): what it asks for, nothing else. None: nothing.
+   */
+  allows?: (input: SceneInput) => boolean
 }
 
 const ARROW = 16
@@ -148,6 +153,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   },
   {
     id: "timeline",
+    allows: (input) => input.type === "timeline",
     title: "La frise du temps",
     needsTurn: true,
     anchor: (t) => ui(t.scene.hud.partBounds("timeline"), "below"),
@@ -172,6 +178,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   },
   {
     id: "move",
+    allows: (input) => input.type === "cell",
     title: "Se déplacer",
     needsTurn: true,
     anchor: (t) => cell(t, TUTORIAL_CELLS.walk, "below", "right"),
@@ -182,6 +189,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   },
   {
     id: "walk",
+    allows: (input) => input.type === "pass",
     title: "Avancer",
     needsTurn: true,
     anchor: (t) =>
@@ -211,6 +219,9 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   },
   {
     id: "sprint",
+    allows: (input) =>
+      input.type === "cell" ||
+      (input.type === "action" && input.id === "sprint"),
     title: "La course",
     needsTurn: true,
     button: "Passer l'étape",
@@ -226,6 +237,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   },
   {
     id: "join",
+    allows: (input) => input.type === "cell" || input.type === "pass",
     title: "Les combos",
     needsTurn: true,
     button: "Passer l'étape",
@@ -241,6 +253,10 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   },
   {
     id: "combo",
+    allows: (input) =>
+      input.type === "cell" ||
+      input.type === "pass" ||
+      (input.type === "action" && input.id.startsWith("combo:")),
     title: "Utiliser un combo",
     needsTurn: true,
     button: "Passer l'étape",
@@ -269,6 +285,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   },
   {
     id: "camera",
+    allows: (input) => input.type === "camera",
     title: "La caméra",
     anchor: (t) => ui(t.scene.turnButtonsBounds, "above"),
     done: (t) => camera.quarter !== t.quarter,
@@ -397,6 +414,7 @@ export default class Tutorial extends ViewChip<TutorialEvents> {
     const delays: Record<string, number> = { eva: 0, merlin: 2 }
     for (const fighter of combat.fighters)
       fighter.nextActionAt = delays[fighter.presetId] ?? 4
+    this._scene.guard = (input) => this.allows(input)
     this._activateChildChip(this._scene)
     this._subscribe(this._scene, "quit", () => this.emit("exit"))
     this._subscribe(this._scene, "endAction", (id: string) =>
@@ -430,6 +448,24 @@ export default class Tutorial extends ViewChip<TutorialEvents> {
     if (waiting) return this._hide()
     if (this._drawn !== this._index) this._draw(step)
     this._layout(step)
+  }
+
+  /**
+   * What the lesson lets the player do: what it asks for, else nothing
+   * but reading (the bubble covers the interface). Backing out of a
+   * selection is always allowed; Entrée / Espace read on ("Suivant").
+   */
+  allows(input: SceneInput): boolean {
+    const step = this.step
+    if (!step) return true
+    if (input.type === "cancel") return true
+    const reading = !step.done || this._doneAtStart
+    if (reading && input.type === "pass" && input.key) {
+      if (this._bubble.visible) this.next()
+      return false
+    }
+    if (this._doneAtStart) return false
+    return step.allows?.(input) ?? false
   }
 
   /** Ends the current lesson. */

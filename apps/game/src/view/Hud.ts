@@ -17,6 +17,7 @@ import {
   describeStatus,
   STATUS_COLORS,
 } from "./describe"
+import type { SceneInput } from "./FightScene"
 import { characterTexture } from "./textures"
 import { COLORS, MEANING, TEAM_COLORS } from "./theme"
 import {
@@ -88,6 +89,8 @@ export default class Hud extends ViewChip<HudEvents> {
   private _preview!: Container
   private _quit!: Text
   private _settings!: Text
+  /** Lets a click through (set by the scene: the tutorial filters them). */
+  allows: (input: SceneInput) => boolean = () => true
   /** The texts built once, with their base size (resized by the settings). */
   private _fixedTexts: [Text, number][] = []
   private _width = 0
@@ -106,7 +109,9 @@ export default class Hud extends ViewChip<HudEvents> {
       this._timelineHovered = false
       this._syncExpansion()
     })
-    this._timeline.on("pointertap", () => this.toggleTimeline())
+    this._timeline.on("pointertap", () => {
+      if (this.allows({ type: "timeline" })) this.toggleTimeline()
+    })
     try {
       this._timelinePinned =
         globalThis.localStorage?.getItem(TIMELINE_KEY) === "1"
