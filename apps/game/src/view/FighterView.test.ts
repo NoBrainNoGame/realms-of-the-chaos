@@ -182,8 +182,21 @@ describe("landing preview on the timeline", () => {
     hud.emit("hoverChoice", null)
     expect(hud.landingGhost).toBeNull()
 
-    // the sprint: its landing depends on the hovered cell
+    // the sprint: nothing on its button, nor before a cell is hovered
+    const sprint = scene.combat.actionsOf(me).find((a) => a.movement)!
+    hud.emit("hoverChoice", sprint.id)
+    expect(scene.landingPreview()).toBeNull()
+    expect(hud.landingGhost).toBeNull()
+    hud.emit("hoverChoice", null)
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "c" }))
+    internals._hovered = null
+    expect(scene.landingPreview()).toBeNull()
+    // nor on a cell out of its reach
+    const far = { x: me.position.x + 7, y: me.position.y + 7 }
+    internals._board.emit("cellOver", far)
+    expect(scene.landingPreview()).toBeNull()
+    expect(hud.landingGhost).toBeNull()
+    // then its landing depends on the hovered cell
     const targets = scene.combat.getValidTargets(me, internals._mode.action)
     const delays = new Set<number>()
     for (const target of targets) {

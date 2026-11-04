@@ -1140,8 +1140,8 @@ export default class FightScene extends ViewChip<SceneEvents> {
   /**
    * Where the active fighter lands on the timeline if it does what the
    * player is pointing at: a hovered action button (or Passer), or the
-   * selected action on the hovered cell (a sprint depends on the cell;
-   * without one, its longest reach).
+   * selected action on the hovered cell. A sprint depends on its cell: no
+   * preview until a reachable cell is hovered.
    */
   landingPreview(): { fighter: Fighter; delay: number } | null {
     const fighter = this._activeHuman
@@ -1154,17 +1154,21 @@ export default class FightScene extends ViewChip<SceneEvents> {
       return { fighter, delay: this.combat.passDelay(fighter) }
     const action = this.combat.actionsOf(fighter).find((a) => a.id === choice)
     if (!action) return null
-    const onCell =
-      !this._hoverChoice && action.movement && this._hovered
-        ? this.combat.turnDelayOf(fighter, {
-            type: "action",
-            actionId: choice,
-            target: this._hovered,
-          })
-        : null
-    const delay =
-      onCell ??
-      this.combat.turnDelayOf(fighter, { type: "action", actionId: choice })
+    if (action.movement) {
+      // a sprint lands where it goes: nothing until a reachable cell is
+      // hovered (not on its button, not on a cell out of reach)
+      if (this._hoverChoice || !this._hovered) return null
+      const delay = this.combat.turnDelayOf(fighter, {
+        type: "action",
+        actionId: choice,
+        target: this._hovered,
+      })
+      return delay === null ? null : { fighter, delay }
+    }
+    const delay = this.combat.turnDelayOf(fighter, {
+      type: "action",
+      actionId: choice,
+    })
     return delay === null ? null : { fighter, delay }
   }
 
