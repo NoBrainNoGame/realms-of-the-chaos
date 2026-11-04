@@ -54,10 +54,6 @@ import {
 import ViewChip from "./ViewChip"
 
 /** A team of the fight, and who plays it. */
-/** The island of the fight floats: period (ms) and amplitude (px). */
-export const ISLAND_FLOAT_PERIOD = 8300
-export const ISLAND_FLOAT_AMPLITUDE = 3
-
 export interface SceneTeam {
   name: string
   /** Played on this device, or by the AI. */
@@ -197,7 +193,6 @@ export default class FightScene extends ViewChip<SceneEvents> {
   /** Team of the last local turn (announces turns in local duels). */
   private _lastInputTeam: number | null = null
   private _worldBase = { x: 0, y: 0 }
-  private _floatTime = 0
   private _shake = { intensity: 0, remaining: 0, duration: 1 }
 
   constructor(private readonly _options: SceneOptions) {
@@ -322,7 +317,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
     // highest peaks above, and the top of the island's rocky underside below
     const top = -TILE_HEIGHT - MAX_ELEVATION * ELEVATION_HEIGHT - 40
     const bottom =
-      toScreen({ x: w - 1, y: h - 1 }).y + TILE_HEIGHT + COLUMN_BOTTOM + 30
+      toScreen({ x: w - 1, y: h - 1 }).y + TILE_HEIGHT + COLUMN_BOTTOM + 90
     const scale = Math.max(
       0.6,
       Math.min(
@@ -355,12 +350,8 @@ export default class FightScene extends ViewChip<SceneEvents> {
       view.setGroundOffset(this._board.cellOffset(this._cells.get(id)!))
     }
 
-    // the whole island floats slowly (its own pace, slower than the
-    // distant islands), plus the screen shake
-    this._floatTime += this._lastTickInfo.timeSinceLastTick
-    const float =
-      Math.sin((this._floatTime / ISLAND_FLOAT_PERIOD) * Math.PI * 2) *
-      ISLAND_FLOAT_AMPLITUDE
+    // screen shake (the island itself stays still: only the distant
+    // islands float)
     const shake = this._shake
     let dx = 0
     let dy = 0
@@ -374,10 +365,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
       dy = (Math.random() * 2 - 1) * k * 0.6
       if (shake.remaining === 0) shake.intensity = 0
     }
-    this._world.position.set(
-      this._worldBase.x + dx,
-      this._worldBase.y + float + dy,
-    )
+    this._world.position.set(this._worldBase.x + dx, this._worldBase.y + dy)
   }
 
   protected _onTick() {

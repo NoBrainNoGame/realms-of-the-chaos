@@ -31,19 +31,21 @@ export function undersideDepths(
   width: number,
   height: number,
   seed: number,
-  maxDepth = 12,
+  step = 3,
 ): number[][] {
   const cx = (width - 1) / 2
   const cy = (height - 1) / 2
-  const reach = Math.max(cx, cy, 1)
+  // rings around the middle (0 in the middle, `rings` on the edge)
+  const rings = Math.ceil(Math.max(cx, cy))
   return Array.from({ length: height }, (_, y) =>
     Array.from({ length: width }, (_, x) => {
-      const distance = Math.max(Math.abs(x - cx), Math.abs(y - cy)) / reach
-      // each ring towards the edge loses a few blocks: visible steps
-      const base = (1 - distance) ** 0.7 * maxDepth
-      const factor = 0.7 + cellNoise({ x, y }, seed, 11) * 0.5
-      const edge = distance >= 1 ? Math.round(cellNoise({ x, y }, seed, 13)) : 0
-      return Math.max(0, Math.round(base * factor) + edge)
+      const ring = Math.ceil(Math.max(Math.abs(x - cx), Math.abs(y - cy)))
+      // each ring towards the edge loses about `step` blocks: a stepped
+      // pyramid that narrows down to the middle column, its tip
+      const base = (rings - ring) * step + 1
+      // irregular: a block more or less here and there
+      const noise = Math.floor(cellNoise({ x, y }, seed, 11) * 3) - 1
+      return Math.max(1, base + (ring === 0 ? 1 : noise))
     }),
   )
 }

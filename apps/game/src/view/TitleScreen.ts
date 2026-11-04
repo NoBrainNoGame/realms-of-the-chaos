@@ -77,7 +77,15 @@ export default class TitleScreen extends ViewChip<TitleEvents> {
     const entities = new Container()
     entities.sortableChildren = true
     const top = new Container()
-    const board = Board.generate(createRng(this._seed))
+    // the island of the title screen always has some water
+    let board = Board.generate(createRng(this._seed))
+    for (
+      let i = 1;
+      i < 30 && !board.cells.some((c) => c.terrain === "water");
+      i++
+    ) {
+      board = Board.generate(createRng(this._seed + i))
+    }
     this._container.addChild(this._halo, this._island)
     this._activateChildChip(new BoardView(board, entities, top, this._seed), {
       context: { container: this._island },

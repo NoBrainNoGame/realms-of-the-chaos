@@ -4,11 +4,7 @@ import { Container, Graphics } from "pixi.js"
 import { mount, tick } from "../test/harness"
 import Backdrop from "./Backdrop"
 import BoardView from "./BoardView"
-import FightScene, {
-  classicFight,
-  ISLAND_FLOAT_AMPLITUDE,
-  ISLAND_FLOAT_PERIOD,
-} from "./FightScene"
+import FightScene, { classicFight } from "./FightScene"
 import { drawFloatingIsland, undersideDepths } from "./islands"
 
 describe("island underside (inverted pyramid of blocks)", () => {
@@ -22,8 +18,16 @@ describe("island underside (inverted pyramid of blocks)", () => {
     // irregular: the same ring does not have the same depth everywhere
     const ring = [a[2][2], a[2][6], a[6][2], a[6][6], a[2][4], a[4][2]]
     expect(new Set(ring).size).toBeGreaterThan(1)
+    // every cell keeps at least one block, and the stack narrows to a
+    // single tip in the middle (pointed, not flat)
     for (const row of a)
-      for (const d of row) expect(d).toBeGreaterThanOrEqual(0)
+      for (const d of row) expect(d).toBeGreaterThanOrEqual(1)
+    const all = a.flat()
+    expect(all.filter((d) => d === center)).toHaveLength(1)
+    expect(center).toBeGreaterThanOrEqual(12)
+    expect(Math.max(...[a[4][3], a[3][4], a[4][5], a[5][4]])).toBeLessThan(
+      center,
+    )
   })
 
   test("a floating island can be drawn at any size", () => {
@@ -73,14 +77,13 @@ describe("everything floats, each at its own pace", () => {
     expect(islands.length).toBeGreaterThanOrEqual(4)
     const periods = islands.map((i) => i.period)
     expect(new Set(periods).size).toBe(periods.length)
-    expect(periods).not.toContain(ISLAND_FLOAT_PERIOD)
     const before = islands.map((i) => i.node.y)
     tick(backdrop, 1500)
     const after = islands.map((i) => i.node.y)
     expect(after).not.toEqual(before)
   })
 
-  test("the island of the fight floats too", () => {
+  test("the island of the fight stays still (only the distant ones float)", () => {
     const scene = mount(
       new FightScene(
         classicFight({
@@ -92,16 +95,14 @@ describe("everything floats, each at its own pace", () => {
         }),
       ),
     )
-    const world = (scene as any)._world as Container
-    const ys = new Set<number>()
+    const internals = scene as any
+    const world = internals._world as Container
     for (let i = 0; i < 20; i++) {
-      tick(scene, ISLAND_FLOAT_PERIOD / 20)
-      ys.add(Math.round(world.y * 10))
+      tick(scene, 400)
+      // no screen shake playing: the island is exactly at its place
+      if (internals._shake.remaining === 0) {
+        expect(world.y).toBe(internals._worldBase.y)
+      }
     }
-    expect(ys.size).toBeGreaterThan(3)
-    const base = (scene as any)._worldBase.y
-    expect(Math.abs(world.y - base)).toBeLessThanOrEqual(
-      ISLAND_FLOAT_AMPLITUDE + 12,
-    )
   })
 })
