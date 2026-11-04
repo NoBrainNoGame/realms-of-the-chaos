@@ -247,9 +247,13 @@ describe("timeline: real durations", () => {
     // spacing follows the waits, not the order
     const gapSmall = second.x - first.x
     const gapBig = third.x - second.x
-    expect(gapBig).toBeGreaterThan(gapSmall * 5)
-    // close turns are stacked on another row
-    expect(second.y).not.toBe(first.y)
+    expect(gapBig).toBeGreaterThan(gapSmall * 2)
+    // a single row, twice as wide as the compact view at least; close
+    // turns are pushed apart so portraits never overlap
+    expect(second.y).toBe(first.y)
+    expect(third.y).toBe(first.y)
+    expect(second.x - first.x).toBeGreaterThanOrEqual(44)
+    expect(timeline.width).toBeGreaterThanOrEqual(compact * 2 - 4) // borders
     // the axis spans exactly from the first portrait to the last one
     const labels = texts(timeline)
     expect(labels).toContain("10")
@@ -257,6 +261,7 @@ describe("timeline: real durations", () => {
     expect(labels).not.toContain("maintenant")
     const span = third.x - first.x
     expect(timeline.width).toBeLessThan(span + 44 + 16 + 30)
+    expect(third.x - first.x).toBeGreaterThan(timeline.width - 16 - 44 - 4)
 
     timeline.emit("pointerleave", {} as any)
     expect(hud.timelineExpanded).toBe(false)

@@ -44,8 +44,6 @@ export const LOCOMOTION_TRAITS: Record<Locomotion, string | null> = {
 
 /** Browser storage key of the pinned timeline view. */
 const TIMELINE_KEY = "realms.timeline.expanded"
-/** Width of the time axis of the expanded timeline (px). */
-const TIMELINE_SPAN = 620
 
 export default class Hud extends ViewChip<HudEvents> {
   private _timeline!: Container
@@ -310,26 +308,40 @@ export default class Hud extends ViewChip<HudEvents> {
     let range = 0
     // the axis spans exactly from the first to the last portrait
     const first = Math.min(...waits)
+    const hint = text(
+      this._landing
+        ? "→ ordre de jeu · ◌ : votre prochain tour après ce choix"
+        : "→ ordre de jeu · survoler : durées réelles",
+      11,
+      COLORS.muted,
+    )
+    // compact width: the portraits, and the hint under them
+    const compact = Math.max(
+      entries.length * (size + gap) - gap + 16,
+      Math.ceil(hint.width) + 16,
+    )
     if (!expanded) {
-      width = entries.length * (size + gap) - gap + 16
+      width = compact
       height = size + 26
       entries.forEach((_, i) => places.push({ x: 8 + i * (size + gap), y: 6 }))
     } else {
+      // at least twice as wide as the compact view, on a single row
+      const axis = 2 * compact - 16 - size
       range = Math.max(...waits) - first
-      scale = range > 0 ? Math.min(6, TIMELINE_SPAN / range) : 0
-      // close turns are stacked on rows so portraits stay readable
-      const rowEnds: number[] = []
-      let rows = 1
-      waits.forEach((wait) => {
-        const x = 8 + (wait - first) * scale
-        let row = rowEnds.findIndex((end) => x >= end + 2)
-        if (row < 0) row = rowEnds.length
-        rowEnds[row] = x + size
-        rows = Math.max(rows, row + 1)
-        places.push({ x, y: 6 + row * (size * 0.6) })
-      })
-      width = 16 + size + range * scale
-      height = 6 + (rows - 1) * size * 0.6 + size + 40
+      scale = range > 0 ? axis / range : 0
+      // real positions, then pushed apart (keeping the order) so close
+      // turns never overlap
+      const xs = waits.map((wait) => (wait - first) * scale)
+      const spacing = size + 2
+      for (let i = 1; i < xs.length; i++)
+        xs[i] = Math.max(xs[i], xs[i - 1] + spacing)
+      for (let i = xs.length - 1; i >= 0; i--) {
+        const limit = i === xs.length - 1 ? axis : xs[i + 1] - spacing
+        xs[i] = Math.max(0, Math.min(xs[i], limit))
+      }
+      for (const x of xs) places.push({ x: 8 + x, y: 6 })
+      width = 16 + size + axis
+      height = 6 + size + 40
     }
 
     this._timeline.addChild(
@@ -367,13 +379,6 @@ export default class Hud extends ViewChip<HudEvents> {
       }
       this._timeline.addChild(axis)
     } else {
-      const hint = text(
-        this._landing
-          ? "→ ordre de jeu · ◌ : votre prochain tour après ce choix"
-          : "→ ordre de jeu · survoler : durées réelles",
-        11,
-        COLORS.muted,
-      )
       hint.position.set(8, size + 9)
       this._timeline.addChild(hint)
     }
@@ -384,10 +389,11 @@ export default class Hud extends ViewChip<HudEvents> {
       const active = !ghost && combat.activeFighter === fighter
       if (expanded) {
         // a tick from the portrait down to its time on the axis
+        const real = 8 + (wait - first) * scale - places[i].x
         slot.addChild(
           new Graphics()
             .moveTo(size / 2, size)
-            .lineTo(size / 2, height - 26 - places[i].y)
+            .lineTo(size / 2 + real, height - 26 - places[i].y)
             .stroke({
               width: 1,
               color: ghost ? MEANING.time : TEAM_COLORS[fighter.team],
