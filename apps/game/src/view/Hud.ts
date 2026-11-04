@@ -66,6 +66,9 @@ export default class Hud extends ViewChip<HudEvents> {
   private _expansionTween: booyah.Tween | null = null
   private _landing: { fighter: Fighter; delay: number } | null = null
   private _actionBar!: Container
+  /** Glows of the buttons suggested now. */
+  private _halos: Graphics[] = []
+  private _haloTime = 0
   private _card!: Container
   private _divine!: Container
   private _log!: Container
@@ -161,6 +164,12 @@ export default class Hud extends ViewChip<HudEvents> {
   }
 
   protected _onTick() {
+    // the suggested buttons breathe
+    if (this._halos.length) {
+      this._haloTime += this._lastTickInfo.timeSinceLastTick
+      const alpha = 0.55 + 0.45 * Math.sin(this._haloTime / 260)
+      for (const halo of this._halos) halo.alpha = alpha
+    }
     if (this._bannerTime > 0) {
       this._bannerTime -= this._lastTickInfo.timeSinceLastTick
       this._banner.alpha = Math.min(1, this._bannerTime / 300)
@@ -528,8 +537,21 @@ export default class Hud extends ViewChip<HudEvents> {
 
   // ─── Action bar ───────────────────────────────────────────────────────────
 
-  setActions(fighter: Fighter | null, combat: Combat, selected: string | null) {
+  /**
+   * The active fighter's actions (none when it isn't a local player's
+   * turn). `suggested`: the actions worth using now, or the pass button.
+   */
+  setActions(
+    fighter: Fighter | null,
+    combat: Combat,
+    selected: string | null,
+    suggested: { actions: readonly string[]; pass: boolean } = {
+      actions: [],
+      pass: false,
+    },
+  ) {
     clearChildren(this._actionBar)
+    this._halos = []
     // the buttons are rebuilt: none of them is hovered any more
     this.emit("hoverChoice", null)
 
@@ -574,7 +596,12 @@ export default class Hud extends ViewChip<HudEvents> {
           this.emit("hoverChoice", null)
         },
       })
-      b.setState({ enabled: cooldown === 0, selected: selected === action.id })
+      b.setState({
+        enabled: cooldown === 0,
+        selected: selected === action.id,
+        suggested: suggested.actions.includes(action.id),
+      })
+      if (suggested.actions.includes(action.id)) this._halos.push(b.halo)
       // combined actions show the partner who unlocked them
       if (action.combo) {
         const partner = new Sprite(
@@ -589,15 +616,19 @@ export default class Hud extends ViewChip<HudEvents> {
     })
     const combos = actions.filter((a) => a.combo).length
 
+    // with a planned walk, passing lets the fighter walk on
+    const walking = fighter.path.length > 0
     const pass = button({
       width: 96,
       height: size,
-      label: "Passer",
+      label: walking ? "Avancer" : "Passer",
       hotkey: "␣",
       onTap: () => this.emit("pass"),
       onOver: () => {
         this.showTooltip(
-          "Termine le tour sans agir : vous rejouez juste après le prochain personnage.",
+          walking
+            ? `Termine le tour sans agir : ${fighter.name} avance sur son trajet et rejoue juste après le prochain personnage.`
+            : "Termine le tour sans agir : vous rejouez juste après le prochain personnage.",
           pass.view.getGlobalPosition(),
           true,
         )
@@ -608,6 +639,11 @@ export default class Hud extends ViewChip<HudEvents> {
         this.emit("hoverChoice", null)
       },
     })
+    pass.view.label = "pass"
+    if (suggested.pass) {
+      pass.setState({ suggested: true })
+      this._halos.push(pass.halo)
+    }
     pass.view.position.set(
       actions.length * (size + 8) + 12 + (combos ? 12 : 0),
       0,

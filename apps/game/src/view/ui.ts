@@ -44,10 +44,20 @@ export function panel(
 
 export interface Button {
   view: Container
-  setState(state: { enabled?: boolean; selected?: boolean }): void
+  /** Glow around a suggested button (its alpha can be pulsed). */
+  halo: Graphics
+  setState(state: {
+    enabled?: boolean
+    selected?: boolean
+    /** Glows: the move the HUD suggests. */
+    suggested?: boolean
+  }): void
   /** Changes the text of a labelled button. */
   setLabel(label: string): void
 }
+
+/** Glow of the suggested buttons. */
+export const SUGGESTED = 0x8ce99a
 
 export function button(options: {
   width: number
@@ -66,8 +76,14 @@ export function button(options: {
   onOut?: () => void
 }): Button {
   const view = new Container()
+  const halo = new Graphics()
+    .roundRect(-5, -5, options.width + 10, options.height + 10, 10)
+    .stroke({ width: 4, color: SUGGESTED, alpha: 0.35 })
+    .roundRect(-2, -2, options.width + 4, options.height + 4, 7)
+    .stroke({ width: 2, color: SUGGESTED })
+  halo.visible = false
   const bg = new Graphics()
-  view.addChild(bg)
+  view.addChild(halo, bg)
   view.eventMode = "static"
   view.cursor = "pointer"
 
@@ -143,12 +159,14 @@ export function button(options: {
 
   return {
     view,
+    halo,
     setLabel(label) {
       if (labelText) labelText.text = label
     },
     setState(state) {
       enabled = state.enabled ?? enabled
       selected = state.selected ?? selected
+      halo.visible = state.suggested ?? halo.visible
       draw()
     },
   }

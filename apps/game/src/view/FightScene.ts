@@ -16,6 +16,7 @@ import {
   manhattan,
   type Point,
   STATUSES,
+  usefulActions,
 } from "@realms/engine"
 import { Container, Graphics } from "pixi.js"
 import {
@@ -989,7 +990,12 @@ export default class FightScene extends ViewChip<SceneEvents> {
             this._views.get(fighter.id)!.setActive(true)
             this._hud.setTimeline(this.combat)
             this._refreshCard()
-            this._hud.setActions(fighter, this.combat, null)
+            this._hud.setActions(
+              fighter,
+              this.combat,
+              null,
+              this.guide(fighter),
+            )
             if (fighter.controller === "human") {
               this._hud.banner(
                 `À ${fighter.name} de jouer`,
@@ -1323,6 +1329,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
       this._activeHuman,
       this.combat,
       this._mode.type === "action" ? this._mode.action.id : null,
+      this._activeHuman ? this.guide(this._activeHuman) : undefined,
     )
     this._hud.setTimeline(this.combat)
     this._refreshDivine()
@@ -1656,6 +1663,20 @@ export default class FightScene extends ViewChip<SceneEvents> {
     return null
   }
 
+  /**
+   * What the player is nudged towards: the actions with a worthwhile
+   * target; else the move zone (no walk planned yet); else walking on.
+   */
+  guide(fighter: Fighter) {
+    const actions = usefulActions(this.combat, fighter)
+    const walking = fighter.path.length > 0
+    return {
+      actions,
+      moveZone: actions.length === 0 && !walking,
+      pass: actions.length === 0 && walking,
+    }
+  }
+
   private _refreshOverlay() {
     const highlights: Highlight[] = []
     const fighter = this._activeHuman
@@ -1701,12 +1722,14 @@ export default class FightScene extends ViewChip<SceneEvents> {
       switch (this._mode.type) {
         case "move": {
           const reachable = this.combat.getReachableCells(fighter)
-          highlights.push({
-            cells: reachable,
-            color: COLORS.reachable,
-            alpha: 0.3,
-            inset: 6,
-          })
+          // the zone only when moving is what to do (the cells still work)
+          if (this.guide(fighter).moveZone)
+            highlights.push({
+              cells: reachable,
+              color: COLORS.reachable,
+              alpha: 0.3,
+              inset: 6,
+            })
           if (hovered && reachable.some((c) => equals(c, hovered))) {
             // the leg the click would add (or the walk it would plan)
             const append = fighter.waypoints.length > 0

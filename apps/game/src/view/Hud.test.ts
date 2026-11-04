@@ -79,6 +79,30 @@ describe("Hud", () => {
     ])
   })
 
+  test("action bar: the suggested buttons glow; with a walk, Passer is Avancer", () => {
+    const { hud, c, eva } = activeHud()
+    const bar = () => hud.container.children[3] as Container
+    const halo = (b: Container) => b.children[0] as Container
+    const first = eva.actions[0].id
+    hud.setActions(eva, c, null, { actions: [first], pass: false })
+    let all = buttons(bar())
+    expect(halo(all[0]).visible).toBe(true)
+    expect(all.slice(1).map((b) => halo(b).visible)).not.toContain(true)
+    expect(texts(bar()).join()).toContain("Passer")
+
+    eva.path = [{ x: 1, y: 0 }]
+    hud.setActions(eva, c, null, { actions: [], pass: true })
+    all = buttons(bar())
+    const pass = all.find((b) => b.label === "pass")!
+    expect(halo(pass).visible).toBe(true)
+    expect(texts(pass).join()).toContain("Avancer")
+    expect(all.filter((b) => halo(b).visible)).toHaveLength(1)
+    // it breathes
+    const before = halo(pass).alpha
+    tick(hud, 300)
+    expect(halo(pass).alpha).not.toBe(before)
+  })
+
   test("action bar while someone else plays", () => {
     const { hud, c } = activeHud()
     hud.setActions(null, c, null)

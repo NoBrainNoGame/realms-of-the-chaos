@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test"
 import { DIVINE_ACTIONS, equals, manhattan, type Point } from "@realms/engine"
 import { mount } from "../test/harness"
 import FightScene, { classicFight, waterState } from "./FightScene"
+import { COLORS } from "./theme"
 
 type ClassicOptions = Parameters<typeof classicFight>[0]
 
@@ -210,5 +211,56 @@ describe("FightScene", () => {
     internals._hud.emit("pass")
     runUntil(s, () => !internals._pending)
     expect(s.combat.activeFighter).not.toBe(me)
+  })
+})
+
+describe("guiding the player", () => {
+  test("spells with a target, else the move zone, else walking on", () => {
+    const s = scene({ seed: 8, spectate: false })
+    const internals = s as any
+    runUntil(s, () => internals._inputReady)
+    const me = s.combat.activeFighter!
+    const drawn: { color: number }[][] = []
+    const setHighlights = internals._board.setHighlights.bind(internals._board)
+    internals._board.setHighlights = (h: { color: number }[]) => {
+      drawn.push(h)
+      setHighlights(h)
+    }
+    const zoneShown = () => {
+      internals._refreshOverlay()
+      return drawn.at(-1)!.some((h) => h.color === COLORS.reachable)
+    }
+    // far from everyone: no spell to suggest, the move zone shows
+    const enemies = s.combat.aliveFighters.filter((f) => f.team !== me.team)
+    const far = s.combat.board.cells
+      .filter((c) => !s.combat.fightersAt(c).length)
+      .sort((a, b) => manhattan(b, me.position) - manhattan(a, me.position))
+    enemies.forEach((e, i) => {
+      e.position = { x: far[i].x, y: far[i].y }
+    })
+    expect(s.guide(me)).toEqual({ actions: [], moveZone: true, pass: false })
+    expect(zoneShown()).toBe(true)
+
+    // a walk planned: no zone any more, walking on is suggested
+    const cell = s.combat.getReachableCells(me)[0]
+    internals._board.emit("cellDown", cell, 0)
+    expect(me.path.length).toBeGreaterThan(0)
+    expect(s.guide(me)).toEqual({ actions: [], moveZone: false, pass: true })
+    expect(zoneShown()).toBe(false)
+
+    // an enemy in reach: its spells are suggested, not the zone
+    const enemy = enemies[0]
+    const next = s.combat.board.cells.find(
+      (c) =>
+        manhattan(c, me.position) === 1 &&
+        !s.combat.fightersAt(c).length &&
+        c.terrain !== "water",
+    )!
+    enemy.position = { x: next.x, y: next.y }
+    const guide = s.guide(me)
+    expect(guide.actions.length).toBeGreaterThan(0)
+    expect(guide.pass).toBe(false)
+    expect(guide.moveZone).toBe(false)
+    expect(zoneShown()).toBe(false)
   })
 })

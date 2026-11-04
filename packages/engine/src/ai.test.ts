@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { decide, decideDivine, scoreAction } from "./ai"
+import { decide, decideDivine, scoreAction, usefulActions } from "./ai"
 import { Board } from "./board"
 import { Combat } from "./combat"
 import { ACTIONS } from "./content"
@@ -150,5 +150,21 @@ describe("AI", () => {
       Math.abs(move.destination.x - gorr.position.x) +
       Math.abs(move.destination.y - gorr.position.y)
     expect(distance).toBeGreaterThanOrEqual(2)
+  })
+})
+
+describe("useful actions (HUD suggestions)", () => {
+  test("only the actions with a worthwhile target, never a movement", () => {
+    const far = setup([[["eva", { x: 0, y: 0 }]], [["gorr", { x: 8, y: 8 }]]])
+    expect(usefulActions(far, far.fighters[0])).toEqual([])
+    const near = setup([[["eva", { x: 0, y: 0 }]], [["gorr", { x: 1, y: 0 }]]])
+    const [eva] = near.fighters
+    const useful = usefulActions(near, eva)
+    expect(useful.length).toBeGreaterThan(0)
+    for (const id of useful) {
+      const action = near.actionsOf(eva).find((a) => a.id === id)!
+      expect(action.movement).toBeUndefined()
+      expect(near.isOnCooldown(eva, action)).toBe(false)
+    }
   })
 })

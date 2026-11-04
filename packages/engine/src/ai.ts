@@ -153,6 +153,27 @@ export function bestAction(
 }
 
 /**
+ * Ids of the actions (not movements) usable now that have a worthwhile
+ * target: an enemy to hit, an ally who needs care… (HUD suggestions).
+ */
+export function usefulActions(combat: Combat, fighter: Fighter): string[] {
+  return combat
+    .actionsOf(fighter)
+    .filter(
+      (action) =>
+        !action.movement &&
+        !combat.isOnCooldown(fighter, action) &&
+        combat
+          .getValidTargets(fighter, action)
+          .some(
+            (target) =>
+              scoreAction(combat, fighter, action, target) >= MIN_ACTION_SCORE,
+          ),
+    )
+    .map((action) => action.id)
+}
+
+/**
  * Divine powers for AI teams: heal the team when it is badly hurt,
  * otherwise spend a full gauge to delay the next enemy.
  */
