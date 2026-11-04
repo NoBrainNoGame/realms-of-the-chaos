@@ -87,19 +87,179 @@ export const WATER = {
   bed: 0x8a7a55,
 }
 
-/** Screen position of the top-center of a cell standing at `elevation`. */
-export function toScreen(p: Point, elevation = 0): { x: number; y: number } {
+// ─── Camera ────────────────────────────────────────────────────────────────
+
+/** Pitch of the classic isometric view (tiles twice as wide as tall). */
+export const ISO_PITCH = 30
+/** Steepest pitch: almost a top-down view of the board. */
+export const MAX_PITCH = 72
+/** Free horizontal rotation around the current quarter turn, in degrees. */
+export const MAX_YAW = 15
+
+/**
+ * How the board is looked at: a quarter turn (0–3, 90° each), a small
+ * horizontal rotation on top of it (degrees) and the pitch (degrees,
+ * 30 = classic isometric, up to almost top-down).
+ */
+export interface Camera {
+  quarter: number
+  yaw: number
+  pitch: number
+}
+
+/** The classic isometric view (distant islands always use it). */
+export const ISO: Readonly<Camera> = { quarter: 0, yaw: 0, pitch: ISO_PITCH }
+
+/** The board's camera, shared by every drawing of the fight. */
+export const camera: Camera = { ...ISO }
+
+export function resetCamera() {
+  Object.assign(camera, ISO)
+}
+
+/** Grid size of a cell on screen (its diagonal is TILE_WIDTH at 45°). */
+const CELL = TILE_WIDTH / Math.SQRT2
+const RAD = Math.PI / 180
+/** Rounded, without -0 (exact values for the classic view). */
+const clean = (v: number) => Math.round(v * 1e6) / 1e6 + 0
+
+function basis(c: Readonly<Camera>) {
+  const t = (45 + 90 * c.quarter + c.yaw) * RAD
+  const sin = Math.sin(t)
+  const cos = Math.cos(t)
   return {
-    x: (p.x - p.y) * (TILE_WIDTH / 2),
-    y: (p.x + p.y) * (TILE_HEIGHT / 2) - elevation * ELEVATION_HEIGHT,
+    sin,
+    cos,
+    squash: Math.sin(c.pitch * RAD),
+    level:
+      (ELEVATION_HEIGHT * Math.cos(c.pitch * RAD)) / Math.cos(ISO_PITCH * RAD),
   }
 }
 
-/** Diamond polygon of a tile top, relative to its center. */
-export function diamond(inset = 0): number[] {
-  const w = TILE_WIDTH / 2 - inset
-  const h = TILE_HEIGHT / 2 - inset / 2
-  return [0, -h, w, 0, 0, h, -w, 0]
+/** Screen offset of a vector of the grid (on the ground plane). */
+export function project(
+  gx: number,
+  gy: number,
+  c: Readonly<Camera> = camera,
+): { x: number; y: number } {
+  const { sin, cos, squash } = basis(c)
+  return {
+    x: clean((gx * cos - gy * sin) * CELL),
+    y: clean((gx * sin + gy * cos) * CELL * squash),
+  }
+}
+
+/** Pixel height of one elevation level (shorter as the view tilts down). */
+export function levelHeight(c: Readonly<Camera> = camera) {
+  return clean(basis(c).level)
+}
+
+/**
+ * Distance of a grid point towards the viewer (painter's order): x + y
+ * in the classic view.
+ */
+export function depthAlong(p: Point, c: Readonly<Camera> = camera) {
+  const { sin, cos } = basis(c)
+  return clean((p.x * sin + p.y * cos) * Math.SQRT2)
+}
+
+/** Screen position of the top-center of a cell standing at `elevation`. */
+export function toScreen(
+  p: Point,
+  elevation = 0,
+  c: Readonly<Camera> = camera,
+): { x: number; y: number } {
+  const o = project(p.x, p.y, c)
+  return { x: o.x, y: clean(o.y - elevation * levelHeight(c)) }
+}
+
+/** Tile top corners, relative to its center (scaled by `k`). */
+export function tileCorners(k = 1, c: Readonly<Camera> = camera) {
+  return [
+    project(-0.5 * k, -0.5 * k, c),
+    project(0.5 * k, -0.5 * k, c),
+    project(0.5 * k, 0.5 * k, c),
+    project(-0.5 * k, 0.5 * k, c),
+  ]
+}
+
+/** Tile top polygon, relative to its center; an inset shrinks it. */
+export function diamond(inset = 0, c: Readonly<Camera> = camera): number[] {
+  const k = 1 - inset / (TILE_WIDTH / 2)
+  return tileCorners(k, c).flatMap((p) => [p.x, p.y])
+}
+
+/** One side face of a column, seen by the camera. */
+export interface Face {
+  /** Grid direction the face looks to. */
+  dir: Point
+  /** Its top edge, from its left end to its right end on screen. */
+  a: { x: number; y: number }
+  b: { x: number; y: number }
+  /** Light from the top-left: the face turned left is darker. */
+  light: number
+}
+
+const DIRS: Point[] = [
+  { x: 1, y: 0 },
+  { x: 0, y: 1 },
+  { x: -1, y: 0 },
+  { x: 0, y: -1 },
+]
+
+/** Vertical pixels of the classic view, scaled for the camera's pitch. */
+export function verticalScale(c: Readonly<Camera> = camera) {
+  return levelHeight(c) / ELEVATION_HEIGHT
+}
+
+/** Top edge of the side of a tile looking along `dir` (grid offsets). */
+export function edgeOf(dir: Point, c: Readonly<Camera> = camera, k = 1) {
+  return [
+    project(((dir.x - dir.y) / 2) * k, ((dir.y + dir.x) / 2) * k, c),
+    project(((dir.x + dir.y) / 2) * k, ((dir.y - dir.x) / 2) * k, c),
+  ]
+}
+
+/** The tile corner nearest to the viewer (lowest on screen). */
+export function frontCorner(c: Readonly<Camera> = camera) {
+  return tileCorners(1, c).reduce((a, b) => (b.y > a.y ? b : a))
+}
+
+/** Side faces of a column turned towards the viewer (usually two). */
+export function visibleFaces(c: Readonly<Camera> = camera): Face[] {
+  const faces: Face[] = []
+  for (const dir of DIRS) {
+    const toward = project(dir.x, dir.y, c)
+    if (toward.y <= 0) continue
+    const p = project(dir.x / 2 - dir.y / 2, dir.y / 2 + dir.x / 2, c)
+    const q = project(dir.x / 2 + dir.y / 2, dir.y / 2 - dir.x / 2, c)
+    const [a, b] = p.x <= q.x ? [p, q] : [q, p]
+    faces.push({ dir, a, b, light: toward.x < 0 ? 0.78 : 1 })
+  }
+  return faces
+}
+
+/** Facings of the puppets, named after the classic view. */
+type ScreenFacing = "SE" | "SW" | "NE" | "NW"
+const FACING_DIR: Record<ScreenFacing, Point> = {
+  SE: { x: 1, y: 0 },
+  SW: { x: 0, y: 1 },
+  NE: { x: 0, y: -1 },
+  NW: { x: -1, y: 0 },
+}
+
+/**
+ * How a fighter looking along a grid direction (named after the classic
+ * view) is drawn with the camera turned.
+ */
+export function screenFacing<F extends ScreenFacing>(
+  facing: F,
+  c: Readonly<Camera> = camera,
+): ScreenFacing {
+  const d = FACING_DIR[facing]
+  const v = project(d.x, d.y, c)
+  if (v.y >= 0) return v.x >= 0 ? "SE" : "SW"
+  return v.x >= 0 ? "NE" : "NW"
 }
 
 /** Blend two colors (t = 0 → a, t = 1 → b). */

@@ -73,6 +73,9 @@ Sans `mode`, les paramètres de combat (`seed`, `spectate`, `team`, `enemies`) l
 | `Échap` / clic droit          | annule la sélection (un clic hors de portée aussi)                                            |
 | `F`                           | vitesse des animations ×1 / ×2 / ×4                                                           |
 | Molette / pincement           | zoom (×0,6 à ×3) centré sur le curseur ; l'interface ne bouge pas                            |
+| Glisser (clic droit ou milieu) | vertical : incline la vue jusqu'à presque la vue de dessus ; horizontal : petite rotation (±15°) |
+| `Q` / `E`                     | quart de tour du plateau (petite rotation, fondu, virage, retour)                             |
+| `V`                           | revient à la vue classique                                                                    |
 | Survol | infos du personnage, aperçu du chemin ou de la zone d'effet, et **coût en temps** du déplacement (marche : nombre de tours jusqu'à l'arrivée ; Course : équivalent en actions) |
 
 ## Vision

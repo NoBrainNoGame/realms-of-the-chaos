@@ -100,6 +100,26 @@ describe("BoardView", () => {
     expect(overlays().every((g) => g.bounds.width === 0)).toBe(true)
   })
 
+  test("a walk down a step joins along the side of the higher cell", () => {
+    const { view, entities } = setup(["2.", ".."])
+    const overlay = (i: number) =>
+      (entities.children[i] as Container).children.at(-1) as Graphics
+    view.setHighlights([
+      {
+        cells: [
+          { x: 0, y: 0 },
+          { x: 1, y: 0 },
+        ],
+        color: 0xffff00,
+        alpha: 1,
+        trail: true,
+      },
+    ])
+    // the higher half drops two levels down to meet the lower half
+    expect(overlay(0).bounds.height).toBeGreaterThan(2 * ELEVATION_HEIGHT)
+    expect(overlay(1).bounds.height).toBeLessThan(2 * ELEVATION_HEIGHT)
+  })
+
   test("terrain changes are redrawn", () => {
     const { board, view, entities } = setup([".....", "....."])
     board.get({ x: 2, y: 0 })!.elevation = 3

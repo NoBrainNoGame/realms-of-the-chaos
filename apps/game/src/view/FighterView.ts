@@ -4,7 +4,7 @@ import { Container, Graphics } from "pixi.js"
 import { OutlineFilter } from "pixi-filters"
 import { STATUS_COLORS } from "./describe"
 import { type Facing, Puppet, type PuppetAction } from "./Puppet"
-import { COLORS, PUPPET_SCALE, TEAM_COLORS } from "./theme"
+import { COLORS, PUPPET_SCALE, screenFacing, TEAM_COLORS } from "./theme"
 import ViewChip from "./ViewChip"
 
 export { STATUS_COLORS } from "./describe"
@@ -29,6 +29,7 @@ export default class FighterView extends ViewChip {
   private _ground!: Container
   private _body!: Container
   private _puppet!: Puppet
+  private _facing: Facing = "SE"
   private _ring!: Graphics
   private _hpBar!: Graphics
   private _statusBar!: Graphics
@@ -186,8 +187,23 @@ export default class FighterView extends ViewChip {
       : []
   }
 
+  /**
+   * Turn the fighter towards a grid direction (named after the classic
+   * view); it is drawn according to the camera.
+   */
   setFacing(facing: Facing) {
-    this._puppet.setFacing(facing)
+    this._facing = facing
+    this._puppet.setFacing(screenFacing(facing))
+  }
+
+  /** Grid direction the fighter looks to. */
+  get facing() {
+    return this._facing
+  }
+
+  /** Draw the facing again, after the camera turned. */
+  refreshFacing() {
+    this.setFacing(this._facing)
   }
 
   /** Play a body animation on the puppet. */

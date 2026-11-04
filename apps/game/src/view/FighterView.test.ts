@@ -4,7 +4,8 @@ import { Container } from "pixi.js"
 import { mount, tick } from "../test/harness"
 import { tickUntil } from "../test/play"
 import FighterView from "./FighterView"
-import FightScene, { classicFight } from "./FightScene"
+import FightScene, { classicFight, TURN_DURATION } from "./FightScene"
+import { camera, ISO_PITCH, MAX_PITCH, MAX_YAW, toScreen } from "./theme"
 
 describe("fighter moves", () => {
   test("a step starts where the fighter stands (never at the world origin)", () => {
@@ -335,5 +336,99 @@ describe("camera zoom", () => {
     for (let i = 0; i < 30; i++) scene.zoomAt(cursor, -3)
     tick(scene, 2000)
     expect(scene.zoom).toBe(0.6)
+  })
+})
+
+describe("camera tilt and turns", () => {
+  const setup = () => {
+    const scene = mount(
+      new FightScene(
+        classicFight({
+          seed: 8,
+          speed: 4,
+          spectate: false,
+          playerTeam: ["eva"],
+          enemyTeam: ["gorr"],
+        }),
+      ),
+    )
+    const internals = scene as any
+    tickUntil(scene, () => internals._inputReady)
+    internals._onResize(1280, 720)
+    tick(scene, 50)
+    const { width, height } = scene.combat.board
+    const world = internals._world as Container
+    // where the middle of the board is on the screen
+    const middle = () => {
+      const p = toScreen({ x: (width - 1) / 2, y: (height - 1) / 2 })
+      return {
+        x: world.x + p.x * world.scale.x,
+        y: world.y + p.y * world.scale.y,
+      }
+    }
+    return { scene, internals, world, middle }
+  }
+
+  test("a vertical drag tilts towards top-down, a sideways one turns a little", () => {
+    const { scene, internals, middle } = setup()
+    try {
+      const before = middle()
+      const press = (type: string, x: number, y: number) =>
+        window.dispatchEvent(
+          new PointerEvent(type, { button: 2, clientX: x, clientY: y }),
+        )
+      press("pointerdown", 600, 300)
+      press("pointermove", 560, 400)
+      press("pointerup", 560, 400)
+      tick(scene, 800)
+      expect(camera.pitch).toBeGreaterThan(ISO_PITCH + 10)
+      expect(camera.yaw).toBeGreaterThan(2)
+      // the middle of the board stays where it was
+      expect(middle().x).toBeCloseTo(before.x, -1)
+      expect(middle().y).toBeCloseTo(before.y, -1)
+      // a drag is not a right click: the selection is kept
+      expect(internals._mode.type).toBe("move")
+
+      scene.aimCamera(200, -200)
+      tick(scene, 1000)
+      expect(camera.pitch).toBe(MAX_PITCH)
+      expect(camera.yaw).toBe(-MAX_YAW)
+      scene.resetView()
+      tick(scene, 1000)
+      expect(camera.pitch).toBe(ISO_PITCH)
+      expect(camera.yaw).toBe(0)
+    } finally {
+      scene.terminate()
+    }
+  })
+
+  test("a quarter turn: out and fading, the quarter, back and showing", () => {
+    const { scene, internals } = setup()
+    try {
+      const view = [...internals._views.values()][0]
+      const drawn = view.puppet.facing
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "e" }))
+      tick(scene, TURN_DURATION * 0.4)
+      // turning out while the board fades
+      expect(camera.quarter).toBe(0)
+      expect(camera.yaw).toBeGreaterThan(5)
+      expect(internals._world.alpha).toBeLessThan(0.6)
+      tick(scene, TURN_DURATION * 0.2)
+      // turned, coming back from the other side
+      expect(camera.quarter).toBe(1)
+      expect(camera.yaw).toBeLessThan(0)
+      tick(scene, TURN_DURATION)
+      expect(camera.yaw).toBe(0)
+      expect(internals._world.alpha).toBe(1)
+      // the fighters still face the same way on the grid, drawn turned
+      expect(view.puppet.facing).not.toBe(drawn)
+
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "q" }))
+      tick(scene, TURN_DURATION * 2)
+      expect(camera.quarter).toBe(0)
+      expect(view.puppet.facing).toBe(drawn)
+    } finally {
+      scene.terminate()
+    }
   })
 })

@@ -137,7 +137,10 @@ describe("FightScene", () => {
           internals._board.emit("cellDown", best, 0)
         }
         key("Escape")
-        internals._board.emit("cellDown", me.position, 2) // right click cancels
+        // a right click (pressed and released without dragging) cancels
+        internals._board.emit("cellDown", me.position, 2)
+        window.dispatchEvent(new PointerEvent("pointerdown", { button: 2 }))
+        window.dispatchEvent(new PointerEvent("pointerup", { button: 2 }))
         key(" ")
       }
       // commands typed during an animation run right after it

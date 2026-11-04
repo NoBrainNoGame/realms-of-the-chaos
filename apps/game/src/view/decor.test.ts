@@ -6,6 +6,7 @@ import Backdrop from "./Backdrop"
 import BoardView from "./BoardView"
 import FightScene, { classicFight } from "./FightScene"
 import { drawFloatingIsland, undersideDepths } from "./islands"
+import { camera, resetCamera } from "./theme"
 
 describe("island underside (inverted pyramid of blocks)", () => {
   test("deterministic for a seed, deeper in the middle, irregular", () => {
@@ -53,13 +54,26 @@ describe("waterfalls", () => {
       "W...", // water in the first column, not on a front edge
       "~.ww", // the last row: 3 water cells, the corner pours both ways
     ])
-    const sides = board.cascades.map((c) => c.side).sort()
-    // last row: (0,3) ~, (2,3) w, (3,3) w → 3 left falls
-    // last column: (3,0) W, (3,3) w → 2 right falls
-    expect(sides).toEqual([-1, -1, -1, 1, 1])
+    const sides = board.cascades.map((c) => `${c.dir.x},${c.dir.y}`).sort()
+    // last row: (0,3) ~, (2,3) w, (3,3) w → 3 left falls (towards +y)
+    // last column: (3,0) W, (3,3) w → 2 right falls (towards +x)
+    expect(sides).toEqual(["0,1", "0,1", "0,1", "1,0", "1,0"])
     for (const c of board.cascades) expect(c.length).toBeGreaterThan(0)
     tick(board, 500) // they animate
     expect(view(["...", "...", "..."]).cascades).toHaveLength(0)
+  })
+
+  test("turned a quarter, the falls pour over the sides now in front", () => {
+    try {
+      camera.quarter = 1
+      const board = view(["W..W", "....", "W...", "~.ww"])
+      const sides = board.cascades.map((c) => `${c.dir.x},${c.dir.y}`).sort()
+      // seen from the next corner: the last column (+x) and the first row (-y)
+      // (3,0) W both ways, (0,0) W, (3,3) w
+      expect(sides).toEqual(["0,-1", "0,-1", "1,0", "1,0"])
+    } finally {
+      resetCamera()
+    }
   })
 
   test("a redrawn cell keeps its waterfalls up to date", () => {

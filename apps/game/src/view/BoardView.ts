@@ -18,17 +18,23 @@ import { softCircle } from "./effects"
 import { BLOCK_HEIGHT, drawBlock, undersideDepths } from "./islands"
 import {
   cellNoise,
+  depthAlong,
   diamond,
   ELEVATION_HEIGHT,
+  edgeOf,
   FLOOR_LEVEL,
+  frontCorner,
   GROUND_TOP,
+  levelHeight,
   mix,
+  project,
   STRATA,
   shade,
   TILE_DEPTH,
-  TILE_HEIGHT,
   TILE_WIDTH,
   toScreen,
+  verticalScale,
+  visibleFaces,
   WATER,
 } from "./theme"
 import ViewChip from "./ViewChip"
@@ -60,7 +66,8 @@ export const DEPTH = {
   fighter: 6,
 }
 
-export const depthOf = (p: Point, offset: number) => (p.x + p.y) * 10 + offset
+/** Painter's order (x + y in the classic view), whatever the camera. */
+export const depthOf = (p: Point, offset: number) => depthAlong(p) * 10 + offset
 
 /** Vertical offset of a cell during a shockwave: sink, bounce, settle. */
 export function waveOffset(amplitude: number, u: number) {
@@ -68,9 +75,7 @@ export function waveOffset(amplitude: number, u: number) {
   return amplitude * Math.exp(-3.5 * u) * Math.sin(2.5 * Math.PI * u)
 }
 
-const W = TILE_WIDTH / 2
-const H = TILE_HEIGHT / 2
-/** Bottom of every column, below the lowest level. */
+/** Bottom of every column, below the lowest level (classic view). */
 export const COLUMN_BOTTOM = -FLOOR_LEVEL * ELEVATION_HEIGHT + TILE_DEPTH
 
 /** Everything drawn for one cell. */
@@ -91,8 +96,8 @@ interface CellParts {
 /** A waterfall pouring from a water cell over the edge of the island. */
 interface Cascade {
   g: Graphics
-  /** -1: the front-left face, 1: the front-right face. */
-  side: -1 | 1
+  /** Grid direction of the side the water runs down. */
+  dir: Point
   /** Height of the fall along the column and the blocks under it. */
   length: number
 }
@@ -108,6 +113,19 @@ interface Wave {
  * flooded hole) depth-sorted with the fighters, decorated with grass,
  * flowers, pebbles and chaos crystals. Invisible hit areas sit on top.
  */
+const SIDES: Point[] = [
+  { x: 1, y: 0 },
+  { x: 0, y: 1 },
+  { x: -1, y: 0 },
+  { x: 0, y: -1 },
+]
+
+const lerp = (
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+  t: number,
+) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t })
+
 export default class BoardView extends ViewChip<BoardViewEvents> {
   private _parts = new Map<string, CellParts>()
   private _hitLayer!: Container
@@ -118,6 +136,7 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
   /** Waterfalls pouring over the edges, by cell key. */
   private _cascades = new Map<string, Cascade[]>()
   private _offsets = new Map<string, number>()
+  private _underside: Container | null = null
 
   constructor(
     private readonly _board: Board,
@@ -134,7 +153,6 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       this._board.height,
       this._seed,
     )
-    this._container.addChild(this._drawUnderside())
     this._hitLayer = new Container()
     this._hitLayer.sortableChildren = true
     this._top.addChild(this._hitLayer)
@@ -149,7 +167,6 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
 
       const hit = new Graphics()
       hit.eventMode = "static"
-      hit.hitArea = new Polygon(diamond())
       hit.on("pointerover", () => this.emit("cellOver", p))
       hit.on("pointerout", () => this.emit("cellOut", p))
       hit.on("pointerdown", (e: FederatedPointerEvent) =>
@@ -165,8 +182,16 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
         hit,
         y: 0,
       })
-      this._drawCell(cell)
     }
+    this.redraw()
+  }
+
+  /** Draws everything again, after the camera moved. */
+  redraw() {
+    this._underside?.destroy({ children: true })
+    this._underside = this._drawUnderside()
+    this._container.addChildAt(this._underside, 0)
+    for (const cell of this._board.cells) this._drawCell(cell)
   }
 
   protected _onTick() {
@@ -246,18 +271,35 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       const ends = [cells[i - 1], cells[i + 1]]
         .filter((q): q is Point => !!q && manhattan(p, q) === 1)
         .map((q) => {
-          const dx = q.x - p.x
-          const dy = q.y - p.y
-          return { x: ((dx - dy) * W) / 2, y: ((dx + dy) * H) / 2 }
+          const end = project((q.x - p.x) / 2, (q.y - p.y) / 2)
+          // a step down to a lower neighbor in front: the higher cell
+          // draws the drop along its side, so both halves meet (behind,
+          // the higher column hides the lower half anyway)
+          const front = project(q.x - p.x, q.y - p.y).y > 0
+          const drop = !front
+            ? 0
+            : Math.max(
+                0,
+                (this._board.standHeight(p) - this._board.standHeight(q)) *
+                  levelHeight(),
+              )
+          return { ...end, drop }
         })
       for (const [width, tint, a] of [
         [9, 0x000000, alpha * 0.45],
         [5, color, alpha],
       ] as const) {
-        for (const end of ends)
-          g.moveTo(0, 0)
-            .lineTo(end.x, end.y)
-            .stroke({ width, color: tint, alpha: a, cap: "round" })
+        for (const end of ends) {
+          g.moveTo(0, 0).lineTo(end.x, end.y)
+          if (end.drop > 0) g.lineTo(end.x, end.y + end.drop)
+          g.stroke({
+            width,
+            color: tint,
+            alpha: a,
+            cap: "round",
+            join: "round",
+          })
+        }
         g.circle(0, 0, width / 2).fill({ color: tint, alpha: a })
       }
     })
@@ -343,7 +385,7 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     g.clear()
     column.addChild(g)
 
-    const groundY = -cell.elevation * ELEVATION_HEIGHT
+    const groundY = -cell.elevation * levelHeight()
     const noise = cellNoise(cell, this._seed)
 
     this._drawSides(g, groundY, cell.terrain === "water")
@@ -358,14 +400,17 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       const top = diamond().map((v, i) => (i % 2 === 1 ? v + groundY : v))
       g.poly(top).fill(color)
       // light from the top-left: lit back edges, darker front edges
-      g.moveTo(-W, groundY)
-        .lineTo(0, groundY - H)
-        .lineTo(W, groundY)
-        .stroke({ width: 1.5, color: 0xffffff, alpha: 0.18 })
-      g.moveTo(-W, groundY)
-        .lineTo(0, groundY + H)
-        .lineTo(W, groundY)
-        .stroke({ width: 1, color: 0x000000, alpha: 0.25 })
+      for (const dir of SIDES) {
+        const [a, b] = edgeOf(dir)
+        const front = project(dir.x, dir.y).y > 0
+        g.moveTo(a.x, a.y + groundY)
+          .lineTo(b.x, b.y + groundY)
+          .stroke(
+            front
+              ? { width: 1, color: 0x000000, alpha: 0.25 }
+              : { width: 1.5, color: 0xffffff, alpha: 0.18 },
+          )
+      }
       this._drawVines(g, cell, groundY)
       this._drawDecor(g, cell, groundY, parts)
     }
@@ -375,79 +420,108 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     column.addChild(parts.overlay)
 
     const surface = this.cellTop(cell)
+    parts.hit.hitArea = new Polygon(diamond())
     parts.hit.position.set(surface.x, surface.y)
-    parts.hit.zIndex = cell.x + cell.y
+    parts.hit.zIndex = depthAlong(cell)
   }
 
   /** Column sides, banded with rock strata (one band per level). */
   private _drawSides(g: Graphics, topY: number, underwater: boolean) {
+    const step = levelHeight()
+    const bottom = COLUMN_BOTTOM * verticalScale()
+    const faces = visibleFaces()
     let band = 0
-    for (let y0 = topY; y0 < COLUMN_BOTTOM; y0 += ELEVATION_HEIGHT, band++) {
-      const y1 = Math.min(COLUMN_BOTTOM, y0 + ELEVATION_HEIGHT)
+    for (let y0 = topY; y0 < bottom - 0.01; y0 += step, band++) {
+      const y1 = Math.min(bottom, y0 + step)
       const rock =
         STRATA[Math.min(band + (underwater ? 2 : 0), STRATA.length - 1)]
       const color = underwater ? mix(rock, WATER.deep, 0.25) : rock
-      g.poly([-W, y0, 0, y0 + H, 0, y1 + H, -W, y1]).fill(shade(color, 0.78))
-      g.poly([W, y0, 0, y0 + H, 0, y1 + H, W, y1]).fill(color)
+      for (const { a, b, light } of faces) {
+        g.poly([
+          a.x,
+          a.y + y0,
+          b.x,
+          b.y + y0,
+          b.x,
+          b.y + y1,
+          a.x,
+          a.y + y1,
+        ]).fill(shade(color, light))
+      }
       // pebbles in the strata
-      g.circle(-W * 0.55, y0 + H * 0.45 + 6, 1.4).fill({
-        color: 0x000000,
-        alpha: 0.18,
-      })
-      g.circle(W * 0.35, y0 + H * 0.7 + 4, 1.2).fill({
-        color: 0xffffff,
-        alpha: 0.08,
-      })
+      const dark = faces.find((f) => f.light < 1)
+      const lit = faces.find((f) => f.light === 1)
+      if (dark) {
+        const p = lerp(dark.a, dark.b, 0.25)
+        g.circle(p.x, p.y + y0 + step * 0.45, 1.4).fill({
+          color: 0x000000,
+          alpha: 0.18,
+        })
+      }
+      if (lit) {
+        const p = lerp(lit.a, lit.b, 0.65)
+        g.circle(p.x, p.y + y0 + step * 0.3, 1.2).fill({
+          color: 0xffffff,
+          alpha: 0.08,
+        })
+      }
     }
     if (!underwater) {
       // grassy lip on the top of the sides
-      g.poly([-W, topY, 0, topY + H, 0, topY + H + 4, -W, topY + 4]).fill({
-        color: 0x3f6b2a,
-        alpha: 0.9,
-      })
-      g.poly([W, topY, 0, topY + H, 0, topY + H + 4, W, topY + 4]).fill({
-        color: 0x4f7d33,
-        alpha: 0.9,
-      })
+      for (const { a, b, light } of faces) {
+        g.poly([
+          a.x,
+          a.y + topY,
+          b.x,
+          b.y + topY,
+          b.x,
+          b.y + topY + 4,
+          a.x,
+          a.y + topY + 4,
+        ]).fill({ color: light < 1 ? 0x3f6b2a : 0x4f7d33, alpha: 0.9 })
+      }
     }
-    g.moveTo(0, topY + H)
-      .lineTo(0, COLUMN_BOTTOM + H)
+    const f = frontCorner()
+    g.moveTo(f.x, f.y + topY)
+      .lineTo(f.x, f.y + bottom)
       .stroke({ width: 1, color: 0x000000, alpha: 0.25 })
   }
 
   /** Animated waterfall: a foam lip, streaks running down, droplets. */
   private _drawCascade(cascade: Cascade) {
-    const { g, side, length } = cascade
+    const { g, dir } = cascade
+    const length = cascade.length * verticalScale()
     const t = this._time / 1000
-    const xa = side * W * 0.02
-    const xb = side * W * 0.98
     // the top edge of the face the water runs down
-    const top = (x: number) => (side < 0 ? H * (1 + x / W) : H * (1 - x / W))
+    const [a, b] = edgeOf(dir)
+    const at = (u: number) => lerp(a, b, 0.02 + u * 0.96)
     g.clear()
     const slices = 8
+    const pa = at(0)
+    const pb = at(1)
     for (let i = 0; i < slices; i++) {
       const y0 = (length * i) / slices
       const y1 = (length * (i + 1)) / slices
       const alpha = 0.6 * Math.min(1, (slices - i) / 3)
       g.poly([
-        xa,
-        top(xa) + y0,
-        xb,
-        top(xb) + y0,
-        xb,
-        top(xb) + y1,
-        xa,
-        top(xa) + y1,
+        pa.x,
+        pa.y + y0,
+        pb.x,
+        pb.y + y0,
+        pb.x,
+        pb.y + y1,
+        pa.x,
+        pa.y + y1,
       ]).fill({ color: WATER.surface, alpha })
     }
     const streaks = 8
     for (let s = 0; s < streaks; s++) {
-      const x = xa + ((xb - xa) * (s + 0.5)) / streaks
+      const p = at((s + 0.5) / streaks)
       const speed = 60 + (s % 3) * 18
       for (let k = 0; k < 3; k++) {
         const y = (t * speed + (k * length) / 3 + s * 13) % length
-        g.moveTo(x, top(x) + y)
-          .lineTo(x, top(x) + y + 7)
+        g.moveTo(p.x, p.y + y)
+          .lineTo(p.x, p.y + y + 7)
           .stroke({
             width: 1.2,
             color: 0xffffff,
@@ -455,18 +529,23 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
           })
       }
     }
-    g.moveTo(xa, top(xa))
-      .lineTo(xb, top(xb))
+    g.moveTo(pa.x, pa.y)
+      .lineTo(pb.x, pb.y)
       .stroke({ width: 2, color: WATER.foam, alpha: 0.85 })
     // droplets falling past the bottom, into the void
     for (let d = 0; d < 4; d++) {
       const u = (t / 0.9 + d / 4) % 1
-      const x = xa + (xb - xa) * ((d * 0.37 + 0.15) % 1)
-      g.circle(x, top(x) + length + u * 40, 1.4).fill({
+      const p = at((d * 0.37 + 0.15) % 1)
+      g.circle(p.x, p.y + length + u * 40, 1.4).fill({
         color: 0xe7f5ff,
         alpha: 0.7 * (1 - u),
       })
     }
+  }
+
+  /** Sides of the cell looking out of the island, towards the viewer. */
+  private _edgeFaces(cell: Point) {
+    return visibleFaces().filter((f) => !this._board.inBounds(add(cell, f.dir)))
   }
 
   /** Flooded hole: sandy bed, translucent water body, shimmer and foam. */
@@ -478,11 +557,12 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
 
     const body = mix(WATER.surface, WATER.deep, Math.min(1, depth / 3))
     // water box sides (seen at the island edge)
-    g.poly([-W, 0, 0, H, 0, bedY + H, -W, bedY]).fill({
-      color: shade(body, 0.8),
-      alpha: 0.7,
-    })
-    g.poly([W, 0, 0, H, 0, bedY + H, W, bedY]).fill({ color: body, alpha: 0.7 })
+    for (const { a, b, light } of visibleFaces()) {
+      g.poly([a.x, a.y, b.x, b.y, b.x, b.y + bedY, a.x, a.y + bedY]).fill({
+        color: shade(body, light < 1 ? 0.8 : 1),
+        alpha: 0.7,
+      })
+    }
     g.poly(diamond()).fill({ color: body, alpha: 0.55 + depth * 0.1 })
 
     const n = cellNoise(cell, this._seed, 7)
@@ -500,11 +580,11 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
 
     // water on the edge pours over it, down the column and the blocks below
     const length = COLUMN_BOTTOM + this._depths[cell.y][cell.x] * BLOCK_HEIGHT
-    const falls: Cascade[] = []
-    if (cell.y === this._board.height - 1)
-      falls.push({ g: new Graphics(), side: -1, length })
-    if (cell.x === this._board.width - 1)
-      falls.push({ g: new Graphics(), side: 1, length })
+    const falls: Cascade[] = this._edgeFaces(cell).map(({ dir }) => ({
+      g: new Graphics(),
+      dir,
+      length,
+    }))
     for (const fall of falls) {
       parts.column.addChild(fall.g)
       this._drawCascade(fall)
@@ -512,23 +592,12 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     this._cascades.set(keyOf(cell), falls)
 
     // foam along the shores
-    const corners = {
-      top: [0, -H],
-      right: [W, 0],
-      bottom: [0, H],
-      left: [-W, 0],
-    }
-    const edges: [Point, number[], number[]][] = [
-      [{ x: 0, y: -1 }, corners.top, corners.right],
-      [{ x: 1, y: 0 }, corners.right, corners.bottom],
-      [{ x: 0, y: 1 }, corners.bottom, corners.left],
-      [{ x: -1, y: 0 }, corners.left, corners.top],
-    ]
-    for (const [d, a, b] of edges) {
+    for (const d of SIDES) {
       const neighbor = this._board.get(add(cell, d))
       if (neighbor && neighbor.terrain !== "water") {
-        g.moveTo(a[0] * 0.92, a[1] * 0.92)
-          .lineTo(b[0] * 0.92, b[1] * 0.92)
+        const [a, b] = edgeOf(d, undefined, 0.92)
+        g.moveTo(a.x, a.y)
+          .lineTo(b.x, b.y)
           .stroke({ width: 2, color: WATER.foam, alpha: 0.7 })
       }
     }
@@ -536,19 +605,17 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
 
   /** Vines and moss hanging from the visible front edges of the island. */
   private _drawVines(g: Graphics, cell: Cell, topY: number) {
-    const { width, height } = this._board
     const rand = (salt: number) => cellNoise(cell, this._seed, salt)
-    const faces: { side: -1 | 1 }[] = []
-    if (cell.y === height - 1) faces.push({ side: -1 }) // left face is visible
-    if (cell.x === width - 1) faces.push({ side: 1 }) // right face is visible
-
-    for (const { side } of faces) {
+    for (const { dir, a, b } of this._edgeFaces(cell)) {
+      // same strands on the same side, whatever the camera
+      const side = dir.x + 2 * dir.y
       const strands = 1 + Math.floor(rand(300 + side) * 3)
       for (let i = 0; i < strands; i++) {
         const t = 0.15 + rand(310 + i * 7 + side) * 0.7
         // point on the top edge of that face
-        let x = side * W * (1 - t)
-        let y = topY + H * t + 3
+        const start = lerp(a, b, t)
+        let x = start.x
+        let y = topY + start.y + 3
         const length = 10 + rand(320 + i * 7 + side) * 22
         const sway = (rand(330 + i * 7 + side) - 0.5) * 4
         g.moveTo(x, y)
@@ -580,7 +647,8 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       let u = rand(salt) * 1.4 - 0.7
       const v = rand(salt + 1) * 1.4 - 0.7
       if (Math.abs(u) < 0.3 && Math.abs(v) < 0.3) u = Math.sign(u || 1) * 0.45
-      return { x: (u - v) * W * 0.5, y: topY + (u + v) * H * 0.5 }
+      const p = project(u * 0.5, v * 0.5)
+      return { x: p.x, y: topY + p.y }
     }
     const e = cell.elevation
     const shore = this._board
@@ -770,21 +838,35 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
   private _drawUnderside() {
     const container = new Container()
     const { width, height } = this._board
-    const front = toScreen({ x: width - 1, y: height - 1 })
-    const left = toScreen({ x: 0, y: height - 1 })
-    const right = toScreen({ x: width - 1, y: 0 })
+    const corners = [
+      { x: 0, y: 0 },
+      { x: width - 1, y: 0 },
+      { x: 0, y: height - 1 },
+      { x: width - 1, y: height - 1 },
+    ].map((p) => toScreen(p))
+    const xs = corners.map((p) => p.x)
+    const front = corners.reduce((a, b) => (b.y > a.y ? b : a))
+    const center = toScreen({ x: (width - 1) / 2, y: (height - 1) / 2 })
 
     const glow = new Sprite(softCircle())
     glow.anchor.set(0.5)
     glow.tint = 0x7048e8
     glow.alpha = 0.25
     glow.blendMode = "add"
-    glow.scale.set(((right.x - left.x + TILE_WIDTH) * 1.4) / 64, 320 / 64)
-    glow.position.set(front.x, front.y + COLUMN_BOTTOM + 110)
+    glow.scale.set(
+      ((Math.max(...xs) - Math.min(...xs) + TILE_WIDTH) * 1.4) / 64,
+      320 / 64,
+    )
+    glow.position.set(
+      center.x,
+      front.y + (COLUMN_BOTTOM + 110) * verticalScale(),
+    )
     container.addChild(glow)
 
     const blocks = new Graphics()
-    const cells = [...this._board.cells].sort((a, b) => a.x + a.y - (b.x + b.y))
+    const cells = [...this._board.cells].sort(
+      (a, b) => depthAlong(a) - depthAlong(b),
+    )
     for (const cell of cells) {
       const depth = this._depths[cell.y][cell.x]
       const origin = toScreen(cell)

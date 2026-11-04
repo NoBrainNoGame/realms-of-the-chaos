@@ -45,9 +45,16 @@ import FighterView, { STATUS_COLORS, type WaterState } from "./FighterView"
 import Hud from "./Hud"
 import { facingBetween } from "./Puppet"
 import {
+  type Camera,
   COLORS,
+  camera,
   ELEVATION_HEIGHT,
+  ISO,
+  ISO_PITCH,
+  MAX_PITCH,
+  MAX_YAW,
   MEANING,
+  resetCamera,
   TEAM_COLORS,
   TILE_HEIGHT,
   TILE_WIDTH,
@@ -124,6 +131,8 @@ export function combatOptions(options: SceneOptions): CombatOptions {
 /** Zoom bounds, relative to the board fitted to the screen. */
 export const MIN_ZOOM = 0.6
 export const MAX_ZOOM = 3
+/** Length of a quarter turn of the camera (ms). */
+export const TURN_DURATION = 420
 
 export const DEFAULT_END_ACTIONS: EndAction[] = [
   { id: "restart", label: "Rejouer" },
@@ -206,6 +215,28 @@ export default class FightScene extends ViewChip<SceneEvents> {
   /** Player's zoom (1 = fit), its eased target, and the screen pan. */
   private _zoom = { value: 1, target: 1, anchor: { x: 0, y: 0 } }
   private _pan = { x: 0, y: 0 }
+  /** Tilt and small rotation the camera eases to. */
+  private _aim = { pitch: ISO_PITCH, yaw: 0 }
+  /** Camera last drawn (the board is redrawn when it changes). */
+  private _drawn: Camera = { ...ISO }
+  /** Quarter turn being played (see `_updateTurn`). */
+  private _turn: {
+    dir: 1 | -1
+    /** Quarter reached at the middle of the turn. */
+    to: number
+    elapsed: number
+    yaw: number
+    swapped: boolean
+  } | null = null
+  /** Right or middle button held on the screen (camera drag). */
+  private _drag: {
+    button: number
+    x: number
+    y: number
+    pitch: number
+    yaw: number
+    moved: boolean
+  } | null = null
   private _shake = { intensity: 0, remaining: 0, duration: 1 }
 
   constructor(private readonly _options: SceneOptions) {
@@ -238,6 +269,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
   // ─── Lifecycle ────────────────────────────────────────────────────────────
 
   protected _onActivate() {
+    resetCamera()
     this._world = new Container()
     this._entities = new Container()
     this._entities.sortableChildren = true
@@ -327,22 +359,162 @@ export default class FightScene extends ViewChip<SceneEvents> {
     this._subscribe(this._hud, "speed", () => this._toggleSpeed())
     this._subscribe(window, "keydown", (e: KeyboardEvent) => this._onKey(e))
     window.addEventListener("wheel", this._wheel, { passive: false })
+    this._subscribe(window, "pointerdown", (e: PointerEvent) =>
+      this._onPointerDown(e),
+    )
+    this._subscribe(window, "pointermove", (e: PointerEvent) =>
+      this._onPointerMove(e),
+    )
+    this._subscribe(window, "pointerup", (e: PointerEvent) =>
+      this._onPointerUp(e),
+    )
   }
 
   private readonly _wheel = (e: WheelEvent) => this._onWheel(e)
 
   protected _onTerminate() {
     window.removeEventListener("wheel", this._wheel)
+    resetCamera()
+  }
+
+  // ─── Camera ───────────────────────────────────────────────────────────────
+
+  /** Tilts (degrees, from the classic view to almost top-down) and turns. */
+  aimCamera(pitch: number, yaw: number) {
+    this._aim = {
+      pitch: Math.min(MAX_PITCH, Math.max(ISO_PITCH, pitch)),
+      yaw: Math.min(MAX_YAW, Math.max(-MAX_YAW, yaw)),
+    }
+  }
+
+  /**
+   * Turns the board a quarter (1: clockwise): a small turn out while the
+   * board fades, the quarter, then a small turn back while it comes back.
+   */
+  turnCamera(dir: 1 | -1) {
+    if (this._turn) return
+    const to = (camera.quarter + dir + 4) % 4
+    this._turn = { dir, to, elapsed: 0, yaw: camera.yaw, swapped: false }
+  }
+
+  /** Back to the classic view (the zoom too). */
+  resetView() {
+    this._aim = { pitch: ISO_PITCH, yaw: 0 }
+    if (camera.quarter !== 0 && !this._turn) {
+      const dir = camera.quarter === 3 ? 1 : -1
+      this._turn = { dir, to: 0, elapsed: 0, yaw: camera.yaw, swapped: false }
+    }
+    this._zoom.target = 1
+    this._zoom.anchor = { x: this._fit.width / 2, y: this._fit.height / 2 }
+  }
+
+  private _onPointerDown(e: PointerEvent) {
+    if (e.button !== 1 && e.button !== 2) return
+    this._drag = {
+      button: e.button,
+      x: e.clientX ?? 0,
+      y: e.clientY ?? 0,
+      pitch: this._aim.pitch,
+      yaw: this._aim.yaw,
+      moved: false,
+    }
+  }
+
+  private _onPointerMove(e: PointerEvent) {
+    const drag = this._drag
+    if (!drag) return
+    const dx = (e.clientX ?? 0) - drag.x
+    const dy = (e.clientY ?? 0) - drag.y
+    if (!drag.moved && Math.hypot(dx, dy) < 5) return
+    drag.moved = true
+    // dragging down looks from higher, sideways turns the board a little
+    this.aimCamera(drag.pitch + dy * 0.2, drag.yaw - dx * 0.1)
+  }
+
+  private _onPointerUp(e: PointerEvent) {
+    const drag = this._drag
+    if (!drag || e.button !== drag.button) return
+    this._drag = null
+    // a right click without dragging cancels the selection
+    if (!drag.moved && drag.button === 2 && this._mode.type !== "move") {
+      this._mode = { type: "move" }
+      this._refreshAll()
+    }
+  }
+
+  private _updateCamera(dt: number) {
+    if (this._turn) this._updateTurn(dt)
+    else {
+      const k = 1 - Math.exp(-dt / 60)
+      for (const key of ["pitch", "yaw"] as const) {
+        const target = this._aim[key]
+        camera[key] += (target - camera[key]) * k
+        if (Math.abs(camera[key] - target) < 0.05) camera[key] = target
+      }
+    }
+    const drawn = this._drawn
+    if (
+      drawn.quarter === camera.quarter &&
+      drawn.pitch === camera.pitch &&
+      drawn.yaw === camera.yaw
+    )
+      return
+    this._drawn = { ...camera }
+    this._board.redraw()
+    for (const view of this._views.values()) view.refreshFacing()
+    this._settleAll()
+    this._refreshOverlay()
+    this._layoutFit()
+  }
+
+  /** Small turn out and fade, the quarter, small turn back and show. */
+  private _updateTurn(dt: number) {
+    const turn = this._turn!
+    turn.elapsed += dt
+    const half = TURN_DURATION / 2
+    const swing = 20 * turn.dir
+    if (!turn.swapped && turn.elapsed >= half) {
+      turn.swapped = true
+      camera.quarter = turn.to
+    }
+    if (turn.elapsed < half) {
+      const u = booyah.easeInCubic(turn.elapsed / half)
+      camera.yaw = turn.yaw + swing * u
+      this._world.alpha = 1 - 0.85 * u
+    } else {
+      const u = booyah.easeOutCubic(Math.min(1, (turn.elapsed - half) / half))
+      camera.yaw = this._aim.yaw - swing * (1 - u)
+      this._world.alpha = 0.15 + 0.85 * u
+    }
+    if (turn.elapsed >= TURN_DURATION) {
+      camera.yaw = this._aim.yaw
+      this._world.alpha = 1
+      this._turn = null
+    }
   }
 
   protected _onResize(width: number, height: number) {
+    this._fit.width = width
+    this._fit.height = height
+    this._layoutFit()
+  }
+
+  /**
+   * Fits the board to the screen as seen from the classic view (so the
+   * scale stays put while the camera moves), its center staying still.
+   */
+  private _layoutFit() {
+    const { width, height } = this._fit
     const { width: w, height: h } = this.combat.board
-    const left = toScreen({ x: 0, y: h - 1 }).x - TILE_WIDTH / 2
-    const right = toScreen({ x: w - 1, y: 0 }).x + TILE_WIDTH / 2
+    const left = toScreen({ x: 0, y: h - 1 }, 0, ISO).x - TILE_WIDTH / 2
+    const right = toScreen({ x: w - 1, y: 0 }, 0, ISO).x + TILE_WIDTH / 2
     // highest peaks above, and the top of the island's rocky underside below
     const top = -TILE_HEIGHT - MAX_ELEVATION * ELEVATION_HEIGHT - 40
     const bottom =
-      toScreen({ x: w - 1, y: h - 1 }).y + TILE_HEIGHT + COLUMN_BOTTOM + 90
+      toScreen({ x: w - 1, y: h - 1 }, 0, ISO).y +
+      TILE_HEIGHT +
+      COLUMN_BOTTOM +
+      90
     const scale = Math.max(
       0.6,
       Math.min(
@@ -351,10 +523,16 @@ export default class FightScene extends ViewChip<SceneEvents> {
         (height - 230) / (bottom - top),
       ),
     )
+    // the center of the board stays where the classic view puts it
+    const middle = { x: (w - 1) / 2, y: (h - 1) / 2 }
+    const iso = toScreen(middle, 0, ISO)
+    const now = toScreen(middle)
     this._fit = {
       scale,
-      x: Math.round(width / 2 - ((left + right) / 2) * scale),
-      y: Math.round(height / 2 + 10 - ((top + bottom) / 2) * scale),
+      x: Math.round(width / 2 - ((left + right) / 2 + now.x - iso.x) * scale),
+      y: Math.round(
+        height / 2 + 10 - ((top + bottom) / 2 + now.y - iso.y) * scale,
+      ),
       width,
       height,
     }
@@ -454,6 +632,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
       dy = (Math.random() * 2 - 1) * k * 0.6
       if (shake.remaining === 0) shake.intensity = 0
     }
+    this._updateCamera(this._lastTickInfo.timeSinceLastTick)
     this._updateZoom(this._lastTickInfo.timeSinceLastTick)
     this._placeWorld(dx, dy)
   }
@@ -840,9 +1019,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
             this._hud.log(`${launcher.name} : ${action.name}`)
             this._refreshOverlay()
             if (distance > 0)
-              view.setFacing(
-                facingBetween(origin, event.target, view.puppet.facing),
-              )
+              view.setFacing(facingBetween(origin, event.target, view.facing))
           }),
           ...(launcher.controller === "human"
             ? []
@@ -1155,11 +1332,8 @@ export default class FightScene extends ViewChip<SceneEvents> {
   }
 
   private _onCellDown(p: Point, button: number) {
-    if (button === 2) {
-      this._mode = { type: "move" }
-      this._refreshAll()
-      return
-    }
+    // the right button cancels on release, unless it dragged the camera
+    if (button === 2) return
     const fighter = this._activeHuman
     if (!fighter) return
 
@@ -1203,6 +1377,9 @@ export default class FightScene extends ViewChip<SceneEvents> {
 
   private _onKey(e: KeyboardEvent) {
     if (e.key === "f" || e.key === "F") return this._toggleSpeed()
+    if (e.key === "q" || e.key === "Q") return this.turnCamera(-1)
+    if (e.key === "e" || e.key === "E") return this.turnCamera(1)
+    if (e.key === "v" || e.key === "V") return this.resetView()
     const fighter = this._activeHuman
     if (!fighter) return
     if (e.key === " " || e.key === "Enter") {

@@ -1,15 +1,20 @@
 import type { Graphics } from "pixi.js"
 
 import {
+  type Camera,
+  camera,
   cellNoise,
+  depthAlong,
   diamond,
   ELEVATION_HEIGHT,
+  frontCorner,
   GROUND_TOP,
+  ISO,
   STRATA,
   shade,
-  TILE_HEIGHT,
-  TILE_WIDTH,
   toScreen,
+  verticalScale,
+  visibleFaces,
 } from "./theme"
 
 /**
@@ -18,8 +23,6 @@ import {
  * pyramid (same strata, same blocks, same theme as the terrain).
  */
 
-const W = TILE_WIDTH / 2
-const H = TILE_HEIGHT / 2
 /** Height of one block of the underside. */
 export const BLOCK_HEIGHT = ELEVATION_HEIGHT
 
@@ -60,31 +63,41 @@ export function blockColor(depth: number) {
 }
 
 /**
- * The two visible faces of one block (screen-space origin = the cell's
- * top corner position, `y0` = top of the block).
+ * The visible faces of one block (screen-space origin = the cell's top
+ * center, `y0` = top of the block, in pixels of the classic view).
  */
 export function drawBlock(
   g: Graphics,
   origin: { x: number; y: number },
   y0: number,
   depth: number,
+  c: Readonly<Camera> = camera,
 ) {
   const color = blockColor(depth)
+  const v = verticalScale(c)
   const { x, y } = origin
-  const y1 = y0 + BLOCK_HEIGHT
-  g.poly([x - W, y + y0, x, y + y0 + H, x, y + y1 + H, x - W, y + y1]).fill(
-    shade(color, 0.72),
-  )
-  g.poly([x + W, y + y0, x, y + y0 + H, x, y + y1 + H, x + W, y + y1]).fill(
-    color,
-  )
-  // block seams: the top edges of the faces and the front edge
-  g.moveTo(x - W, y + y0)
-    .lineTo(x, y + y0 + H)
-    .lineTo(x + W, y + y0)
-    .stroke({ width: 1, color: 0x000000, alpha: 0.28 })
-  g.moveTo(x, y + y0 + H)
-    .lineTo(x, y + y1 + H)
+  const top = y + y0 * v
+  const bottom = y + (y0 + BLOCK_HEIGHT) * v
+  for (const { a, b, light } of visibleFaces(c)) {
+    g.poly([
+      x + a.x,
+      top + a.y,
+      x + b.x,
+      top + b.y,
+      x + b.x,
+      bottom + b.y,
+      x + a.x,
+      bottom + a.y,
+    ]).fill(shade(color, light < 1 ? 0.72 : 1))
+    // block seams: the top edges of the faces
+    g.moveTo(x + a.x, top + a.y)
+      .lineTo(x + b.x, top + b.y)
+      .stroke({ width: 1, color: 0x000000, alpha: 0.28 })
+  }
+  // and the front edge
+  const f = frontCorner(c)
+  g.moveTo(x + f.x, top + f.y)
+    .lineTo(x + f.x, bottom + f.y)
     .stroke({ width: 1, color: 0x000000, alpha: 0.2 })
 }
 
@@ -95,7 +108,9 @@ export function drawBlock(
  */
 export function drawFloatingIsland(g: Graphics, size: number, seed: number) {
   const depths = undersideDepths(size, size, seed, size + 2)
-  const center = toScreen({ x: (size - 1) / 2, y: (size - 1) / 2 })
+  // distant islands are always seen from the classic angle
+  const c = ISO
+  const center = toScreen({ x: (size - 1) / 2, y: (size - 1) / 2 }, 0, c)
   const cells: { x: number; y: number; elevation: number; skip: boolean }[] = []
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
@@ -110,27 +125,27 @@ export function drawFloatingIsland(g: Graphics, size: number, seed: number) {
     }
   }
   // painter's order: back to front
-  cells.sort((a, b) => a.x + a.y - (b.x + b.y))
+  cells.sort((a, b) => depthAlong(a, c) - depthAlong(b, c))
   for (const cell of cells) {
     if (cell.skip) continue
-    const p = toScreen(cell)
+    const p = toScreen(cell, 0, c)
     const origin = { x: p.x - center.x, y: p.y - center.y }
     const top = -cell.elevation * ELEVATION_HEIGHT
     // the column: from its top to the floor of the island
     for (let level = cell.elevation; level > -1; level--) {
-      drawBlock(g, origin, -level * ELEVATION_HEIGHT, 0)
+      drawBlock(g, origin, -level * ELEVATION_HEIGHT, 0, c)
     }
     // the inverted pyramid under it
     const depth = depths[cell.y][cell.x]
     for (let k = 0; k < depth; k++) {
-      drawBlock(g, origin, ELEVATION_HEIGHT + k * BLOCK_HEIGHT, k + 1)
+      drawBlock(g, origin, ELEVATION_HEIGHT + k * BLOCK_HEIGHT, k + 1, c)
     }
     const grass = shade(
       GROUND_TOP[cell.elevation] ?? GROUND_TOP[0],
       0.92 + cellNoise(cell, seed, 7) * 0.14,
     )
     g.poly(
-      diamond().map((v, i) =>
+      diamond(0, c).map((v, i) =>
         i % 2 === 0 ? v + origin.x : v + origin.y + top,
       ),
     ).fill(grass)
