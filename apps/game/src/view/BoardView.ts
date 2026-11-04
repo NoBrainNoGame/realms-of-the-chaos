@@ -383,8 +383,8 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
   private _drawCascade(cascade: Cascade) {
     const { g, side, length } = cascade
     const t = this._time / 1000
-    const xa = side * W * 0.18
-    const xb = side * W * 0.82
+    const xa = side * W * 0.02
+    const xb = side * W * 0.98
     // the top edge of the face the water runs down
     const top = (x: number) => (side < 0 ? H * (1 + x / W) : H * (1 - x / W))
     g.clear()
@@ -404,8 +404,9 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
         top(xa) + y1,
       ]).fill({ color: WATER.surface, alpha })
     }
-    for (let s = 0; s < 5; s++) {
-      const x = xa + ((xb - xa) * (s + 0.5)) / 5
+    const streaks = 8
+    for (let s = 0; s < streaks; s++) {
+      const x = xa + ((xb - xa) * (s + 0.5)) / streaks
       const speed = 60 + (s % 3) * 18
       for (let k = 0; k < 3; k++) {
         const y = (t * speed + (k * length) / 3 + s * 13) % length

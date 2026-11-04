@@ -10,11 +10,18 @@ import {
   STATUSES,
   STEP_DELAY_RATIO,
 } from "@realms/engine"
-import { Container, Graphics, Sprite, type Text } from "pixi.js"
+import { Container, Graphics, Sprite, Text } from "pixi.js"
 import { STATUS_COLORS } from "./FighterView"
 import { characterTexture } from "./textures"
 import { COLORS, TEAM_COLORS } from "./theme"
-import { button, clearChildren, panel, text } from "./ui"
+import {
+  button,
+  clearChildren,
+  panel,
+  richText,
+  type Segment,
+  text,
+} from "./ui"
 import ViewChip from "./ViewChip"
 
 interface HudEvents extends booyah.BaseCompositeEvents {
@@ -46,6 +53,8 @@ export default class Hud extends ViewChip<HudEvents> {
   private _bannerTime = 0
   private _end!: Container
   private _speed!: Text
+  /** One-line preview above the action bar (e.g. the cost of a move). */
+  private _preview!: Container
   private _quit!: Text
   private _width = 0
   private _height = 0
@@ -79,6 +88,9 @@ export default class Hud extends ViewChip<HudEvents> {
     this._speed.cursor = "pointer"
     this._speed.on("pointertap", () => this.emit("speed"))
 
+    this._preview = new Container()
+    this._preview.visible = false
+
     this._quit = text("Menu", 13, COLORS.muted)
     this._quit.anchor.set(1, 0)
     this._quit.eventMode = "static"
@@ -99,6 +111,7 @@ export default class Hud extends ViewChip<HudEvents> {
       this._card,
       this._divine,
       this._actionBar,
+      this._preview,
       this._log,
       help,
       this._speed,
@@ -136,9 +149,43 @@ export default class Hud extends ViewChip<HudEvents> {
     this._divine.position.set(w - 212, 100)
     this._log.position.set(12, h - 140)
     this._speed.position.set(w - 12, 10)
+    this._placePreview()
     this._quit.position.set(w - 110, 10)
     this._banner.position.set(w / 2, h * 0.3)
     if (this._end.visible) this._centerEnd()
+  }
+
+  /**
+   * A one-line preview above the action bar, in the meaning colors (null
+   * hides it). Out of the way of the board, unlike a tooltip.
+   */
+  setPreview(segments: Segment[] | null) {
+    clearChildren(this._preview)
+    this._preview.visible = !!segments?.length
+    if (!segments?.length) return
+    const line = richText(segments, 13)
+    line.position.set(10, 5)
+    this._preview.addChild(panel(line.width + 20, 26), line)
+    this._placePreview()
+  }
+
+  /** Text of the preview line (tests, accessibility). */
+  get previewText() {
+    const parts: string[] = []
+    const walk = (c: Container) => {
+      if (c instanceof Text) parts.push(c.text)
+      for (const child of c.children) walk(child as Container)
+    }
+    walk(this._preview)
+    return this._preview.visible ? parts.join("") : ""
+  }
+
+  private _placePreview() {
+    if (!this._preview) return
+    this._preview.position.set(
+      Math.round(this._width / 2 - this._preview.width / 2),
+      this._height - 92 - 34,
+    )
   }
 
   /** Shows the Menu button (leave the fight). */

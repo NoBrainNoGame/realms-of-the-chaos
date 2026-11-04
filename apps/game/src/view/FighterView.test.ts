@@ -104,17 +104,25 @@ describe("movement cost previews", () => {
         : a,
     )
     internals._board.emit("cellOver", far)
-    const walk = scene.movePreview()!
+    const walk = scene
+      .movePreview()!
+      .map((part) => part.text)
+      .join("")
     expect(walk).toContain("Marche")
     expect(walk).toMatch(/\d+ temps/)
-    expect(walk).toMatch(/Arrivée en \d+ tours?/)
-    expect(internals._hud._tooltip.visible).toBe(true)
+    expect(walk).toMatch(/arrivée en \d+ tours?/)
+    // shown in the HUD, above the action bar, not as a tooltip on the board
+    expect(internals._hud.previewText).toBe(walk)
+    expect(internals._hud._tooltip.visible).toBe(false)
 
     // sprint: immediate, ends the turn, worth some actions
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "c" }))
     const target = scene.combat.getValidTargets(me, internals._mode.action)[0]
     internals._board.emit("cellOver", target)
-    const sprint = scene.movePreview()!
+    const sprint = scene
+      .movePreview()!
+      .map((part) => part.text)
+      .join("")
     expect(sprint).toContain("Course")
     expect(sprint).toContain("le tour se termine")
 
@@ -137,5 +145,6 @@ describe("movement cost previews", () => {
     // nothing to preview on the fighter's own cell
     internals._board.emit("cellOver", me.position)
     expect(scene.movePreview()).toBeNull()
+    expect(internals._hud.previewText).toBe("")
   })
 })

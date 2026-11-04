@@ -46,11 +46,13 @@ import { facingBetween } from "./Puppet"
 import {
   COLORS,
   ELEVATION_HEIGHT,
+  MEANING,
   TEAM_COLORS,
   TILE_HEIGHT,
   TILE_WIDTH,
   toScreen,
 } from "./theme"
+import type { Segment } from "./ui"
 import ViewChip from "./ViewChip"
 
 /** A team of the fight, and who plays it. */
@@ -926,6 +928,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
   }
 
   private _refreshAll() {
+    this._hud.setPreview(this.movePreview())
     this._hud.setActions(
       this._activeHuman,
       this.combat,
@@ -1099,43 +1102,42 @@ export default class FightScene extends ViewChip<SceneEvents> {
   private _onHover() {
     this._refreshOverlay()
     this._refreshCard()
-    const hovered = this._hovered
-    const fighter = hovered ? this._fighterAt(hovered) : null
-    const lines: string[] = []
+    // the cost of a move goes to the HUD, out of the way of the board
+    this._hud.setPreview(this.movePreview())
+    const fighter = this._hovered ? this._fighterAt(this._hovered) : null
     if (fighter) {
       const statuses = fighter.statuses
         .map((s) => STATUSES[s.id].name)
         .join(", ")
-      lines.push(
+      const pos = this._world.toGlobal(this._center(fighter.id, -60))
+      this._hud.showTooltipAt(
         `${fighter.name} — ${fighter.hp}/${this.combat.maxHp(fighter)} PV${statuses ? `\n${statuses}` : ""}`,
+        pos,
       )
-    }
-    const move = this.movePreview()
-    if (move) lines.push(move)
-    if (hovered && lines.length) {
-      const anchor = fighter
-        ? this._center(fighter.id, -60)
-        : (() => {
-            const top = this._board.cellTop(hovered)
-            return { x: top.x, y: top.y - 30 }
-          })()
-      this._hud.showTooltipAt(lines.join("\n"), this._world.toGlobal(anchor))
     } else {
       this._hud.hideTooltip()
     }
   }
 
   /**
-   * Time cost of moving the active fighter to the hovered cell: a planned
-   * walk (free to plan, the steps take timeline time, in how many of its
-   * turns) or a sprint (at once, the turn ends, worth how many actions).
+   * Time cost of moving the active fighter to the hovered cell, in the
+   * meaning colors (cells in blue, time in yellow): a planned walk (free
+   * to plan, the steps take timeline time, in how many of its turns) or a
+   * sprint (at once, the turn ends, worth how many actions).
    */
-  movePreview(): string | null {
+  movePreview(): Segment[] | null {
     const fighter = this._activeHuman
     const hovered = this._hovered
     if (!fighter || !this._inputReady || !hovered) return null
     if (equals(hovered, fighter.position)) return null
-    const round = (n: number) => Math.round(n)
+    const cells = (n: number) => ({
+      text: `${n} case${n > 1 ? "s" : ""}`,
+      color: MEANING.move,
+    })
+    const time = (t: number) => ({
+      text: `${Math.round(t)} temps`,
+      color: MEANING.time,
+    })
 
     if (this._mode.type === "move") {
       const path = this.combat.board.findPath(
@@ -1145,9 +1147,17 @@ export default class FightScene extends ViewChip<SceneEvents> {
         fighter.locomotion,
       )
       if (!path?.length) return null
-      const time = this.combat.movementTime(fighter, path)
-      const turns = this.combat.turnsFor(fighter, time)
-      return `Marche : ${path.length} case${path.length > 1 ? "s" : ""}, ${round(time)} temps\nArrivée en ${turns} tour${turns > 1 ? "s" : ""} environ (le tour continue)`
+      const t = this.combat.movementTime(fighter, path)
+      const turns = this.combat.turnsFor(fighter, t)
+      return [
+        { text: "Marche  " },
+        cells(path.length),
+        { text: " · " },
+        time(t),
+        { text: " · arrivée en " },
+        { text: `${turns} tour${turns > 1 ? "s" : ""}`, color: MEANING.time },
+        { text: " (le tour continue)", color: COLORS.muted },
+      ]
     }
 
     if (this._mode.type === "action" && this._mode.action.movement) {
@@ -1155,9 +1165,20 @@ export default class FightScene extends ViewChip<SceneEvents> {
         .movementPaths(fighter, this._mode.action.movement.maxSteps)
         .get(keyOf(hovered))
       if (!path) return null
-      const time = this.combat.movementTime(fighter, path)
-      const actions = this.combat.actionsFor(fighter, time)
-      return `Course : ${path.length} case${path.length > 1 ? "s" : ""}, ${round(time)} temps\nArrivée immédiate, le tour se termine (≈ ${actions.toFixed(1).replace(".", ",")} action)`
+      const t = this.combat.movementTime(fighter, path)
+      const actions = this.combat.actionsFor(fighter, t)
+      return [
+        { text: "Course  " },
+        cells(path.length),
+        { text: " · " },
+        time(t),
+        { text: " · arrivée immédiate, " },
+        { text: "le tour se termine", color: MEANING.time },
+        {
+          text: ` (≈ ${actions.toFixed(1).replace(".", ",")} action)`,
+          color: COLORS.muted,
+        },
+      ]
     }
     return null
   }

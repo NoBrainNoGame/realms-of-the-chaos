@@ -265,3 +265,25 @@ export function clearChildren(container: Container) {
     child.destroy({ children: true })
   }
 }
+
+/** A piece of rich text: some words, in an optional color. */
+export interface Segment {
+  text: string
+  color?: number
+}
+
+/**
+ * A line of text in several colors (the meaning colors of the theme), laid
+ * out left to right.
+ */
+export function richText(segments: Segment[], size: number) {
+  const line = new Container()
+  let x = 0
+  for (const segment of segments) {
+    const part = text(segment.text, size, segment.color ?? COLORS.text)
+    part.x = x
+    x += part.width
+    line.addChild(part)
+  }
+  return line
+}

@@ -34,6 +34,20 @@ export const COLORS = {
   combo: 0x63e6be,
 }
 
+/**
+ * Meaning colors, used everywhere the game explains an effect (moves,
+ * spells, tooltips): one color, one kind of thing.
+ */
+export const MEANING = {
+  damage: 0xff6b6b,
+  heal: 0x69db7c,
+  move: 0x4dabf7,
+  poison: 0xcc5de8,
+  time: 0xffd43b,
+  shield: 0x99e9f2,
+  elan: 0xb197fc,
+}
+
 export const TEAM_COLORS = [0x4dabf7, 0xff6b6b, 0x69db7c, 0xda77f2]
 
 /** Top color of dry ground by elevation (-3 … 3): dirt pits to sunny hills. */
