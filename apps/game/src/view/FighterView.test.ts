@@ -9,6 +9,7 @@ import FightScene, {
   PAN_MIN_ZOOM,
   TURN_DURATION,
 } from "./FightScene"
+import { MAX_LENS_BLUR } from "./lens"
 import { camera, ISO_PITCH, MAX_PITCH, MAX_YAW, toScreen } from "./theme"
 
 describe("fighter moves", () => {
@@ -340,6 +341,56 @@ describe("camera zoom", () => {
     for (let i = 0; i < 30; i++) scene.zoomAt(cursor, -3)
     tick(scene, 2000)
     expect(scene.zoom).toBe(0.6)
+  })
+})
+
+describe("camera lens", () => {
+  test("zooming in tightens the focus on the middle of the screen", () => {
+    const scene = mount(
+      new FightScene(
+        classicFight({
+          seed: 8,
+          speed: 4,
+          spectate: false,
+          playerTeam: ["eva"],
+          enemyTeam: ["gorr"],
+        }),
+      ),
+    )
+    const internals = scene as any
+    tickUntil(scene, () => internals._inputReady)
+    internals._onResize(1280, 720)
+    const lens = scene.lens
+    // the decor and the board are seen through it, not the HUD
+    expect(internals._world.parent).toBe(lens.target)
+    expect(internals._backdrop.container.parent).toBe(lens.target)
+    expect(internals._hud._container.parent).not.toBe(lens.target)
+    // not zoomed: all sharp
+    expect(lens.amount).toBe(0)
+    expect(lens.target.filters ?? []).toHaveLength(0)
+
+    scene.zoomAt({ x: 640, y: 360 }, 4)
+    tick(scene, 1000)
+    const half = lens.amount
+    expect(half).toBeGreaterThan(0)
+    expect(lens.target.filters).toContain(lens.filter)
+    // sharp along the middle line of the screen, blurred away from it
+    expect(lens.filter.start.y).toBe(360)
+    expect(lens.filter.end).toEqual({ x: 1280, y: 360 })
+    const reach = lens.filter.gradientBlur
+
+    for (let i = 0; i < 30; i++) scene.zoomAt({ x: 640, y: 360 }, 3)
+    tick(scene, 2000)
+    expect(lens.amount).toBe(1)
+    expect(lens.filter.blur).toBe(MAX_LENS_BLUR)
+    // the decor is seen by the same camera: it zooms with the board
+    expect(internals._backdrop.zoom).toBe(3)
+    // tighter: the blur is full closer to the middle
+    expect(lens.filter.gradientBlur).toBeLessThan(reach)
+
+    for (let i = 0; i < 30; i++) scene.zoomAt({ x: 640, y: 360 }, -3)
+    tick(scene, 2000)
+    expect(lens.target.filters ?? []).toHaveLength(0)
   })
 })
 

@@ -43,6 +43,7 @@ import { describeHp, describeStatus } from "./describe"
 import { FX, floatingText, particles, projectile } from "./effects"
 import FighterView, { STATUS_COLORS, type WaterState } from "./FighterView"
 import Hud from "./Hud"
+import { Lens } from "./lens"
 import { facingBetween } from "./Puppet"
 import {
   type Camera,
@@ -246,6 +247,8 @@ export default class FightScene extends ViewChip<SceneEvents> {
   private _turnButtons: Container[] = []
   private _shake = { intensity: 0, remaining: 0, duration: 1 }
   private _backdrop!: Backdrop
+  /** The decor and the board, seen through the camera's lens. */
+  private _lens!: Lens
 
   constructor(private readonly _options: SceneOptions) {
     super()
@@ -283,10 +286,14 @@ export default class FightScene extends ViewChip<SceneEvents> {
     this._entities.sortableChildren = true
     this._effects = new Container()
     this._effects.sortableChildren = true
+    // the decor and the board are seen through the lens (the HUD isn't)
+    const lens = new Container()
+    this._lens = new Lens(lens)
+    this._container.addChild(lens)
     this._backdrop = new Backdrop()
-    this._activateChildChip(this._backdrop)
+    this._activateChildChip(this._backdrop, { context: { container: lens } })
     // the distant islands nearer than the board pass in front of it
-    this._container.addChild(this._world, this._backdrop.front)
+    lens.addChild(this._world, this._backdrop.front)
     this._turnButtons = ([-1, 1] as const).map((dir) => {
       const view = turnButton(dir)
       view.on("pointertap", () => this.turnCamera(dir))
@@ -579,6 +586,11 @@ export default class FightScene extends ViewChip<SceneEvents> {
     return this._zoom.value
   }
 
+  /** The camera's lens: tighter focus as it zooms in. */
+  get lens() {
+    return this._lens
+  }
+
   private _onWheel(e: WheelEvent) {
     e.preventDefault()
     // a trackpad pinch comes as a wheel with ctrl, in small steps
@@ -629,12 +641,21 @@ export default class FightScene extends ViewChip<SceneEvents> {
       this._fit.y + this._pan.y + dy,
     )
     this._placeTurnButtons(scale)
-    // the distant islands are around the board (moved a little by the pan)
+    this._lens.update(
+      this._fit.width,
+      this._fit.height,
+      this._zoom.value,
+      MAX_ZOOM,
+    )
+    // the distant islands are around the board, seen by the same camera:
+    // they follow its middle and its zoom
     const { width: w, height: h } = this.combat.board
-    const middle = toScreen({ x: (w - 1) / 2, y: (h - 1) / 2 }, 0, ISO)
+    // where the middle of the board is drawn now (as for the arrows)
+    const middle = toScreen({ x: (w - 1) / 2, y: (h - 1) / 2 })
+    this._backdrop.zoom = this._zoom.value
     this._backdrop.focus = {
-      x: this._fit.x + middle.x * this._fit.scale + this._pan.x * 0.3,
-      y: this._fit.y + middle.y * this._fit.scale + this._pan.y * 0.3,
+      x: this._world.x + middle.x * scale,
+      y: this._world.y + middle.y * scale,
     }
   }
 

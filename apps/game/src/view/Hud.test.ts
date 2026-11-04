@@ -251,8 +251,14 @@ test("hovering buttons and timeline slots shows tooltips", () => {
 describe("Backdrop and Gallery", () => {
   test("backdrop fills the screen and its motes loop", () => {
     const backdrop = mount(new Backdrop())
+    ;(backdrop as any)._onResize(1280, 720)
     tick(backdrop, 60_000, 100)
-    expect(backdrop.container.children.length).toBeGreaterThan(40)
+    expect(backdrop.motes.length).toBeGreaterThan(40)
+    // after a minute, each is still in the void around the board
+    for (const mote of backdrop.motes) {
+      expect(Math.abs(mote.height)).toBeLessThanOrEqual(40)
+      expect(Number.isFinite(mote.sprite.x)).toBe(true)
+    }
   })
 
   test("gallery shows every puppet in 4 facings and cycles animations", () => {

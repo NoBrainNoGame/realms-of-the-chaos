@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { Board } from "@realms/engine"
 import { Container, Graphics } from "pixi.js"
 import { mount, tick } from "../test/harness"
-import Backdrop from "./Backdrop"
+import Backdrop, { skyPoint } from "./Backdrop"
 import BoardView from "./BoardView"
 import FightScene, { classicFight } from "./FightScene"
 import { drawFloatingIsland, undersideDepths } from "./islands"
@@ -95,6 +95,81 @@ describe("everything floats, each at its own pace", () => {
     tick(backdrop, 1500)
     const after = islands.map((i) => i.node.y)
     expect(after).not.toEqual(before)
+  })
+
+  test("stars are on a celestial vault: they go round along curves, with a trail", () => {
+    const backdrop = mount(new Backdrop())
+    ;(backdrop as any)._onResize(1200, 800)
+    try {
+      tick(backdrop, 16)
+      const visible = () =>
+        backdrop.stars.filter(
+          (s) => s.x >= 0 && s.x <= 1200 && s.y >= 0 && s.y <= 800,
+        )
+      expect(visible().length).toBeGreaterThan(60)
+      expect(backdrop.stars.every((s) => s.trail === 0)).toBe(true)
+      const before = new Map(visible().map((s) => [s, { x: s.x, y: s.y }]))
+      camera.yaw = 4
+      tick(backdrop, 16)
+      // every visible star moved, and left a trail as long as its way
+      for (const [star, p] of before) {
+        const way = Math.hypot(star.x - p.x, star.y - p.y)
+        expect(way).toBeGreaterThan(1)
+        expect(star.trail).toBeGreaterThanOrEqual(way - 1e-6)
+      }
+      // still again: no more trail
+      tick(backdrop, 16)
+      expect(backdrop.stars.every((s) => s.trail === 0)).toBe(true)
+    } finally {
+      resetCamera()
+    }
+  })
+
+  test("seen from above, turning moves the stars along arcs, not straight lines", () => {
+    const star = { azimuth: -135 + 10, elevation: -40 }
+    const at = (turn: number, pitch: number) =>
+      skyPoint(star, { turn, pitch }, 1200, 800)!
+    // seen from the side (no tilt), a star on the horizon stays on it
+    const flat = { azimuth: -135 + 10, elevation: 0 }
+    const f0 = skyPoint(flat, { turn: 45, pitch: 0 }, 1200, 800)!
+    const f1 = skyPoint(flat, { turn: 25, pitch: 0 }, 1200, 800)!
+    expect(f1.y).toBeCloseTo(f0.y)
+    // tilted down: the middle of the way is off the straight line
+    const a = at(45, 45)
+    const m = at(35, 45)
+    const b = at(25, 45)
+    const chord = { x: b.x - a.x, y: b.y - a.y }
+    const off =
+      Math.abs(chord.x * (m.y - a.y) - chord.y * (m.x - a.x)) /
+      Math.hypot(chord.x, chord.y)
+    expect(off).toBeGreaterThan(2)
+    // tilting further down: the sky goes up
+    expect(at(45, 50).y).toBeLessThan(a.y)
+  })
+
+  test("motes rise around the board and stretch along the camera's motion", () => {
+    const backdrop = mount(new Backdrop())
+    ;(backdrop as any)._onResize(1200, 800)
+    try {
+      tick(backdrop, 16)
+      tick(backdrop, 16)
+      const mote = backdrop.motes[0]
+      // rising slowly: barely stretched
+      expect(mote.sprite.scale.x / mote.sprite.scale.y).toBeLessThan(1.5)
+      const before = { x: mote.sprite.x, y: mote.sprite.y }
+      camera.yaw = 15
+      tick(backdrop, 16)
+      const dx = mote.sprite.x - before.x
+      const dy = mote.sprite.y - before.y
+      expect(Math.hypot(dx, dy)).toBeGreaterThan(5)
+      // stretched along the way it went
+      expect(mote.sprite.scale.x).toBeGreaterThan(mote.sprite.scale.y * 1.5)
+      const angle = Math.atan2(dy, dx)
+      const diff = Math.abs(Math.sin(mote.sprite.rotation - angle))
+      expect(diff).toBeLessThan(0.2)
+    } finally {
+      resetCamera()
+    }
   })
 
   test("distant islands nearer than the board are solid and in front of it", () => {

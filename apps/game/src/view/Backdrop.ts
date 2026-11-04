@@ -96,12 +96,79 @@ const DISTANT = [
 /** Distance of the distant islands from the board, in cells. */
 export const RING_RADIUS = 12
 
-interface Mote {
+/** A star, infinitely far: only the camera's turn and tilt move it. */
+export interface Star {
+  /** Direction: around (°) and above the horizon (°). */
+  azimuth: number
+  elevation: number
+  radius: number
+  alpha: number
+  /** Where it is on the screen, and the length of its trail (px). */
+  x: number
+  y: number
+  trail: number
+}
+
+/** A mote of light rising in the void around the board. */
+export interface Mote {
   sprite: Sprite
+  /** Place in the world: on the ground (cells) and height (levels). */
+  gx: number
+  gy: number
+  height: number
+  /** Rising speed (levels/s), sway (cells) and its phase. */
   speed: number
   sway: number
   phase: number
+  size: number
+  alpha: number
+  /** Screen position at the previous frame (for the motion blur). */
+  last: { x: number; y: number } | null
 }
+
+/** Field of view across the screen's width, for the stars (°). */
+export const SKY_FOV = 90
+
+/** Camera of the sky: its turn around the vertical (°) and its tilt down (°). */
+export interface SkyView {
+  turn: number
+  pitch: number
+}
+
+const DEG = Math.PI / 180
+
+/**
+ * Where a star is seen on the celestial vault, or null when it is behind
+ * the camera. The camera turns around the world's vertical and looks down
+ * by its tilt, with a perspective: as it turns, the stars go round the
+ * pole along curves, as in a real sky.
+ */
+export function skyPoint(
+  star: Pick<Star, "azimuth" | "elevation">,
+  view: SkyView,
+  width: number,
+  height: number,
+): { x: number; y: number } | null {
+  // around: 0 is right behind the board, in the middle of the screen
+  const around = (star.azimuth + view.turn + 90) * DEG
+  const e = star.elevation * DEG
+  const x = Math.cos(e) * Math.sin(around)
+  const y = Math.sin(e)
+  const z = Math.cos(e) * Math.cos(around)
+  const p = view.pitch * DEG
+  const up = y * Math.cos(p) + z * Math.sin(p)
+  const forward = -y * Math.sin(p) + z * Math.cos(p)
+  if (forward < 0.05) return null
+  const f = width / 2 / Math.tan((SKY_FOV / 2) * DEG)
+  return {
+    x: width / 2 + (f * x) / forward,
+    y: height / 2 - (f * up) / forward,
+  }
+}
+/** Motes live between these heights (levels), then start again below. */
+const MOTE_HEIGHT = 40
+/** A jump bigger than this (× width) is a cut: no trail. */
+const CUT = 0.25
 
 /**
  * Background: a deep sky gradient, twinkling stars and slow rising motes
@@ -112,6 +179,11 @@ export default class Backdrop extends ViewChip {
   private _sky!: Sprite
   private _stars!: Graphics
   private _motes: Mote[] = []
+  private _starList: Star[] = []
+  /** Sky angle and tilt of the camera when the stars were last drawn. */
+  private _skyView: SkyView | null = null
+  private _starsDirty = true
+  private _zoom = 1
   private _islands: DistantIsland[] = []
   private _time = 0
   private _width = 0
@@ -128,6 +200,21 @@ export default class Backdrop extends ViewChip {
     this._sky = new Sprite(Backdrop.gradient())
     this._stars = new Graphics()
     this._container.addChild(this._sky, this._stars)
+    // the stars all around, more than the screen ever shows at once
+    for (let i = 0; i < 1100; i++) {
+      const u = Math.abs((Math.sin(i * 12.9898) * 43758.5453) % 1)
+      const v = Math.abs((Math.sin(i * 78.233) * 12345.678) % 1)
+      this._starList.push({
+        azimuth: u * 360,
+        // evenly spread over the whole sphere
+        elevation: Math.asin(v * 2 - 1) / DEG,
+        radius: i % 9 === 0 ? 1.4 : 0.8,
+        alpha: i % 5 === 0 ? 0.8 : 0.4,
+        x: 0,
+        y: 0,
+        trail: 0,
+      })
+    }
 
     // distant islands of the Clair, blued by the distance
     this._layer = new Container()
@@ -150,19 +237,26 @@ export default class Backdrop extends ViewChip {
     })
     this._drawIslands()
 
-    for (let i = 0; i < 40; i++) {
+    // motes of light, in the void around the board
+    for (let i = 0; i < 48; i++) {
       const sprite = new Sprite(softCircle())
       sprite.anchor.set(0.5)
       sprite.blendMode = "add"
       sprite.tint = [0xb197fc, 0x63e6be, 0xffffff, 0x74c0fc][i % 4]
-      sprite.scale.set((3 + Math.random() * 6) / 64)
-      sprite.alpha = 0.3 + Math.random() * 0.4
-      this._container.addChild(sprite)
+      this._layer.addChildAt(sprite, 0)
+      const a = Math.random() * Math.PI * 2
+      const r = Math.sqrt(Math.random()) * RING_RADIUS * 1.4
       this._motes.push({
         sprite,
-        speed: 6 + Math.random() * 14,
-        sway: 6 + Math.random() * 16,
+        gx: Math.cos(a) * r,
+        gy: Math.sin(a) * r,
+        height: (Math.random() * 2 - 1) * MOTE_HEIGHT,
+        speed: 0.4 + Math.random() * 1,
+        sway: 0.3 + Math.random() * 0.8,
         phase: Math.random() * Math.PI * 2,
+        size: (3 + Math.random() * 6) / 64,
+        alpha: 0.3 + Math.random() * 0.4,
+        last: null,
       })
     }
   }
@@ -187,21 +281,8 @@ export default class Backdrop extends ViewChip {
     this._height = height
     this._sky.width = width
     this._sky.height = height
-    this._stars.clear()
-    for (let i = 0; i < 140; i++) {
-      const x = (Math.sin(i * 12.9898) * 43758.5453) % 1
-      const y = (Math.sin(i * 78.233) * 12345.678) % 1
-      this._stars
-        .circle(
-          Math.abs(x) * width,
-          Math.abs(y) * height,
-          i % 9 === 0 ? 1.4 : 0.8,
-        )
-        .fill({ color: 0xffffff, alpha: i % 5 === 0 ? 0.8 : 0.4 })
-    }
-    for (const mote of this._motes) {
-      mote.sprite.position.set(Math.random() * width, Math.random() * height)
-    }
+    this._starsDirty = true
+    for (const mote of this._motes) mote.last = null
     this._placeIslands()
   }
 
@@ -242,6 +323,149 @@ export default class Backdrop extends ViewChip {
     return this._layer.alpha
   }
 
+  /** The stars (for tests). */
+  get stars(): readonly Star[] {
+    return this._starList
+  }
+
+  /** The motes of light (for tests). */
+  get motes(): readonly Mote[] {
+    return this._motes
+  }
+
+  /**
+   * How close the camera came (as the board's zoom): the islands and motes
+   * are bigger and spread farther, the stars (infinitely far) don't move.
+   */
+  set zoom(value: number) {
+    this._zoom = value
+    this._placeIslands()
+  }
+
+  get zoom() {
+    return this._zoom
+  }
+
+  /** Screen point the camera looks at, and pixels per world pixel. */
+  private _view() {
+    const focus = this._focus ?? { x: this._width / 2, y: this._height / 2 }
+    // the ring spans about two thirds of the screen's width
+    const cell = TILE_WIDTH / Math.SQRT2
+    const k = ((0.33 * this._width) / (RING_RADIUS * cell)) * this._zoom
+    return { focus, k }
+  }
+
+  /**
+   * The stars where the camera sees them; when it moves, each leaves a
+   * trail along the arc it went (motion blur).
+   */
+  private _drawStars() {
+    const sky: SkyView = {
+      turn: 45 + 90 * camera.quarter + camera.yaw,
+      pitch: camera.pitch,
+    }
+    const last = this._skyView ?? sky
+    const moved = last.turn !== sky.turn || last.pitch !== sky.pitch
+    if (!moved && !this._starsDirty) return
+    this._skyView = sky
+    this._starsDirty = moved
+    // a jump (a quarter turn while the board is hidden): no trail
+    const cut =
+      Math.abs(sky.turn - last.turn) > 30 ||
+      Math.abs(sky.pitch - last.pitch) > 30
+    const w = this._width
+    const h = this._height
+    // the trail follows the arc: a few steps between the two views
+    const steps = cut || !moved ? 0 : 6
+    const views: SkyView[] = []
+    for (let i = 0; i <= steps; i++) {
+      const t = steps ? i / steps : 1
+      views.push({
+        turn: last.turn + (sky.turn - last.turn) * t,
+        pitch: last.pitch + (sky.pitch - last.pitch) * t,
+      })
+    }
+    const g = this._stars
+    g.clear()
+    const margin = 20
+    const inside = (p: { x: number; y: number }) =>
+      p.x > -margin && p.x < w + margin && p.y > -margin && p.y < h + margin
+    for (const star of this._starList) {
+      const path = views
+        .map((view) => skyPoint(star, view, w, h))
+        .filter((p): p is { x: number; y: number } => p !== null)
+      const now = path[path.length - 1]
+      star.trail = 0
+      if (!now) {
+        star.x = Number.NaN
+        star.y = Number.NaN
+        continue
+      }
+      star.x = now.x
+      star.y = now.y
+      for (let i = 1; i < path.length; i++)
+        star.trail += Math.hypot(
+          path[i].x - path[i - 1].x,
+          path[i].y - path[i - 1].y,
+        )
+      if (star.trail < 0.5) star.trail = 0
+      if (!path.some(inside)) continue
+      if (star.trail === 0) {
+        g.circle(now.x, now.y, star.radius).fill({
+          color: 0xffffff,
+          alpha: star.alpha,
+        })
+        continue
+      }
+      // the same light spread along the trail
+      const width = star.radius * 2
+      g.moveTo(path[0].x, path[0].y)
+      for (let i = 1; i < path.length; i++) g.lineTo(path[i].x, path[i].y)
+      g.stroke({
+        color: 0xffffff,
+        width,
+        cap: "round",
+        join: "round",
+        alpha:
+          star.alpha * Math.max(0.35, (width * 2) / (width * 2 + star.trail)),
+      })
+    }
+  }
+
+  /**
+   * The motes rise in the world around the board, seen by the camera:
+   * stretched along their screen motion (motion blur).
+   */
+  private _placeMotes(dt: number) {
+    const { focus, k } = this._view()
+    const lh = levelHeight()
+    for (const mote of this._motes) {
+      mote.height += mote.speed * dt
+      if (mote.height > MOTE_HEIGHT) {
+        mote.height -= MOTE_HEIGHT * 2
+        mote.last = null
+      }
+      const sway = Math.sin(this._time * 0.7 + mote.phase) * mote.sway
+      const o = project(mote.gx + sway, mote.gy - sway)
+      const x = focus.x + o.x * k
+      const y = focus.y + (o.y - mote.height * lh) * k
+      const last = mote.last ?? { x, y }
+      mote.last = { x, y }
+      const dx = x - last.x
+      const dy = y - last.y
+      let length = Math.hypot(dx, dy)
+      if (length > this._width * CUT) length = 0
+      const { sprite } = mote
+      sprite.position.set(x - dx / 2, y - dy / 2)
+      // the soft circle is 64 px wide: stretched by the distance covered
+      const size = mote.size * this._zoom
+      const diameter = size * 64
+      sprite.rotation = length > 0.5 ? Math.atan2(dy, dx) : 0
+      sprite.scale.set(size * (1 + length / diameter), size)
+      sprite.alpha = mote.alpha * (diameter / (diameter + length * 0.5))
+    }
+  }
+
   /** Draws the islands again when the camera moved. */
   private _drawIslands() {
     const drawn = this._drawn
@@ -263,10 +487,7 @@ export default class Backdrop extends ViewChip {
   private _placeIslands() {
     if (!this._layer) return
     const ms = this._time * 1000
-    const focus = this._focus ?? { x: this._width / 2, y: this._height / 2 }
-    // the ring spans about two thirds of the screen's width
-    const cell = TILE_WIDTH / Math.SQRT2
-    const k = (0.33 * this._width) / (RING_RADIUS * cell)
+    const { focus, k } = this._view()
     const order: { island: DistantIsland; depth: number }[] = []
     for (const island of this._islands) {
       const a = (island.angle * Math.PI) / 180
@@ -284,7 +505,7 @@ export default class Backdrop extends ViewChip {
         focus.y + (o.y - lift) * k + bob,
       )
       island.node.scale.set(
-        island.size * (this._height / 1000) * (1 + 0.25 * depth),
+        island.size * (this._height / 1000) * (1 + 0.25 * depth) * this._zoom,
       )
       // atmospheric perspective: behind the board, the farther, the bluer
       // and the paler; in front of it, as solid and as lit as the board
@@ -299,7 +520,9 @@ export default class Backdrop extends ViewChip {
     }
     // the farther behind, the earlier drawn; nearer than the board: above it
     order.sort((a, b) => a.depth - b.depth)
-    const count = new Map<Container, number>()
+    const count = new Map<Container, number>([
+      [this._layer, this._motes.length],
+    ])
     for (const { island, depth } of order) {
       const layer = depth > 0 ? this._front : this._layer
       const index = count.get(layer) ?? 0
@@ -316,14 +539,8 @@ export default class Backdrop extends ViewChip {
     this._stars.alpha = 0.75 + 0.25 * Math.sin(this._time * 0.8)
     this._drawIslands()
     this._placeIslands()
-    for (const mote of this._motes) {
-      mote.sprite.y -= mote.speed * dt
-      mote.sprite.x += Math.sin(this._time + mote.phase) * mote.sway * dt
-      if (mote.sprite.y < -10) {
-        mote.sprite.y = this._height + 10
-        mote.sprite.x = Math.random() * this._width
-      }
-    }
+    this._drawStars()
+    this._placeMotes(dt)
   }
 }
 
