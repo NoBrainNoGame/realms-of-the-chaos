@@ -235,6 +235,35 @@ export const FX = {
     life: [400, 700],
     size: [3, 6],
   }),
+  /**
+   * Dispersion (death): heat and light spreading sideways and fading, no
+   * rising soul. `side` is the horizontal direction (-1 left, 1 right).
+   */
+  dispersion: (side: 1 | -1): ParticleConfig => ({
+    count: 14,
+    colors: [0xffe8cc, 0xffd8a8, 0xe5dbff, 0xffffff],
+    blend: "add",
+    speed: [30, 110],
+    angle: side > 0 ? [-0.35, 0.2] : [Math.PI - 0.2, Math.PI + 0.35],
+    gravity: -8,
+    drag: 0.35,
+    life: [500, 1100],
+    size: [3, 7],
+    spread: 6,
+  }),
+  /** Steam: heat rejected by a repair. */
+  steam: (spread = 14): ParticleConfig => ({
+    count: 10,
+    colors: [0xf8f9fa, 0xdee2e6, 0xe9ecef],
+    speed: [12, 40],
+    gravity: -60,
+    drag: 0.3,
+    life: [600, 1100],
+    size: [8, 14],
+    grow: 2,
+    alpha: 0.45,
+    spread,
+  }),
   splash: (): ParticleConfig => ({
     count: 14,
     colors: [0xa5d8ff, 0xe7f5ff, 0x4dabf7],
@@ -561,6 +590,125 @@ export function lightBeam(
         .fill({ color, alpha: 0.25 * (1 - t) })
         .rect(at.x - width / 6, at.y - 160, width / 3, 160)
         .fill({ color: 0xffffff, alpha: 0.4 * (1 - t) })
+    },
+    onTerminate: () => g.destroy(),
+  })
+}
+
+/**
+ * Gravitational lens (Distortion): rings tightening around the target, as
+ * if space bent towards it, with a bright Einstein ring.
+ */
+export function lens(layer: Container, at: XY, color: number, duration = 700) {
+  const g = new Graphics()
+  g.blendMode = "add"
+  g.zIndex = 999_997
+  return new booyah.Tween({
+    from: 0,
+    to: 1,
+    duration,
+    onActivate: () => layer.addChild(g),
+    onTick: (t) => {
+      g.clear()
+      for (let i = 0; i < 3; i++) {
+        const k = (1 - ((t + i / 3) % 1)) * 46 + 8
+        g.ellipse(at.x, at.y, k, k * 0.55).stroke({
+          width: 1.5,
+          color,
+          alpha: 0.6 * (1 - t) * (k / 54),
+        })
+      }
+      g.ellipse(at.x, at.y, 12, 6.6).stroke({
+        width: 3 * Math.sin(t * Math.PI) + 0.5,
+        color: 0xffffff,
+        alpha: 0.8 * Math.sin(t * Math.PI),
+      })
+    },
+    onTerminate: () => g.destroy(),
+  })
+}
+
+/** Energy converging into a point (repairs, focused energy). */
+export function converge(
+  layer: Container,
+  at: XY,
+  color: number,
+  duration = 650,
+  count = 12,
+) {
+  const sprites = Array.from({ length: count }, (_, i) => {
+    const sprite = new Sprite(softCircle())
+    sprite.anchor.set(0.5)
+    sprite.tint = color
+    sprite.blendMode = "add"
+    sprite.scale.set(6 / 64)
+    sprite.zIndex = 999_996
+    const angle = (i / count) * Math.PI * 2
+    return { sprite, angle, radius: 34 + (i % 3) * 8 }
+  })
+  return new booyah.Tween({
+    from: 0,
+    to: 1,
+    duration,
+    onActivate: () => {
+      for (const s of sprites) layer.addChild(s.sprite)
+    },
+    onTick: (t) => {
+      for (const s of sprites) {
+        const r = s.radius * (1 - t)
+        const a = s.angle + t * 1.2
+        s.sprite.position.set(
+          at.x + Math.cos(a) * r,
+          at.y + Math.sin(a) * r * 0.5,
+        )
+        s.sprite.alpha = Math.min(1, t * 3) * (1 - t * 0.5)
+      }
+    },
+    onTerminate: () => {
+      for (const s of sprites) s.sprite.destroy()
+    },
+  })
+}
+
+/** Crystalline force field around a fighter (the Field). */
+export function forceField(
+  layer: Container,
+  at: XY,
+  color: number,
+  duration = 700,
+) {
+  const g = new Graphics()
+  g.blendMode = "add"
+  g.zIndex = 999_995
+  // a faceted dome: hexagon outline and a few inner facets
+  const facets = (r: number) => {
+    const points: number[] = []
+    for (let i = 0; i < 6; i++) {
+      const a = -Math.PI / 2 + (i * Math.PI) / 3
+      points.push(at.x + Math.cos(a) * r, at.y - 18 + Math.sin(a) * r * 1.1)
+    }
+    return points
+  }
+  return new booyah.Tween({
+    from: 0,
+    to: 1,
+    duration,
+    onActivate: () => layer.addChild(g),
+    onTick: (t) => {
+      const grow = Math.min(1, t * 3)
+      const fade = 1 - Math.max(0, (t - 0.5) / 0.5)
+      const r = 24 * grow
+      const outline = facets(r)
+      g.clear()
+        .poly(outline)
+        .fill({ color, alpha: 0.18 * fade })
+        .poly(outline)
+        .stroke({ width: 1.6, color, alpha: 0.9 * fade })
+      for (let i = 0; i < 6; i += 2) {
+        g.moveTo(at.x, at.y - 18)
+          .lineTo(outline[i * 2], outline[i * 2 + 1])
+          .stroke({ width: 0.8, color: 0xffffff, alpha: 0.5 * fade })
+      }
     },
     onTerminate: () => g.destroy(),
   })

@@ -86,7 +86,8 @@ const actionList: ActionDefinition[] = [
   {
     id: "frost",
     name: "Givre",
-    description: "Dégâts magiques légers et ralentit la cible.",
+    description:
+      "Un froid intense : dégâts énergétiques légers, et la cible ralentit.",
     launch: { shape: "diamond", min: 1, max: 4 },
     lineOfSight: true,
     target: "enemy",
@@ -163,8 +164,9 @@ const actionList: ActionDefinition[] = [
   },
   {
     id: "aegis",
-    name: "Égide",
-    description: "Bouclier de 15 points sur un allié pendant 2 tours.",
+    name: "Champ",
+    description:
+      "Un champ de force cristallin absorbe 15 points de dégâts sur un allié, pendant 2 tours.",
     launch: { shape: "diamond", min: 0, max: 3 },
     lineOfSight: true,
     target: "ally",
@@ -319,7 +321,7 @@ const characterList: CharacterPreset[] = [
   {
     id: "merlin",
     name: "Merlin",
-    title: "Mage",
+    title: "Thermiste",
     affinity: "magic",
     stats: {
       health: 9.5,
@@ -401,7 +403,7 @@ const characterList: CharacterPreset[] = [
   {
     id: "gorr",
     name: "Gorr",
-    title: "Golem",
+    title: "Golem minéral",
     affinity: "strength",
     stats: {
       health: 17,
@@ -457,23 +459,25 @@ export const CHARACTERS: Record<string, CharacterPreset> = Object.fromEntries(
 export const DIVINE_ACTIONS: Record<string, DivineActionDefinition> = {
   timeWarp: {
     id: "timeWarp",
-    name: "Distorsion temporelle",
+    name: "Distorsion",
     description:
-      "Avance le prochain tour d'un allié, ou retarde celui d'un ennemi.",
+      "Courbe le temps propre d'un Écho : avance le prochain tour d'un allié, ou retarde celui d'un ennemi.",
     cost: 3,
     target: "fighter",
   },
   earthquake: {
     id: "earthquake",
     name: "Séisme",
-    description: "Fait surgir ou s'effondrer un rocher sur une case libre.",
+    description:
+      "Pousse la roche du Fragment : une case libre se soulève ou s'effondre.",
     cost: 4,
     target: "cell",
   },
   blessing: {
     id: "blessing",
-    name: "Bénédiction",
-    description: "Soigne tous les personnages de votre équipe.",
+    name: "Réparation",
+    description:
+      "Répare toute votre équipe. L'ordre créé se paie : la chaleur rejetée s'échappe en vapeur.",
     cost: 5,
     target: "none",
   },
@@ -494,9 +498,9 @@ export const AFFINITIES: Record<
   { name: string; adjective: string; description: string }
 > = {
   magic: {
-    name: "Magie",
-    adjective: "enchanté",
-    description: "ajoute des dégâts magiques ou renforce les soins",
+    name: "Énergie",
+    adjective: "énergisé",
+    description: "ajoute des dégâts énergétiques ou renforce les soins",
   },
   strength: {
     name: "Force",
@@ -509,8 +513,8 @@ export const AFFINITIES: Record<
     description: "porte 2 cases plus loin (1 pour le corps à corps)",
   },
   faith: {
-    name: "Foi",
-    adjective: "béni",
+    name: "Cohésion",
+    adjective: "lié",
     description: "soigne aussi le lanceur",
   },
   shadow: {
@@ -527,7 +531,7 @@ const NAMED_COMBOS: Record<
 > = {
   // from the doc: a mage on the archer's cell enchants her arrows (fire mage: explosive)
   "eva:merlin": (base) => ({
-    name: "Flèche enchantée",
+    name: "Flèche incendiaire",
     description: "Une flèche de feu qui explose autour de la cible.",
     area: { shape: "diamond", max: 1 },
     affects: "enemies",
@@ -535,7 +539,7 @@ const NAMED_COMBOS: Record<
   }),
   "merlin:eva": () => ({
     name: "Boule de feu guidée",
-    description: "Eva guide le sort : plus de portée, aucun allié touché.",
+    description: "Eva guide le tir : plus de portée, aucun allié touché.",
     affects: "enemies",
   }),
 }

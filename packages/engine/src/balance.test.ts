@@ -104,7 +104,7 @@ describe("balance model", () => {
     expect(combat.presetOf(e)).toBe(eva)
     // the named combo of the eva and merlin kits still applies
     const names = combat.actionsOf(e).map((a) => a.name)
-    expect(names).toContain("Flèche enchantée")
+    expect(names).toContain("Flèche incendiaire")
   })
 })
 

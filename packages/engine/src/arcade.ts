@@ -95,7 +95,7 @@ export function arcadeWaveOptions(
         hp: state.hp,
       },
       {
-        name: `Vague ${state.wave}`,
+        name: `Marée ${state.wave}`,
         controller: "ai",
         fighters: arcadeEnemies(runSeed, state.wave),
         statMultiplier:

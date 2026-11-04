@@ -318,7 +318,7 @@ describe("arcade", () => {
     while (waves < 2 && run.run.alive) {
       const scene = run.screen as FightScene
       expect(scene).toBeInstanceOf(FightScene)
-      expect(scene.options.teams[1].name).toBe(`Vague ${run.run.wave}`)
+      expect(scene.options.teams[1].name).toBe(`Marée ${run.run.wave}`)
       playLocally(scene)
       ;(scene as any)._hud.emit("endAction", "continue")
       waves++

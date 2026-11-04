@@ -167,7 +167,7 @@ describe("Hud", () => {
       c,
       eva,
     )
-    expect(combo).toContain("Action combinée")
+    expect(combo).toContain("Intrication")
   })
 })
 

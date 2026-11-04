@@ -95,7 +95,7 @@ export function classicFight(options: {
     speed: options.speed,
     teams: [
       {
-        name: options.spectate ? "Lumière" : "Vous",
+        name: options.spectate ? "Ordre" : "Vous",
         controller: options.spectate ? "ai" : "local",
         fighters: options.playerTeam,
       },
@@ -285,7 +285,9 @@ export default class FightScene extends ViewChip<SceneEvents> {
     this._hud.setSpeed(this._speed)
     this._hud.setTimeline(this.combat)
     this._hud.setDivine(this.combat, this.playerTeam, false, null)
-    this._hud.log(`Seed ${this._options.seed} — que le chaos commence !`)
+    this._hud.log(
+      `Fragment n°${this._options.seed} — tout ce qui interagit existe.`,
+    )
 
     this._subscribe(this._board, "cellOver", (p) => {
       this._hovered = p
@@ -767,7 +769,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
                 floatingText(
                   this._effects,
                   this._center(event.fighterId, -view.headHeight - 22),
-                  "Combo !",
+                  "Intrication !",
                   COLORS.combo,
                   16,
                 ),
@@ -844,7 +846,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
       case "died":
         return [
           new booyah.Lambda(() => {
-            this._hud.log(`☠ ${name(event.fighterId)} est vaincu`)
+            this._hud.log(`✧ ${name(event.fighterId)} se disperse`)
             deathFx(this._fx, this._cells.get(event.fighterId)!)
           }),
           () => this._views.get(event.fighterId)!.dieChip(this._ms(700)),

@@ -11,10 +11,11 @@ import ViewChip from "./ViewChip"
 
 /** Phrases shown under the title, one per visit (lore: see docs). */
 export const TAGLINES = [
-  "Ce qui n'est pas regardé n'existe pas encore.",
-  "Derrière le Voile, tout est possible à la fois.",
-  "Chaque île tient par le regard de son Ghom.",
-  "Les Échos se demandent ce qu'ils sont quand plus personne ne les voit.",
+  "Exister, c'est interagir.",
+  "Rien n'a besoin d'un témoin pour être.",
+  "Entre le cristal et la cendre, il y a la vie.",
+  "Chaque île tient par les liens qui la traversent.",
+  "Ce qui ne touche plus rien s'effiloche.",
   "Pourquoi quelque chose, plutôt que rien ?",
 ]
 
@@ -32,7 +33,8 @@ export const TITLE_MENU: MenuItem[] = [
 const DESCRIPTIONS: Record<string, string> = {
   skirmish: "Votre équipe contre l'IA, à la difficulté de votre choix.",
   local: "Deux joueurs, un seul écran : chacun son équipe, chacun son tour.",
-  arcade: "Des vagues de plus en plus fortes. Jusqu'où tiendrez-vous ?",
+  arcade:
+    "Les Marées : des vagues de plus en plus fortes. Jusqu'où tiendrez-vous ?",
   gallery: "Les Échos sous toutes leurs coutures.",
 }
 
@@ -124,7 +126,7 @@ export default class TitleScreen extends ViewChip<TitleEvents> {
     const best = arcadeBest()
     this._record = text(
       best
-        ? `Record d'Arcade : ${best.score} points (${best.waves} vague${best.waves > 1 ? "s" : ""})`
+        ? `Record d'Arcade : ${best.score} points (${best.waves} Marée${best.waves > 1 ? "s" : ""})`
         : "",
       13,
       COLORS.muted,

@@ -109,7 +109,7 @@ describe("combo definitions", () => {
 
   test("the doc's enchanted arrow: Eva with Merlin", () => {
     const arrow = comboAction(CHARACTERS.eva, CHARACTERS.merlin)
-    expect(arrow.name).toBe("Flèche enchantée")
+    expect(arrow.name).toBe("Flèche incendiaire")
     expect(arrow.area).toEqual({ shape: "diamond", max: 1 })
     expect(power(arrow.effects, "magical")).toBe(6)
   })

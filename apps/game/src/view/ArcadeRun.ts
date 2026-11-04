@@ -141,7 +141,7 @@ export default class ArcadeRun extends ViewChip<ArcadeEvents> {
           : ARCADE_BONUSES[id].description,
     }))
     const screen = new MessageScreen({
-      title: `Vague ${wave} repoussée !`,
+      title: `Marée ${wave} repoussée !`,
       color: 0xffe066,
       lines: [
         `Score : ${this._run.score}`,
@@ -149,7 +149,7 @@ export default class ArcadeRun extends ViewChip<ArcadeEvents> {
         fallen
           ? `${fallen} Écho${fallen > 1 ? "s" : ""} ne reviendr${fallen > 1 ? "ont" : "a"} pas.`
           : "Toute l'équipe tient bon.",
-        "Choisissez un bonus avant la vague suivante :",
+        "Choisissez un bonus avant la Marée suivante :",
       ],
       choices,
     })
@@ -178,7 +178,7 @@ export default class ArcadeRun extends ViewChip<ArcadeEvents> {
       title: this._newRecord ? "Nouveau record !" : "Fin de la partie",
       color: this._newRecord ? 0xffe066 : COLORS.text,
       lines: [
-        `Vagues repoussées : ${waves}`,
+        `Marées repoussées : ${waves}`,
         `Score : ${this._run.score}`,
         `Équipe : ${this.team.map((id) => CHARACTERS[id].name).join(", ")}`,
       ],

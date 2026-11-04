@@ -318,7 +318,7 @@ export default class Hud extends ViewChip<HudEvents> {
       [
         `Vitesse ${s.speed}   Chance ${s.luck}`,
         `Atq. phys. ${s.physicalAttack}   Déf. ${s.physicalDefense}`,
-        `Atq. mag. ${s.magicalAttack}   Déf. ${s.magicalDefense}`,
+        `Atq. én. ${s.magicalAttack}   Déf. ${s.magicalDefense}`,
       ].join("\n"),
       12,
       COLORS.muted,
@@ -373,7 +373,7 @@ export default class Hud extends ViewChip<HudEvents> {
     const energy = combat.teams[team].energy
     const width = 200
 
-    const title = text("Pouvoirs divins", 15, COLORS.energy, {
+    const title = text("Influences du Ghom", 15, COLORS.energy, {
       fontWeight: "700",
     })
     title.position.set(10, 8)
@@ -395,7 +395,7 @@ export default class Hud extends ViewChip<HudEvents> {
         onTap: () => this.emit("divine", divine.id),
         onOver: () =>
           this.showTooltip(
-            `${divine.name} — ${divine.cost} énergie\n${divine.description}`,
+            `${divine.name} — ${divine.cost} d'Élan\n${divine.description}`,
             b.view.getGlobalPosition(),
           ),
         onOut: () => this.hideTooltip(),
@@ -517,6 +517,6 @@ export function describeAction(
   const cooldown = action.cooldown
     ? ` · recharge ${action.cooldown} tour(s)`
     : ""
-  const combo = action.combo ? "\n✦ Action combinée" : ""
+  const combo = action.combo ? "\n✦ Intrication" : ""
   return `${action.name}${combo}\n${action.description}\n${range}\ncoût ${cost} temps${cooldown}`
 }

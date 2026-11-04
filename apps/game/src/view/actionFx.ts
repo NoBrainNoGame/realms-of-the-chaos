@@ -9,8 +9,10 @@ import type { Container } from "pixi.js"
 import type BoardView from "./BoardView"
 import {
   burst,
+  converge,
   FX,
-  lightBeam,
+  forceField,
+  lens,
   lightFlash,
   lightning,
   type ProjectileStyle,
@@ -82,7 +84,7 @@ export const PROJECTILES: Record<string, ProjectileStyle> = {
     size: 4,
     trail: () => ({ ...FX.sparkles([0x51cf66, 0xd3f9d8], 2), count: 4 }),
   },
-  aegis: { color: 0xffe066, arc: 30, size: 4 },
+  aegis: { color: 0x99e9f2, arc: 30, size: 4 },
   quicken: { color: 0xfcc419, arc: 30, size: 3 },
   tidalWave: {
     color: 0x4dabf7,
@@ -205,8 +207,9 @@ export function impactFx(
       break
 
     case "heal":
+      // the energy sent from Lyra's hand settles into the ally
       spawn(lightFlash(layer, above(ctx, target, -26), 0x51cf66, 50, ms(600)))
-      spawn(lightBeam(layer, at, 0x8ce99a, ms(650)))
+      spawn(converge(layer, above(ctx, target, -18), 0x8ce99a, ms(500), 8))
       spawn(
         particles(
           layer,
@@ -217,13 +220,13 @@ export function impactFx(
       break
 
     case "aegis":
-      spawn(lightFlash(layer, above(ctx, target, -26), 0xffe066, 55, ms(600)))
-      spawn(burst(layer, at, 0xffe066, 34, ms(500)))
+      // the Field: a faceted, crystalline force field
+      spawn(forceField(layer, top(ctx, target), 0x99e9f2, ms(800)))
       spawn(
         particles(
           layer,
           above(ctx, target, -20),
-          FX.sparkles([0xffe066, 0xfff3bf]),
+          FX.sparkles([0x99e9f2, 0xe3fafc]),
         ),
       )
       break
@@ -386,21 +389,20 @@ export function hitFx(ctx: FxContext, at: Point, critical: boolean) {
   }
 }
 
-/** A fighter dies: smoke and a rising soul light. */
+/**
+ * A fighter disperses: its form is no longer sustained, its heat and light
+ * spread out sideways into the surroundings and fade. Nothing rises.
+ */
 export function deathFx(ctx: FxContext, at: Point) {
   ctx.spawn(
-    particles(ctx.layer, above(ctx, at, -10), { ...FX.smoke(14), count: 18 }),
+    particles(ctx.layer, above(ctx, at, -10), { ...FX.smoke(14), count: 12 }),
   )
   ctx.spawn(
-    lightFlash(ctx.layer, above(ctx, at, -30), 0xe5dbff, 40, ctx.ms(700)),
+    lightFlash(ctx.layer, above(ctx, at, -24), 0xffe8cc, 34, ctx.ms(600)),
   )
-  ctx.spawn(
-    particles(ctx.layer, above(ctx, at, -30), {
-      ...FX.sparkles([0xffffff, 0xe5dbff], 6),
-      count: 14,
-      gravity: -140,
-    }),
-  )
+  for (const side of [-1, 1] as const) {
+    ctx.spawn(particles(ctx.layer, above(ctx, at, -22), FX.dispersion(side)))
+  }
 }
 
 /** Divine powers. */
@@ -414,9 +416,9 @@ export function divineFx(
   switch (divineId) {
     case "timeWarp":
       if (!target) return
-      spawn(lightning(layer, above(ctx, target, -20), 0xb197fc, ms(500)))
-      spawn(lightFlash(layer, above(ctx, target, -20), 0xb197fc, 70, ms(600)))
-      spawn(burst(layer, top(ctx, target), 0xb197fc, 50, ms(600)))
+      // space (and time) bend around the target: a gravitational lens
+      spawn(lens(layer, above(ctx, target, -20), 0xb197fc, ms(800)))
+      spawn(lightFlash(layer, above(ctx, target, -20), 0xb197fc, 50, ms(600)))
       spawn(
         particles(
           layer,
@@ -442,15 +444,11 @@ export function divineFx(
     }
 
     case "blessing":
+      // Repair: energy converges into each ally, and the heat paid for the
+      // order escapes as steam around them
       for (const p of allies) {
-        spawn(lightBeam(layer, top(ctx, p), 0xffe066, ms(900)))
-        spawn(
-          particles(
-            layer,
-            above(ctx, p, -10),
-            FX.sparkles([0xffe066, 0xfff3bf, 0xffffff]),
-          ),
-        )
+        spawn(converge(layer, above(ctx, p, -18), 0x8ce99a, ms(700)))
+        spawn(particles(layer, above(ctx, p, -6), FX.steam()))
       }
       break
   }

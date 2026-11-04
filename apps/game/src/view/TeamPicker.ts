@@ -422,8 +422,8 @@ export default class TeamPicker extends ViewChip<PickerEvents> {
     const stats = text(
       [
         `PV ${Math.round(s.health * HP_PER_HEALTH)}   Vitesse ${s.speed}   Chance ${s.luck}`,
-        `Attaque  phys. ${s.physicalAttack}   mag. ${s.magicalAttack}`,
-        `Défense  phys. ${s.physicalDefense}   mag. ${s.magicalDefense}`,
+        `Attaque  phys. ${s.physicalAttack}   én. ${s.magicalAttack}`,
+        `Défense  phys. ${s.physicalDefense}   én. ${s.magicalDefense}`,
       ].join("\n"),
       12,
       COLORS.text,
@@ -441,7 +441,7 @@ export default class TeamPicker extends ViewChip<PickerEvents> {
     )
     actions.position.set(12, 148)
     const combo = text(
-      `Combo : avec un allié sur sa case, ${AFFINITIES[preset.affinity].description}.`,
+      `Intrication : avec un allié sur sa case, ${AFFINITIES[preset.affinity].description}.`,
       11,
       COLORS.combo,
       { wordWrap: true, wordWrapWidth: SHEET_WIDTH - 24, lineHeight: 15 },
@@ -529,7 +529,7 @@ export default class TeamPicker extends ViewChip<PickerEvents> {
       const best = arcadeBest()
       const record = text(
         best
-          ? `Record : ${best.score} points, ${best.waves} vague(s)`
+          ? `Record : ${best.score} points, ${best.waves} Marée(s)`
           : "Aucun record pour l'instant.",
         14,
         COLORS.muted,

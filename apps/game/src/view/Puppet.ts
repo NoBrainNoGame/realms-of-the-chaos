@@ -740,8 +740,16 @@ function head(style: Style, front: boolean) {
             .stroke({ width: 1, color: h.shade!, alpha: 0.8 })
         }
       }
-      g.ellipse(0, -8, 8.5, 2.2).stroke({ width: 1.6, color: h.accent! })
-      glows.push(glow(0xfff3bf, 10, 0, -9))
+      // a crystal diadem on the hairline (no halo: Lyra is no angel)
+      g.moveTo(-8.5, -4)
+        .quadraticCurveTo(0, -9.5, 8.5, -4)
+        .stroke({ width: 1.6, color: h.accent! })
+      if (front) {
+        g.poly([2.5, -12.5, 4.6, -8.2, 2.5, -4.8, 0.4, -8.2])
+          .fill(0x69db7c)
+          .stroke({ width: 0.9, color: OUTLINE })
+        glows.push(glow(0x69db7c, 6, 2.5, -8.5))
+      }
       break
 
     case "naiad": {

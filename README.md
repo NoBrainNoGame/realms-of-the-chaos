@@ -46,7 +46,7 @@ Sans `mode`, les paramètres de combat (`seed`, `spectate`, `team`, `enemies`) l
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Escarmouche** | Votre équipe (1 à 3 Échos) contre une équipe de l'IA, tirée au hasard et relançable. Trois difficultés : Facile (stats de l'IA ×0,85), Normal, Difficile (×1,2).                                                                                                     |
 | **Duel local**  | Deux joueurs sur le même écran. Le joueur bleu puis le joueur rouge choisissent leur équipe. En combat, un bandeau annonce l'équipe qui joue, et le panneau des pouvoirs divins suit l'équipe active.                                                                |
-| **Arcade**      | Des vagues de plus en plus nombreuses et fortes. Entre deux vagues, un bilan et le choix d'un bonus (soin complet, +10 % de puissance ou une recrue). La partie s'arrête à la première défaite. Le record est gardé dans le navigateur et affiché sur l'écran titre. |
+| **Arcade**      | Les **Marées** : des vagues de plus en plus nombreuses et fortes. Entre deux Marées, un bilan et le choix d'un bonus (soin complet, +10 % de puissance ou une recrue). La partie s'arrête à la première défaite. Le record est gardé dans le navigateur et affiché sur l'écran titre. |
 | _Duel en ligne_ | Bientôt (comptes et serveur, phases 5 et 6).                                                                                                                                                                                                                         |
 | _Chroniques_    | Bientôt (lore, phase 4).                                                                                                                                                                                                                                             |
 
@@ -254,13 +254,13 @@ Les effets sont **déclaratifs** : `damage` (physique ou magique), `heal`, `push
 
 | Perso       | Rôle                                 | Actions                                                                                               |
 | ----------- | ------------------------------------ | ----------------------------------------------------------------------------------------------------- |
-| **Merlin**  | Mage                                 | Boule de feu (zone, **touche aussi les alliés**), Givre (ralentit)                                    |
+| **Merlin**  | Thermiste                            | Boule de feu (zone, **touche aussi les alliés**), Givre (ralentit)                                    |
 | **Eva**     | Archère                              | Tir à l'arc (portée 2-6), Flèche empoisonnée (en ligne)                                               |
 | **Brutus**  | Guerrier                             | Coup de bouclier (repousse de 2), Cri de guerre (enragé)                                              |
-| **Lyra**    | Soigneuse                            | Soin, Égide (bouclier), Accélération                                                                  |
+| **Lyra**    | Soigneuse                            | Soin, Champ (champ de force), Accélération                                                                  |
 | **Nyx**     | Ombre                                | Lame furtive (rapide), Bond (saut sur une case libre)                                                 |
 | **Gorr**    | Golem                                | Écrasement (zone), Secousse (retarde les ennemis adjacents)                                           |
-| **Néréa**   | Ondine (aquatique, camp Lumière)     | Trident (portée 1-2), Raz-de-marée (zone : repousse et ralentit), Bulle protectrice (bouclier + soin) |
+| **Néréa**   | Ondine (aquatique, camp Ordre)       | Trident (portée 1-2), Raz-de-marée (zone : repousse et ralentit), Bulle protectrice (bouclier + soin) |
 | **Squalor** | Homme-requin (aquatique, camp Chaos) | Morsure (saignement), Plongeon (bond dans l'eau qui éclabousse les ennemis autour)                    |
 
 Tout le monde a aussi **Coup de pied** et la **Course** : avancer tout de suite jusqu'à 3 cases, en contournant les obstacles et en traversant les alliés. La Course coûte exactement le temps du trajet et termine le tour : plus besoin de passer plusieurs fois son tour pour avancer. L'IA ne s'en sert pas, ce qui laisse l'équilibrage intact.
@@ -280,19 +280,19 @@ Stats après équilibrage (la santé donne `Santé × 7` PV) :
 
 ### Actions combinées (synergies du doc)
 
-Chaque personnage a une **spécialité** : Merlin la Magie, Eva la Précision, Brutus et Gorr la Force, Lyra la Foi, Nyx l'Ombre.
+Chaque personnage a une **spécialité** : Merlin l'Énergie, Eva la Précision, Brutus et Gorr la Force, Lyra la Cohésion, Nyx l'Ombre. Dans le lore, une action combinée s'appelle une **Intrication**.
 
 Quand un allié **se tient sur la même case**, une action combinée apparaît sur les deux personnages (jusqu'à 3 par case, donc 2 combos possibles). C'est **l'action principale du personnage, améliorée selon la spécialité du partenaire** :
 
 | Partenaire | Bonus                                                                                                     |
 | ---------- | --------------------------------------------------------------------------------------------------------- |
-| Magie      | +5 dégâts magiques, ou +3 de soin                                                                         |
+| Énergie    | +5 dégâts énergétiques, ou +3 de soin                                                                         |
 | Force      | +30 % de dégâts et une case de recul en plus, **pour le même coût** (le « spé-force + spé-force » du doc) |
 | Précision  | +2 de portée (+1 au corps à corps)                                                                        |
-| Foi        | soigne aussi le lanceur (5 PV de base)                                                                    |
+| Cohésion   | soigne aussi le lanceur (5 PV de base)                                                                    |
 | Ombre      | coûte 40 % de temps en moins (le « bonus de temps » du doc)                                               |
 
-Certaines paires ont une action unique, comme l'exemple du doc : **Eva + Merlin donnent la « Flèche enchantée »**, une flèche de feu qui explose autour de la cible. Un combo a 1 tour de recharge de plus que l'action de base.
+Certaines paires ont une action unique, comme l'exemple du doc : **Eva + Merlin donnent la « Flèche incendiaire »**, une flèche de feu qui explose autour de la cible. Un combo a 1 tour de recharge de plus que l'action de base.
 
 Dans la barre d'actions, les combos ont une bordure turquoise et le portrait du partenaire. L'IA les utilise, et elle se déplace sur la case d'un allié quand un combo y devient la meilleure option.
 **Deux représentations par personnage :**
@@ -304,25 +304,25 @@ Dans la barre d'actions, les combos ont une bordure turquoise et le portrait du 
 
 - **Onde de choc** : toute action qui inflige des dégâts enfonce les cases de sa zone de quelques pixels, même s'il n'y en a qu'une. L'onde part de la case visée, se propage case par case, et fait légèrement trembler l'anneau autour. Les personnages suivent le sol.
 - **Particules** : feu, fumée, poussière, étincelles, débris, éclaboussures (en marchant dans l'eau), bulles de poison, éclats de glace, scintillements.
-- **Lumières** : halos additifs (explosions, soins, coups), rayons de lumière (Soin, Bénédiction), éclairs (Accélération, Distorsion temporelle, Séisme), entailles (Lame furtive).
+- **Lumières** : halos additifs (explosions, soins, coups), énergie qui converge (Soin, Réparation), lentille de gravité (Distorsion), champ de force cristallin (Champ), éclairs (Accélération, Séisme), entailles (Lame furtive).
 - **Tremblement d'écran** : explosions, Écrasement, Secousse, Séisme et coups critiques.
-- **Mort** : fumée et âme lumineuse qui s'élève.
+- **Mort (la Dispersion)** : la chaleur et la lumière du personnage se répandent à l'horizontale et s'éteignent. Rien ne s'élève : il n'y a pas d'âme dans ce monde.
 
 ### Effets d'état (« états spéciaux » du doc)
 
 Empoisonné (dégâts à chaque tour) · Ralenti (délais ×1,5) · Surexcité (délais ×0,7) · Protégé (bouclier qui absorbe les dégâts) · Enragé (+50 % de dégâts infligés, +20 % subis).
 
-### Pouvoirs divins (actions de player)
+### Influences du Ghom (actions de player)
 
-L'énergie divine **s'écoule avec le temps de la timeline** : chaque équipe gagne 1 énergie toutes les 25 unités de temps (6 au maximum), et non plus à chaque tour, ce qui empêchait de la « farmer » en multipliant les tours courts. Les pouvoirs ne terminent pas le tour.
+L'**Élan** (l'énergie du Ghom) **s'écoule avec le temps de la timeline** : chaque équipe gagne 1 point d'Élan toutes les 25 unités de temps (6 au maximum), et non plus à chaque tour, ce qui empêchait de la « farmer » en multipliant les tours courts. Les pouvoirs ne terminent pas le tour.
 
 **Rattrapage :** une équipe qui perd un personnage gagne **1 énergie immédiatement**, et sa recharge s'accélère de **50 % par allié tombé**. Une équipe en infériorité garde ainsi des moyens d'agir, sans pouvoir retourner à coup sûr une partie perdue.
 
 | Pouvoir               | Coût | Effet                                                                                                     |
 | --------------------- | ---- | --------------------------------------------------------------------------------------------------------- |
-| Distorsion temporelle | 3    | avance de 25 le tour d'un allié, ou retarde de 25 celui d'un ennemi                                       |
+| Distorsion            | 3    | avance de 25 le tour d'un allié, ou retarde de 25 celui d'un ennemi                                       |
 | Séisme                | 4    | soulève une case basse de 2 niveaux, ou effondre une case haute de 2, sans jamais séparer les combattants |
-| Bénédiction           | 5    | soigne toute l'équipe                                                                                     |
+| Réparation            | 5    | répare toute l'équipe, la chaleur rejetée s'échappe en vapeur                                             |
 
 ### IA
 
@@ -334,7 +334,7 @@ L'énergie divine **s'écoule avec le temps de la timeline** : chaque équipe ga
 - valeur des effets d'état : bouclier sur un allié blessé ou menacé (un ennemi à 4 cases ou moins), buffs seulement près d'un ennemi ;
 - actions combinées disponibles sur sa case, ou sur celle d'un allié où elle peut se rendre.
 
-Si aucune action ne vaut le coup, l'IA cherche la case accessible d'où elle aura la meilleure action, en tenant compte du coût du trajet. Elle utilise aussi les pouvoirs divins : Bénédiction quand l'équipe est blessée, Distorsion quand sa jauge est pleine.
+Si aucune action ne vaut le coup, l'IA cherche la case accessible d'où elle aura la meilleure action, en tenant compte du coût du trajet. Elle utilise aussi les Influences du Ghom : Réparation quand l'équipe est blessée, Distorsion quand sa jauge d'Élan est pleine.
 
 ### Interface
 
@@ -345,10 +345,10 @@ Déjà en place :
 - timeline (ordre de jeu et temps restant) ;
 - barre d'actions avec raccourcis, recharges et infobulles ;
 - fiche du personnage (stats, effets d'état) ;
-- panneau des pouvoirs divins (jauge d'énergie) ;
+- panneau des Influences du Ghom (jauge d'Élan) ;
 - journal de combat ;
 - surbrillances : cases accessibles, aperçu du chemin, portée, cibles, zone d'effet ;
-- combos signalés dans la barre d'actions (« Combo ! » et halo turquoise quand on les utilise) ;
+- combos signalés dans la barre d'actions (« Intrication ! » et halo turquoise quand on les utilise) ;
 - jusqu'à 3 personnages par case, disposés en triangle et réduits pour garder le plateau lisible ;
 - dans l'eau, les personnages pataugent (eau jusqu'aux mollets) ou nagent (immergés jusqu'au torse, avec une brasse animée) ;
 - une commande tapée pendant une animation n'est pas perdue : elle s'exécute à la fin de l'animation ;
