@@ -101,7 +101,7 @@ describe("everything floats, each at its own pace", () => {
       tick(scene, 400)
       // no screen shake playing: the island is exactly at its place
       if (internals._shake.remaining === 0) {
-        expect(world.y).toBe(internals._worldBase.y)
+        expect(world.y).toBe(internals._fit.y + internals._pan.y)
       }
     }
   })

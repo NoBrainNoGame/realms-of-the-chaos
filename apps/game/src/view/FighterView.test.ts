@@ -292,3 +292,48 @@ describe("walk with stops", () => {
     expect(me.path).toEqual([])
   })
 })
+
+describe("camera zoom", () => {
+  test("the wheel zooms around the cursor, within bounds, the HUD stays", () => {
+    const scene = mount(
+      new FightScene(
+        classicFight({
+          seed: 8,
+          speed: 4,
+          spectate: false,
+          playerTeam: ["eva"],
+          enemyTeam: ["gorr"],
+        }),
+      ),
+    )
+    const internals = scene as any
+    tickUntil(scene, () => internals._inputReady)
+    internals._onResize(1280, 720)
+    const world = internals._world as Container
+    const fit = world.scale.x
+    const cursor = { x: 300, y: 200 }
+    const local = () => ({
+      x: (cursor.x - world.x) / world.scale.x,
+      y: (cursor.y - world.y) / world.scale.y,
+    })
+    const under = local()
+    const hud = { ...internals._hud._container.position }
+
+    window.dispatchEvent(new WheelEvent("wheel", { deltaY: -100 }))
+    scene.zoomAt(cursor, 2)
+    tick(scene, 600)
+    expect(scene.zoom).toBeGreaterThan(1.4)
+    expect(world.scale.x).toBeCloseTo(fit * scene.zoom)
+    // the point under the cursor did not move
+    expect(local().x).toBeCloseTo(under.x, 0)
+    expect(local().y).toBeCloseTo(under.y, 0)
+    expect(internals._hud._container.position).toEqual(hud)
+
+    for (let i = 0; i < 30; i++) scene.zoomAt(cursor, 3)
+    tick(scene, 2000)
+    expect(scene.zoom).toBe(3)
+    for (let i = 0; i < 30; i++) scene.zoomAt(cursor, -3)
+    tick(scene, 2000)
+    expect(scene.zoom).toBe(0.6)
+  })
+})

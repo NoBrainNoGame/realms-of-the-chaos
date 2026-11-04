@@ -121,6 +121,10 @@ export function combatOptions(options: SceneOptions): CombatOptions {
   }
 }
 
+/** Zoom bounds, relative to the board fitted to the screen. */
+export const MIN_ZOOM = 0.6
+export const MAX_ZOOM = 3
+
 export const DEFAULT_END_ACTIONS: EndAction[] = [
   { id: "restart", label: "Rejouer" },
 ]
@@ -197,7 +201,11 @@ export default class FightScene extends ViewChip<SceneEvents> {
   private _sprint: { fighterId: string; steps: number } | null = null
   /** Team of the last local turn (announces turns in local duels). */
   private _lastInputTeam: number | null = null
-  private _worldBase = { x: 0, y: 0 }
+  /** Fit-to-screen transform of the board (before the player's zoom). */
+  private _fit = { scale: 1, x: 0, y: 0, width: 1, height: 1 }
+  /** Player's zoom (1 = fit), its eased target, and the screen pan. */
+  private _zoom = { value: 1, target: 1, anchor: { x: 0, y: 0 } }
+  private _pan = { x: 0, y: 0 }
   private _shake = { intensity: 0, remaining: 0, duration: 1 }
 
   constructor(private readonly _options: SceneOptions) {
@@ -318,6 +326,13 @@ export default class FightScene extends ViewChip<SceneEvents> {
     this._hud.setQuittable(!!this._options.quittable)
     this._subscribe(this._hud, "speed", () => this._toggleSpeed())
     this._subscribe(window, "keydown", (e: KeyboardEvent) => this._onKey(e))
+    window.addEventListener("wheel", this._wheel, { passive: false })
+  }
+
+  private readonly _wheel = (e: WheelEvent) => this._onWheel(e)
+
+  protected _onTerminate() {
+    window.removeEventListener("wheel", this._wheel)
   }
 
   protected _onResize(width: number, height: number) {
@@ -336,12 +351,76 @@ export default class FightScene extends ViewChip<SceneEvents> {
         (height - 230) / (bottom - top),
       ),
     )
-    this._world.scale.set(scale)
-    this._worldBase = {
+    this._fit = {
+      scale,
       x: Math.round(width / 2 - ((left + right) / 2) * scale),
       y: Math.round(height / 2 + 10 - ((top + bottom) / 2) * scale),
+      width,
+      height,
     }
-    this._world.position.set(this._worldBase.x, this._worldBase.y)
+    this._clampPan()
+    this._placeWorld(0, 0)
+  }
+
+  /** Zooms in (positive steps) or out around a screen point. */
+  zoomAt(screen: { x: number; y: number }, steps: number) {
+    const target = this._zoom.target * 1.15 ** steps
+    this._zoom.target = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, target))
+    this._zoom.anchor = { ...screen }
+  }
+
+  get zoom() {
+    return this._zoom.value
+  }
+
+  private _onWheel(e: WheelEvent) {
+    e.preventDefault()
+    // a trackpad pinch comes as a wheel with ctrl, in small steps
+    const steps = -e.deltaY / (e.ctrlKey ? 25 : 100)
+    this.zoomAt(
+      {
+        x: e.clientX ?? this._fit.width / 2,
+        y: e.clientY ?? this._fit.height / 2,
+      },
+      steps,
+    )
+  }
+
+  /** Eases the zoom to its target, keeping the anchor point still. */
+  private _updateZoom(dt: number) {
+    const zoom = this._zoom
+    if (zoom.value === zoom.target) return
+    const before = this._world.scale.x
+    const { x: ax, y: ay } = zoom.anchor
+    const wx = (ax - this._fit.x - this._pan.x) / before
+    const wy = (ay - this._fit.y - this._pan.y) / before
+    const k = 1 - Math.exp(-dt / 70)
+    zoom.value += (zoom.target - zoom.value) * k
+    if (Math.abs(zoom.value - zoom.target) < 0.002) zoom.value = zoom.target
+    const after = this._fit.scale * zoom.value
+    this._pan.x = ax - wx * after - this._fit.x
+    this._pan.y = ay - wy * after - this._fit.y
+    this._clampPan()
+  }
+
+  /** Zoomed in, the board can't leave the screen. */
+  private _clampPan() {
+    const extra = this._zoom.value - 1
+    const mx = Math.max(0, (this._fit.width / 2) * extra + 80)
+    const my = Math.max(0, (this._fit.height / 2) * extra + 60)
+    // the slack grows with the zoom, centered on where the fit puts it
+    const cx = (this._fit.width / 2 - this._fit.x) * extra
+    const cy = (this._fit.height / 2 - this._fit.y) * extra
+    this._pan.x = Math.min(-cx + mx, Math.max(-cx - mx, this._pan.x))
+    this._pan.y = Math.min(-cy + my, Math.max(-cy - my, this._pan.y))
+  }
+
+  private _placeWorld(dx: number, dy: number) {
+    this._world.scale.set(this._fit.scale * this._zoom.value)
+    this._world.position.set(
+      this._fit.x + this._pan.x + dx,
+      this._fit.y + this._pan.y + dy,
+    )
   }
 
   /** Screen shake; a stronger shake overrides a weaker one. */
@@ -375,7 +454,8 @@ export default class FightScene extends ViewChip<SceneEvents> {
       dy = (Math.random() * 2 - 1) * k * 0.6
       if (shake.remaining === 0) shake.intensity = 0
     }
-    this._world.position.set(this._worldBase.x + dx, this._worldBase.y + dy)
+    this._updateZoom(this._lastTickInfo.timeSinceLastTick)
+    this._placeWorld(dx, dy)
   }
 
   protected _onTick() {
