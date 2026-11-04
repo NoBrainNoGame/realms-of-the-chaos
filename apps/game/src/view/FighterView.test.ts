@@ -77,3 +77,65 @@ describe("sprint in a fight", () => {
     tick(scene, 100)
   })
 })
+
+describe("movement cost previews", () => {
+  test("hovering shows the time of a walk or a sprint, and the card the planned walk", () => {
+    const scene = mount(
+      new FightScene(
+        classicFight({
+          seed: 8,
+          speed: 4,
+          spectate: false,
+          playerTeam: ["eva", "brutus"],
+          enemyTeam: ["gorr"],
+        }),
+      ),
+    )
+    const internals = scene as any
+    tickUntil(scene, () => internals._inputReady)
+    const me = scene.combat.activeFighter!
+
+    // walk: a far reachable cell takes several of its turns
+    const reachable = scene.combat.getReachableCells(me)
+    const far = reachable.reduce((a, b) =>
+      Math.abs(b.x - me.position.x) + Math.abs(b.y - me.position.y) >
+      Math.abs(a.x - me.position.x) + Math.abs(a.y - me.position.y)
+        ? b
+        : a,
+    )
+    internals._board.emit("cellOver", far)
+    const walk = scene.movePreview()!
+    expect(walk).toContain("Marche")
+    expect(walk).toMatch(/\d+ temps/)
+    expect(walk).toMatch(/Arrivée en \d+ tours?/)
+    expect(internals._hud._tooltip.visible).toBe(true)
+
+    // sprint: immediate, ends the turn, worth some actions
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "c" }))
+    const target = scene.combat.getValidTargets(me, internals._mode.action)[0]
+    internals._board.emit("cellOver", target)
+    const sprint = scene.movePreview()!
+    expect(sprint).toContain("Course")
+    expect(sprint).toContain("le tour se termine")
+
+    // a planned walk shows in the card
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))
+    internals._board.emit("cellDown", far, 0)
+    tickUntil(scene, () => !internals._playing)
+    internals._board.emit("cellOut", target)
+    internals._refreshCard()
+    const texts: string[] = []
+    const walkTexts = (c: Container) => {
+      if ("text" in c && typeof (c as any).text === "string")
+        texts.push((c as any).text)
+      for (const child of c.children) walkTexts(child as Container)
+    }
+    walkTexts(internals._hud._card)
+    if (me.path.length)
+      expect(texts.some((t) => t.startsWith("En route"))).toBe(true)
+
+    // nothing to preview on the fighter's own cell
+    internals._board.emit("cellOver", me.position)
+    expect(scene.movePreview()).toBeNull()
+  })
+})

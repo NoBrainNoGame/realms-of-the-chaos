@@ -341,6 +341,19 @@ export default class Hud extends ViewChip<HudEvents> {
       lines.push(label)
       y += 18
     }
+    if (fighter.path.length) {
+      // a planned walk: how far, how long, in how many of its turns
+      const time = combat.movementTime(fighter, fighter.path)
+      const turns = combat.turnsFor(fighter, time)
+      const label = text(
+        `En route : ${fighter.path.length} case${fighter.path.length > 1 ? "s" : ""}, ${Math.round(time)} temps (${turns} tour${turns > 1 ? "s" : ""})`,
+        12,
+        COLORS.path,
+      )
+      label.position.set(10, y)
+      lines.push(label)
+      y += 18
+    }
     for (const status of fighter.statuses) {
       const def = STATUSES[status.id]
       const dot = new Graphics()

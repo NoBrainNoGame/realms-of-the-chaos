@@ -925,6 +925,20 @@ export class Combat {
     return null
   }
 
+  /**
+   * Own turns a duration amounts to for a fighter: how many of its turns
+   * (one turn = its base delay, with its current statuses) pass meanwhile.
+   */
+  turnsFor(fighter: Fighter, time: number) {
+    const turn = this.baseDelay(fighter) * this.delayMultiplier(fighter)
+    return Math.max(1, Math.ceil(time / turn - 1e-9))
+  }
+
+  /** The same duration in actions of the fighter (1 = a basic action). */
+  actionsFor(fighter: Fighter, time: number) {
+    return time / (this.baseDelay(fighter) * this.delayMultiplier(fighter))
+  }
+
   /** Time a movement action would take along a path (HUD previews). */
   movementTime(fighter: Fighter, path: readonly Point[]) {
     let time = 0

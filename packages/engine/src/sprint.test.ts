@@ -135,3 +135,24 @@ describe("sprint (Course)", () => {
     expect(used).toHaveLength(0)
   })
 })
+
+describe("movement previews", () => {
+  test("a duration in turns and in actions of the fighter", () => {
+    const combat = duel(new Board(9, 9), { x: 0, y: 0 }, { x: 8, y: 8 })
+    const eva = combat.activeFighter!
+    const turn = combat.baseDelay(eva)
+    expect(combat.turnsFor(eva, 1)).toBe(1)
+    expect(combat.turnsFor(eva, turn)).toBe(1)
+    expect(combat.turnsFor(eva, turn * 1.2)).toBe(2)
+    expect(combat.turnsFor(eva, turn * 3)).toBe(3)
+    expect(combat.actionsFor(eva, turn / 2)).toBeCloseTo(0.5)
+    // a long walk takes several turns
+    const path = combat.board.findPath(
+      eva.position,
+      { x: 8, y: 0 },
+      () => true,
+    )!
+    const time = combat.movementTime(eva, path)
+    expect(combat.turnsFor(eva, time)).toBeGreaterThan(1)
+  })
+})

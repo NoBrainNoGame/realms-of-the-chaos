@@ -71,7 +71,7 @@ Sans `mode`, les paramètres de combat (`seed`, `spectate`, `team`, `enemies`) l
 | `Espace` / `Entrée`           | passe le tour                                                                                 |
 | `Échap` / clic droit          | annule la sélection                                                                           |
 | `F`                           | vitesse des animations ×1 / ×2 / ×4                                                           |
-| Survol                        | infos du personnage, aperçu du chemin ou de la zone d'effet                                   |
+| Survol | infos du personnage, aperçu du chemin ou de la zone d'effet, et **coût en temps** du déplacement (marche : nombre de tours jusqu'à l'arrivée ; Course : équivalent en actions) |
 
 ## Vision
 
