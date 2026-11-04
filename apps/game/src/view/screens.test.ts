@@ -270,13 +270,14 @@ describe("game routing", () => {
     expect(g.screen.type).toBe("title")
   })
 
-  test("the Menu button leaves a fight; Escape leaves the gallery", () => {
+  test("the Menu button leaves a fight; Escape leaves the gallery (?gallery)", () => {
     const g = game("?seed=3")
     const scene = g.current as FightScene
     expect(scene.options.quittable).toBe(true)
     ;(scene as any)._hud.emit("quit")
     expect(g.screen.type).toBe("title")
-    ;(g.current as TitleScreen).emit("choose", "gallery")
+    expect(TITLE_MENU.map((i) => i.id)).not.toContain("gallery")
+    g.show({ type: "gallery" })
     expect(g.current).toBeInstanceOf(Gallery)
     tick(g, 100)
     key("Escape")

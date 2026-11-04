@@ -122,11 +122,7 @@ export default class Game extends ViewChip {
       case "title": {
         const title = new TitleScreen()
         this._subscribeOnce(title, "choose", (choice: TitleChoice) =>
-          this.show(
-            choice === "gallery"
-              ? { type: "gallery" }
-              : { type: "picker", mode: choice },
-          ),
+          this.show({ type: "picker", mode: choice }),
         )
         return title
       }
