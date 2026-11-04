@@ -433,6 +433,17 @@ Le Google Doc n'a pas été mis à jour après plusieurs décisions. **Pour ces 
 | **Lore**              | Section « Univers étendu » entièrement barrée                                | —                                                                                                                                                                                                      |
 | **Stack**             | THREE.js, jest, Parcel                                                       | PixiJS 8, `bun test`, Bun, Biome (pas de 3D)                                                                                                                                                                  |
 
+## Déploiement
+
+Le jeu est en ligne sur **https://realms.nobrainnogame.ghom.fr**, servi en statique par Vercel (projet `realms-of-the-chaos`, équipe `ghom`). Chaque push sur `main` redéploie ; `vercel.json` à la racine construit seulement `@realms/game` (`bunx turbo run build --filter=@realms/game`) et publie `apps/game/dist`. Les fichiers JS et CSS ont un hash dans leur nom et sont mis en cache un an ; `index.html` ne l'est pas.
+
+Pour le duel en ligne, l'architecture prévue reprend celle de [Devgame](https://github.com/NoBrainNoGame/devgame) :
+
+- **serveur WebSocket** (`apps/server`, Bun) sur Render, plan gratuit, qui importe `@realms/engine` et rejoue les commandes ;
+- **base** PostgreSQL sur Neon (Prisma) pour les comptes, profils et classements ;
+- **adresse du serveur** donnée au client par `PUBLIC_SERVER_URL` : variable d'environnement Vercel, injectée au build (`--env=PUBLIC_*`, déjà déclarée dans `turbo.json`). Sans elle, le jeu reste hors ligne ;
+- un serveur gratuit Render s'endort après 15 minutes : le client le réveille (requête sur sa route de santé) dès l'écran titre, sans cron de maintien.
+
 ## Notes techniques
 
 - **`@ghom/utils` ≥ 1.1.5 obligatoire.** Jusqu'à la 1.1.4, `@ghom/utils` (importé par `@ghom/booyah` 1.3) ajoutait `pick`, `omit` et `partition` à `Array.prototype` en propriétés **énumérables**. PixiJS 8 parcourt certains tableaux avec `for…in` et plantait au démarrage (`ClassRef is not a constructor`). C'est corrigé dans la 1.1.5, et le `package.json` force cette version via `overrides`.
@@ -456,7 +467,7 @@ En cours (dans l'ordre) :
 - [ ] Lore : le Voile, l'Ombre du Tout, les Ghoms, les Échos, et un écran Chroniques
 - [ ] Comptes (OAuth Discord et Google), base PostgreSQL avec Prisma, profils, équipes favorites, classements
 - [ ] Duel en ligne : serveur WebSocket qui fait autorité et rejoue les commandes, appariement par Elo
-- [ ] Déploiement : jeu sur Vercel, serveur sur Render, base sur Neon
+- [ ] Déploiement : ~~jeu sur Vercel~~ (fait), serveur sur Render, base sur Neon
 
 Plus tard :
 
