@@ -104,12 +104,16 @@ export function drawBlock(
 /**
  * A whole floating island of `size` × `size` cells, centered on (0, 0): a
  * grassy top with a little relief, columns, and the block pyramid under
- * it. Used for the distant islands of the backdrop.
+ * it. Used for the distant islands of the backdrop, seen by the same
+ * camera as the board.
  */
-export function drawFloatingIsland(g: Graphics, size: number, seed: number) {
+export function drawFloatingIsland(
+  g: Graphics,
+  size: number,
+  seed: number,
+  c: Readonly<Camera> = ISO,
+) {
   const depths = undersideDepths(size, size, seed, size + 2)
-  // distant islands are always seen from the classic angle
-  const c = ISO
   const center = toScreen({ x: (size - 1) / 2, y: (size - 1) / 2 }, 0, c)
   const cells: { x: number; y: number; elevation: number; skip: boolean }[] = []
   for (let y = 0; y < size; y++) {

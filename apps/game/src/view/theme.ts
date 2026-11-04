@@ -107,7 +107,7 @@ export interface Camera {
   pitch: number
 }
 
-/** The classic isometric view (distant islands always use it). */
+/** The classic isometric view. */
 export const ISO: Readonly<Camera> = { quarter: 0, yaw: 0, pitch: ISO_PITCH }
 
 /** The board's camera, shared by every drawing of the fight. */

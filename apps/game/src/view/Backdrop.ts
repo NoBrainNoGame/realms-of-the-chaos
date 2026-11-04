@@ -1,14 +1,26 @@
 import { Container, Graphics, Sprite, Texture } from "pixi.js"
 import { softCircle } from "./effects"
 import { drawFloatingIsland } from "./islands"
+import {
+  type Camera,
+  camera,
+  depthAlong,
+  levelHeight,
+  project,
+  TILE_WIDTH,
+} from "./theme"
 import ViewChip from "./ViewChip"
 
 /** A distant island of the Clair, floating at its own pace. */
 export interface DistantIsland {
   node: Container
-  /** Position as a fraction of the screen. */
-  fx: number
-  fy: number
+  graphics: Graphics
+  cells: number
+  seed: number
+  /** Place around the board: direction (°), distance and height. */
+  angle: number
+  distance: number
+  height: number
   /** Scale at a 1000 px high screen (smaller = farther). */
   size: number
   /** Floating period (ms) and amplitude (px). */
@@ -18,16 +30,71 @@ export interface DistantIsland {
 }
 
 /**
- * Distant islands: where they sit on the screen, how big (far = small)
- * and how they float (each at its own period, between 5 and 13 s).
+ * Distant islands, placed in the world around the board (not on the
+ * screen): a direction on the ground (degrees, 0 = along the grid's x),
+ * a distance (× RING_RADIUS) and a height (levels, negative = below).
+ * The board's camera looks at them too, so they turn and tilt with it.
+ * Each floats at its own period, between 5 and 13 s.
  */
 const DISTANT = [
-  { fx: 0.07, fy: 0.6, size: 0.4, cells: 4, period: 7300, amplitude: 6 },
-  { fx: 0.93, fy: 0.5, size: 0.32, cells: 3, period: 9100, amplitude: 5 },
-  { fx: 0.85, fy: 0.86, size: 0.5, cells: 5, period: 11300, amplitude: 8 },
-  { fx: 0.3, fy: 0.94, size: 0.3, cells: 4, period: 5900, amplitude: 5 },
-  { fx: 0.62, fy: 0.97, size: 0.24, cells: 3, period: 12700, amplitude: 4 },
+  {
+    angle: 200,
+    distance: 1,
+    height: 3,
+    size: 0.4,
+    cells: 4,
+    period: 7300,
+    amplitude: 6,
+  },
+  {
+    angle: 300,
+    distance: 1.15,
+    height: 5,
+    size: 0.32,
+    cells: 3,
+    period: 9100,
+    amplitude: 5,
+  },
+  {
+    angle: 30,
+    distance: 0.95,
+    height: -3,
+    size: 0.5,
+    cells: 5,
+    period: 11300,
+    amplitude: 8,
+  },
+  {
+    angle: 110,
+    distance: 1.05,
+    height: -2,
+    size: 0.3,
+    cells: 4,
+    period: 5900,
+    amplitude: 5,
+  },
+  {
+    angle: 75,
+    distance: 1.3,
+    height: -4,
+    size: 0.24,
+    cells: 3,
+    period: 12700,
+    amplitude: 4,
+  },
+  {
+    angle: 250,
+    distance: 1.25,
+    height: 1,
+    size: 0.22,
+    cells: 3,
+    period: 8300,
+    amplitude: 4,
+  },
 ]
+
+/** Distance of the distant islands from the board, in cells. */
+export const RING_RADIUS = 12
 
 interface Mote {
   sprite: Sprite
@@ -37,8 +104,9 @@ interface Mote {
 }
 
 /**
- * Screen-space background: a deep sky gradient, twinkling stars and slow
- * rising motes of light (the void between the shattered fragments).
+ * Background: a deep sky gradient, twinkling stars and slow rising motes
+ * of light (the void between the shattered fragments, infinitely far),
+ * and distant islands around the board, seen by the board's camera.
  */
 export default class Backdrop extends ViewChip {
   private _sky!: Sprite
@@ -48,6 +116,11 @@ export default class Backdrop extends ViewChip {
   private _time = 0
   private _width = 0
   private _height = 0
+  private _layer!: Container
+  /** Camera the distant islands were last drawn with. */
+  private _drawn: Camera | null = null
+  /** Screen point the camera looks at (the middle of the board). */
+  private _focus: { x: number; y: number } | null = null
 
   protected _onActivate() {
     this._sky = new Sprite(Backdrop.gradient())
@@ -55,26 +128,25 @@ export default class Backdrop extends ViewChip {
     this._container.addChild(this._sky, this._stars)
 
     // distant islands of the Clair, blued by the distance
+    this._layer = new Container()
+    this._container.addChild(this._layer)
     const seed = Math.floor(Math.random() * 1e6)
     DISTANT.forEach((spec, i) => {
       const node = new Container()
-      const g = new Graphics()
-      drawFloatingIsland(g, spec.cells, seed + i * 101)
+      const graphics = new Graphics()
       // atmospheric perspective: the farther, the bluer and the paler
-      g.tint = 0x8f86c4
-      node.alpha = 0.55 + spec.size * 0.6
-      node.addChild(g)
-      this._container.addChild(node)
+      graphics.tint = 0x8f86c4
+      node.addChild(graphics)
+      this._layer.addChild(node)
       this._islands.push({
+        ...spec,
         node,
-        fx: spec.fx,
-        fy: spec.fy,
-        size: spec.size,
-        period: spec.period,
-        amplitude: spec.amplitude,
+        graphics,
+        seed: seed + i * 101,
         phase: (i * Math.PI * 2) / DISTANT.length,
       })
     })
+    this._drawIslands()
 
     for (let i = 0; i < 40; i++) {
       const sprite = new Sprite(softCircle())
@@ -128,9 +200,6 @@ export default class Backdrop extends ViewChip {
     for (const mote of this._motes) {
       mote.sprite.position.set(Math.random() * width, Math.random() * height)
     }
-    for (const island of this._islands) {
-      island.node.scale.set(island.size * (height / 1000))
-    }
     this._placeIslands()
   }
 
@@ -139,23 +208,83 @@ export default class Backdrop extends ViewChip {
     return this._islands
   }
 
-  private _placeIslands() {
-    const ms = this._time * 1000
+  /**
+   * The screen point the camera looks at (the middle of the board); the
+   * distant islands are around it. Defaults to the middle of the screen.
+   */
+  set focus(point: { x: number; y: number } | null) {
+    this._focus = point ? { ...point } : null
+    this._placeIslands()
+  }
+
+  /** Opacity of the distant islands (they fade with the board's turns). */
+  set islandsAlpha(alpha: number) {
+    this._layer.alpha = alpha
+  }
+
+  get islandsAlpha() {
+    return this._layer.alpha
+  }
+
+  /** Draws the islands again when the camera moved. */
+  private _drawIslands() {
+    const drawn = this._drawn
+    if (
+      drawn &&
+      drawn.quarter === camera.quarter &&
+      drawn.pitch === camera.pitch &&
+      drawn.yaw === camera.yaw
+    )
+      return
+    this._drawn = { ...camera }
     for (const island of this._islands) {
+      island.graphics.clear()
+      drawFloatingIsland(island.graphics, island.cells, island.seed, camera)
+    }
+  }
+
+  /** Where the camera sees each island, and how big (nearer = bigger). */
+  private _placeIslands() {
+    if (!this._layer) return
+    const ms = this._time * 1000
+    const focus = this._focus ?? { x: this._width / 2, y: this._height / 2 }
+    // the ring spans about two thirds of the screen's width
+    const cell = TILE_WIDTH / Math.SQRT2
+    const k = (0.33 * this._width) / (RING_RADIUS * cell)
+    const order: { node: Container; depth: number }[] = []
+    for (const island of this._islands) {
+      const a = (island.angle * Math.PI) / 180
+      const r = RING_RADIUS * island.distance
+      const p = { x: Math.cos(a) * r, y: Math.sin(a) * r }
+      const o = project(p.x, p.y)
+      const lift = island.height * levelHeight()
+      // towards the viewer, from -1 (behind the board) to 1 (in front)
+      const depth = depthAlong(p) / (r * Math.SQRT2)
       const bob =
         Math.sin((ms / island.period) * Math.PI * 2 + island.phase) *
         island.amplitude
       island.node.position.set(
-        island.fx * this._width,
-        island.fy * this._height + bob,
+        focus.x + o.x * k,
+        focus.y + (o.y - lift) * k + bob,
       )
+      island.node.scale.set(
+        island.size * (this._height / 1000) * (1 + 0.25 * depth),
+      )
+      island.node.alpha = Math.min(1, 0.55 + island.size * 0.6 + 0.1 * depth)
+      order.push({ node: island.node, depth })
     }
+    // the farther behind, the earlier drawn
+    order.sort((a, b) => a.depth - b.depth)
+    order.forEach(({ node }, i) => {
+      this._layer.setChildIndex(node, i)
+    })
   }
 
   protected _onTick() {
     const dt = this._lastTickInfo.timeSinceLastTick / 1000
     this._time += dt
     this._stars.alpha = 0.75 + 0.25 * Math.sin(this._time * 0.8)
+    this._drawIslands()
     this._placeIslands()
     for (const mote of this._motes) {
       mote.sprite.y -= mote.speed * dt

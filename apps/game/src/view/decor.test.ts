@@ -97,6 +97,39 @@ describe("everything floats, each at its own pace", () => {
     expect(after).not.toEqual(before)
   })
 
+  test("distant islands are seen by the board's camera: they turn and tilt with it", () => {
+    const backdrop = mount(new Backdrop())
+    ;(backdrop as any)._onResize(1280, 720)
+    const place = () =>
+      backdrop.islands.map((i) => ({
+        x: i.node.x,
+        y: i.node.y,
+        b: i.graphics.bounds.height,
+      }))
+    try {
+      tick(backdrop, 16)
+      const before = place()
+      camera.quarter = 1
+      tick(backdrop, 16)
+      const turned = place()
+      // a quarter turn moves each island around the board, by a lot
+      for (const [i, p] of turned.entries())
+        expect(
+          Math.hypot(p.x - before[i].x, p.y - before[i].y),
+        ).toBeGreaterThan(40)
+      resetCamera()
+      camera.pitch = 60
+      tick(backdrop, 16)
+      // seen from above: the ring flattens less, the heights shrink
+      const above = place()
+      expect(above.map((p) => p.y)).not.toEqual(before.map((p) => p.y))
+      // and each island is drawn from that angle too
+      expect(above.map((p) => p.b)).not.toEqual(before.map((p) => p.b))
+    } finally {
+      resetCamera()
+    }
+  })
+
   test("the island of the fight stays still (only the distant ones float)", () => {
     const scene = mount(
       new FightScene(

@@ -96,18 +96,18 @@ describe("title screen", () => {
       tick(title, TITLE_TURN_EVERY)
       expect(camera.quarter).toBe(2)
 
-      // mouse in the top right corner: seen a bit more from above, turned right
+      // mouse in the top right corner: seen a bit less from above, turned left
       window.dispatchEvent(
         new PointerEvent("pointermove", {
           clientX: window.innerWidth,
           clientY: 0,
         }),
       )
-      expect(title.aim.yaw).toBeCloseTo(TITLE_TILT.yaw)
-      expect(title.aim.pitch).toBeCloseTo(ISO_PITCH + TITLE_TILT.pitch)
+      expect(title.aim.yaw).toBeCloseTo(-TITLE_TILT.yaw)
+      expect(title.aim.pitch).toBeCloseTo(ISO_PITCH - TITLE_TILT.pitch)
       tick(title, 2000)
-      expect(camera.yaw).toBeCloseTo(TITLE_TILT.yaw, 1)
-      expect(camera.pitch).toBeCloseTo(ISO_PITCH + TITLE_TILT.pitch, 1)
+      expect(camera.yaw).toBeCloseTo(-TITLE_TILT.yaw, 1)
+      expect(camera.pitch).toBeCloseTo(ISO_PITCH - TITLE_TILT.pitch, 1)
       // the board's middle stays where it is in the classic view
       const stage = (title as any)._stage as Container
       const center = (title as any)._boardCenter

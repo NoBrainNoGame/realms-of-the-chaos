@@ -63,6 +63,7 @@ export default class TitleScreen extends ViewChip<TitleEvents> {
   private _islandBase = { x: 0, y: 0 }
   /** The board inside the island, moved so its middle stays put. */
   private _stage!: Container
+  private _backdrop!: Backdrop
   private _board!: BoardView
   private _boardCenter = { x: 0, y: 0 }
   /** Seed of the island shown (a new one at each quarter turn). */
@@ -85,7 +86,8 @@ export default class TitleScreen extends ViewChip<TitleEvents> {
 
   protected _onActivate() {
     resetCamera()
-    this._activateChildChip(new Backdrop())
+    this._backdrop = new Backdrop()
+    this._activateChildChip(this._backdrop)
 
     // a random floating island, slowly bobbing
     this._halo = new Sprite(softCircle())
@@ -166,8 +168,8 @@ export default class TitleScreen extends ViewChip<TitleEvents> {
         Math.min(1, (e.clientY / window.innerHeight) * 2 - 1),
       )
       this._aim = {
-        pitch: ISO_PITCH - v * TITLE_TILT.pitch,
-        yaw: u * TITLE_TILT.yaw,
+        pitch: ISO_PITCH + v * TITLE_TILT.pitch,
+        yaw: -u * TITLE_TILT.yaw,
       }
     })
   }
@@ -201,6 +203,17 @@ export default class TitleScreen extends ViewChip<TitleEvents> {
     this._stage.addChild(entities)
     this._drawn = { ...camera }
     this._centerStage()
+    this._focusBackdrop()
+  }
+
+  /** The distant islands are around the middle of this one. */
+  private _focusBackdrop() {
+    const middle = toScreen(this._boardCenter, 0, ISO)
+    const scale = this._island.scale.x
+    this._backdrop.focus = {
+      x: this._islandBase.x + middle.x * scale,
+      y: this._islandBase.y + middle.y * scale,
+    }
   }
 
   /** Seed of the island shown, for tests. */
@@ -256,9 +269,11 @@ export default class TitleScreen extends ViewChip<TitleEvents> {
         swing = -20 * (1 - u)
         this._island.alpha = u
       }
+      this._backdrop.islandsAlpha = this._island.alpha
       if (turn.elapsed >= TITLE_TURN_DURATION) {
         swing = 0
         this._island.alpha = 1
+        this._backdrop.islandsAlpha = 1
         this._turn = null
       }
     }
@@ -302,6 +317,7 @@ export default class TitleScreen extends ViewChip<TitleEvents> {
       y: Math.round(height * 0.5),
     }
     this._halo.position.set(this._islandBase.x, this._islandBase.y + 40)
+    this._focusBackdrop()
     this._halo.scale.set((520 * scale) / 64)
 
     this._title.position.set(Math.round(width / 2), Math.round(height * 0.13))

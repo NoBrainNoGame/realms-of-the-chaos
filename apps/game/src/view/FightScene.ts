@@ -245,6 +245,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
   /** Curved arrows under the island: quarter turns. */
   private _turnButtons: Container[] = []
   private _shake = { intensity: 0, remaining: 0, duration: 1 }
+  private _backdrop!: Backdrop
 
   constructor(private readonly _options: SceneOptions) {
     super()
@@ -282,7 +283,8 @@ export default class FightScene extends ViewChip<SceneEvents> {
     this._entities.sortableChildren = true
     this._effects = new Container()
     this._effects.sortableChildren = true
-    this._activateChildChip(new Backdrop())
+    this._backdrop = new Backdrop()
+    this._activateChildChip(this._backdrop)
     this._container.addChild(this._world)
     this._turnButtons = ([-1, 1] as const).map((dir) => {
       const view = turnButton(dir)
@@ -514,6 +516,8 @@ export default class FightScene extends ViewChip<SceneEvents> {
       this._world.alpha = 1
       this._turn = null
     }
+    // the distant islands vanish while the quarter changes (they jump)
+    this._backdrop.islandsAlpha = (this._world.alpha - 0.15) / 0.85
   }
 
   protected _onResize(width: number, height: number) {
@@ -624,6 +628,13 @@ export default class FightScene extends ViewChip<SceneEvents> {
       this._fit.y + this._pan.y + dy,
     )
     this._placeTurnButtons(scale)
+    // the distant islands are around the board (moved a little by the pan)
+    const { width: w, height: h } = this.combat.board
+    const middle = toScreen({ x: (w - 1) / 2, y: (h - 1) / 2 }, 0, ISO)
+    this._backdrop.focus = {
+      x: this._fit.x + middle.x * this._fit.scale + this._pan.x * 0.3,
+      y: this._fit.y + middle.y * this._fit.scale + this._pan.y * 0.3,
+    }
   }
 
   /** The curved arrows on each side under the island, kept on screen. */
