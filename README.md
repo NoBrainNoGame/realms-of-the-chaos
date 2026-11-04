@@ -435,7 +435,7 @@ Le Google Doc n'a pas été mis à jour après plusieurs décisions. **Pour ces 
 
 ## Déploiement
 
-Le jeu est en ligne sur **https://realms.nobrainnogame.ghom.fr**, servi en statique par Vercel (projet `realms-of-the-chaos`, équipe `ghom`). Chaque push sur `main` redéploie ; `vercel.json` à la racine construit seulement `@realms/game` (`bunx turbo run build --filter=@realms/game`) et publie `apps/game/dist`. Les fichiers JS et CSS ont un hash dans leur nom et sont mis en cache un an ; `index.html` ne l'est pas.
+Le jeu est en ligne sur **https://realms-of-the-chaos.nobrainnogame.ghom.fr**, servi en statique par Vercel (projet `realms-of-the-chaos`, équipe `ghom`). Chaque push sur `main` redéploie ; `vercel.json` à la racine construit seulement `@realms/game` (`bunx turbo run build --filter=@realms/game`) et publie `apps/game/dist`. Les fichiers JS et CSS ont un hash dans leur nom et sont mis en cache un an ; `index.html` ne l'est pas.
 
 Pour le duel en ligne, l'architecture prévue reprend celle de [Devgame](https://github.com/NoBrainNoGame/devgame) :
 
