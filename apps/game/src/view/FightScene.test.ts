@@ -275,6 +275,36 @@ describe("no misclick", () => {
 })
 
 describe("walk previews", () => {
+  test("the walk aimed at: its steps half seen on the timeline", () => {
+    const s = scene({ seed: 8, spectate: false })
+    const internals = s as any
+    runUntil(s, () => internals._inputReady)
+    const me = s.combat.activeFighter!
+    const hud = internals._hud
+    const target = s.combat
+      .getReachableCells(me)
+      .find((c) => manhattan(c, me.position) === 2)
+    internals._hovered = target
+    internals._onHover()
+    const preview = hud._stepPreview
+    expect(preview.fighter).toBe(me)
+    expect(preview.times).toHaveLength(2)
+    hud.toggleTimeline()
+    runUntil(s, () =>
+      hud._timeline.children.some((m: any) => m.label === "stepPreview"),
+    )
+    const ghost = hud._timeline.children.find(
+      (m: any) => m.label === "stepPreview",
+    )
+    expect(ghost.alpha).toBeLessThan(1)
+    internals._hovered = null
+    internals._onHover()
+    expect(hud._stepPreview).toBeNull()
+    expect(
+      hud._timeline.children.some((m: any) => m.label === "stepPreview"),
+    ).toBe(false)
+  })
+
   test("the arrow goes on, half seen; the planned one's head becomes a joint", () => {
     const s = scene({ seed: 8, spectate: false })
     const internals = s as any

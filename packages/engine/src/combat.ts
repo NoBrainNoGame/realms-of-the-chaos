@@ -966,13 +966,14 @@ export class Combat {
 
   /**
    * When each step of a fighter's planned walk happens: the first at its
-   * next move, then each after the time the previous one cost.
+   * next move, then each after the time the previous one cost. `path`:
+   * another walk to time instead (a preview).
    */
-  stepTimes(fighter: Fighter): number[] {
+  stepTimes(fighter: Fighter, path: readonly Point[] = fighter.path): number[] {
     const times: number[] = []
     let at = Math.max(fighter.nextMoveAt, this._time)
     let from = fighter.position
-    for (const to of fighter.path) {
+    for (const to of path) {
       times.push(at)
       at += this.stepDelay(fighter, from, to)
       from = to

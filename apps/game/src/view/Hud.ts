@@ -76,6 +76,8 @@ export default class Hud extends ViewChip<HudEvents> {
   private _expansion = 0
   private _expansionTween: booyah.Tween | null = null
   private _landing: { fighter: Fighter; delay: number } | null = null
+  /** The steps a hovered walk would add (times), half seen. */
+  private _stepPreview: { fighter: Fighter; times: number[] } | null = null
   /** The fighter pointed at, on the board or on the timeline. */
   private _boardFocus: Fighter | null = null
   private _timelineFocus: Fighter | null = null
@@ -372,6 +374,19 @@ export default class Hud extends ViewChip<HudEvents> {
    * hovered (an action, a sprint, a pass): a ghost portrait at that wait.
    * null removes it.
    */
+  /** The steps a walk being aimed would add, at their times. */
+  setStepPreview(preview: { fighter: Fighter; times: number[] } | null) {
+    const same = (a: number[] = [], b: number[] = []) =>
+      a.length === b.length && a.every((t, i) => Math.abs(t - b[i]) < 0.5)
+    if (
+      preview?.fighter === this._stepPreview?.fighter &&
+      same(preview?.times, this._stepPreview?.times)
+    )
+      return
+    this._stepPreview = preview
+    this._redrawTimeline()
+  }
+
   /**
    * The fighter pointed at on the board: on the timeline, what is not
    * about it fades to half.
@@ -686,16 +701,29 @@ export default class Hud extends ViewChip<HudEvents> {
     alpha: number,
     turns: number[],
   ) {
+    const preview = this._stepPreview
     const steps = combat.aliveFighters
       .flatMap((fighter) =>
         combat
           .stepTimes(fighter)
-          .map((at) => ({ fighter, wait: at - combat.time })),
+          .map((at) => ({ fighter, wait: at - combat.time, ghost: false })),
+      )
+      .concat(
+        (preview?.times ?? []).map((at) => ({
+          fighter: preview!.fighter,
+          wait: at - combat.time,
+          ghost: true,
+        })),
       )
       .filter((s) => s.wait >= first)
       .sort((a, b) => a.wait - b.wait)
     // piles: a fighter's next step close to its previous pile joins it
-    const piles: { fighter: Fighter; waits: number[]; x: number }[] = []
+    const piles: {
+      fighter: Fighter
+      waits: number[]
+      x: number
+      ghost: boolean
+    }[] = []
     const later: typeof steps = []
     for (const step of steps) {
       const x = xOf(step.wait)
@@ -705,11 +733,17 @@ export default class Hud extends ViewChip<HudEvents> {
       const since = pile?.waits[pile.waits.length - 1] ?? 0
       const quiet =
         pile?.fighter === step.fighter &&
+        pile.ghost === step.ghost &&
         !turns.some((w) => w > since && w < step.wait) &&
         later.length === 0
       if (quiet) pile.waits.push(step.wait)
       else if (step.wait <= last && piles.length < MAX_STEP_PILES)
-        piles.push({ fighter: step.fighter, waits: [step.wait], x })
+        piles.push({
+          fighter: step.fighter,
+          waits: [step.wait],
+          x,
+          ghost: step.ghost,
+        })
       else later.push(step)
     }
     const taken = new Map<number, number>()
@@ -720,10 +754,11 @@ export default class Hud extends ViewChip<HudEvents> {
       taken.set(column, stack + 1)
       return axisY - stack * 15
     }
-    for (const { fighter, waits, x } of piles) {
+    for (const { fighter, waits, x, ghost } of piles) {
       const marker = new Container()
-      marker.label = "step"
-      marker.alpha = alpha
+      // a walk being aimed: its steps half seen
+      marker.label = ghost ? "stepPreview" : "step"
+      marker.alpha = ghost ? alpha * 0.5 : alpha
       marker.position.set(x, place(x))
       // the pile: one ring per step behind the first (three at most)
       const depth = Math.min(waits.length, 3)

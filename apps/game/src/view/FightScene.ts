@@ -1490,6 +1490,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
 
   private _refreshAll() {
     this._hud.setPreview(this.movePreview())
+    this._hud.setStepPreview(this.stepPreview())
     this._hud.setLanding(this.landingPreview())
     this._hud.setActions(
       this._activeHuman,
@@ -1718,6 +1719,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
     this._refreshCard()
     // the cost of a move goes to the HUD, out of the way of the board
     this._hud.setPreview(this.movePreview())
+    this._hud.setStepPreview(this.stepPreview())
     this._hud.setLanding(this.landingPreview())
     const fighter = this._hovered ? this._fighterAt(this._hovered) : null
     this._hud.setFocus(fighter)
@@ -1784,6 +1786,24 @@ export default class FightScene extends ViewChip<SceneEvents> {
    * to plan, the steps take timeline time, in how many of its turns) or a
    * sprint (at once, the turn ends, worth how many actions).
    */
+  /** The steps the walk aimed at would add on the timeline, half seen. */
+  stepPreview(): { fighter: Fighter; times: number[] } | null {
+    const fighter = this._activeHuman
+    const hovered = this._hovered
+    if (!fighter || !this._inputReady || !hovered) return null
+    if (this._mode.type !== "move" || equals(hovered, fighter.position))
+      return null
+    const append = fighter.waypoints.length > 0
+    const path = this.combat.planWalk(fighter, hovered, append)
+    if (!path?.length) return null
+    const times = this.combat.stepTimes(fighter, path)
+    // an extension: only its own steps (the planned ones are shown)
+    return {
+      fighter,
+      times: append ? times.slice(fighter.path.length) : times,
+    }
+  }
+
   movePreview(): Segment[] | null {
     const fighter = this._activeHuman
     const hovered = this._hovered
