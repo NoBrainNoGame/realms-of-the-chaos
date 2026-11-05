@@ -964,6 +964,22 @@ export class Combat {
     return time / (this.baseDelay(fighter) * this.delayMultiplier(fighter))
   }
 
+  /**
+   * When each step of a fighter's planned walk happens: the first at its
+   * next move, then each after the time the previous one cost.
+   */
+  stepTimes(fighter: Fighter): number[] {
+    const times: number[] = []
+    let at = Math.max(fighter.nextMoveAt, this._time)
+    let from = fighter.position
+    for (const to of fighter.path) {
+      times.push(at)
+      at += this.stepDelay(fighter, from, to)
+      from = to
+    }
+    return times
+  }
+
   /** Time a movement action would take along a path (HUD previews). */
   movementTime(fighter: Fighter, path: readonly Point[]) {
     let time = 0

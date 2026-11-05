@@ -45,6 +45,12 @@ interface BoardViewEvents extends booyah.BaseCompositeEvents {
   cellDown: [cell: Point, button: number]
 }
 
+/** The walk arrow, in cells: its band, its head (width, back, tip). */
+const TRAIL_WIDTH = 0.2
+const HEAD_WIDTH = 0.26
+const HEAD_BACK = 0.12
+const HEAD_TIP = 0.34
+
 export interface Highlight {
   cells: Point[]
   color: number
@@ -297,45 +303,85 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     }
   }
 
+  /**
+   * The planned walk: a yellow arrow laid flat on the ground (the tiles'
+   * slant), from the fighter to its destination, where its head points.
+   * Each cell draws its part: a band to half-way to its neighbors, down
+   * the side of a step, a round joint, the head on the last cell.
+   */
   private _drawTrail(cells: Point[], color: number, alpha: number) {
+    // on the ground, in cells: x and y of the grid, projected
+    const flat = (x: number, y: number) => project(x, y)
+    const poly = (points: { x: number; y: number }[]) =>
+      points.flatMap((q) => [q.x, q.y])
+    const w = TRAIL_WIDTH / 2
     cells.forEach((p, i) => {
       const parts = this._parts.get(keyOf(p))
       if (!parts) return
       const g = parts.overlay
-      // half-way to the previous and next cells, on the tile top
-      const ends = [cells[i - 1], cells[i + 1]]
-        .filter((q): q is Point => !!q && manhattan(p, q) === 1)
-        .map((q) => {
-          const end = project((q.x - p.x) / 2, (q.y - p.y) / 2)
-          // a step down to a lower neighbor in front: the higher cell
-          // draws the drop along its side, so both halves meet (behind,
-          // the higher column hides the lower half anyway)
-          const front = project(q.x - p.x, q.y - p.y).y > 0
-          const drop = !front
-            ? 0
-            : Math.max(
-                0,
-                (this._board.standHeight(p) - this._board.standHeight(q)) *
-                  levelHeight(),
-              )
-          return { ...end, drop }
-        })
-      for (const [width, tint, a] of [
-        [9, 0x000000, alpha * 0.45],
-        [5, color, alpha],
-      ] as const) {
-        for (const end of ends) {
-          g.moveTo(0, 0).lineTo(end.x, end.y)
-          if (end.drop > 0) g.lineTo(end.x, end.y + end.drop)
-          g.stroke({
-            width,
-            color: tint,
-            alpha: a,
-            cap: "round",
-            join: "round",
-          })
+      const fill = { color, alpha }
+      const prev = cells[i - 1]
+      const next = cells[i + 1]
+      const last = !next && !!prev && manhattan(p, prev) === 1
+      for (const q of [prev, next]) {
+        if (!q || manhattan(p, q) !== 1) continue
+        const dx = q.x - p.x
+        const dy = q.y - p.y
+        // the last cell: the band stops at the head's base
+        const from = q === prev && last ? -HEAD_BACK : 0
+        const a = { x: dx * -from, y: dy * -from }
+        const b = { x: dx / 2, y: dy / 2 }
+        const n = { x: -dy * w, y: dx * w }
+        const band = [
+          flat(a.x + n.x, a.y + n.y),
+          flat(b.x + n.x, b.y + n.y),
+          flat(b.x - n.x, b.y - n.y),
+          flat(a.x - n.x, a.y - n.y),
+        ]
+        g.poly(poly(band)).fill(fill)
+        // a step down to a lower neighbor in front: the higher cell
+        // draws the drop along its side, so both halves meet (behind,
+        // the higher column hides the lower half anyway)
+        const front = project(dx, dy).y > 0
+        const drop = front
+          ? Math.max(
+              0,
+              (this._board.standHeight(p) - this._board.standHeight(q)) *
+                levelHeight(),
+            )
+          : 0
+        if (drop > 0) {
+          const [, b1, b2] = band
+          g.poly(
+            poly([
+              b1,
+              b2,
+              { x: b2.x, y: b2.y + drop },
+              { x: b1.x, y: b1.y + drop },
+            ]),
+          ).fill(fill)
         }
-        g.circle(0, 0, width / 2).fill({ color: tint, alpha: a })
+      }
+      if (last) {
+        // the head, pointing the way the walk goes
+        const dx = p.x - prev.x
+        const dy = p.y - prev.y
+        const n = { x: -dy * HEAD_WIDTH, y: dx * HEAD_WIDTH }
+        const base = { x: -dx * HEAD_BACK, y: -dy * HEAD_BACK }
+        g.poly(
+          poly([
+            flat(base.x + n.x, base.y + n.y),
+            flat(dx * HEAD_TIP, dy * HEAD_TIP),
+            flat(base.x - n.x, base.y - n.y),
+          ]),
+        ).fill(fill)
+      } else {
+        // a round joint (a circle on the ground)
+        const joint = Array.from({ length: 16 }, (_, k) => {
+          const t = (k / 16) * Math.PI * 2
+          return flat(Math.cos(t) * w, Math.sin(t) * w)
+        })
+        g.poly(poly(joint)).fill(fill)
       }
     })
   }

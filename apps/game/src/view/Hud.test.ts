@@ -361,6 +361,33 @@ describe("timeline: real durations", () => {
     expect(timeline.width).toBe(compact)
   })
 
+  test("the planned steps: piled per fighter, the farthest as a (+)", () => {
+    const { hud, c, timeline } = setup()
+    const [eva, , gorr] = c.fighters
+    // eva: a step every few temps, far past the last turn
+    eva.position = { x: 0, y: 0 }
+    eva.path = Array.from({ length: 14 }, (_, i) => ({ x: i + 1, y: 0 }))
+    eva.nextMoveAt = c.time + 10
+    gorr.path = [{ x: 7, y: 8 }]
+    gorr.nextMoveAt = c.time + 40
+    const steps = c.stepTimes(eva)
+    expect(steps).toHaveLength(14)
+    hud.toggleTimeline()
+    tick(hud, 600)
+    hud.setTimeline(c)
+    const piles = timeline.children.filter((m) => m.label === "step")
+    const more = timeline.children.find((m) => m.label === "moreSteps")
+    // eva's steps in a row pile up; merlin's turn, gorr's step split them
+    expect(piles.length).toBeGreaterThan(2)
+    expect(piles.length).toBeLessThan(6)
+    expect(texts(timeline).some((t) => /^[2-9]$/.test(t))).toBe(true)
+    // her steps after the last turn: only a (+), at the end of the axis
+    expect(steps.some((at) => at - c.time > 80)).toBe(true)
+    expect(more).toBeDefined()
+    for (const pile of piles) expect(pile.x).toBeLessThan(more!.x)
+    hud.toggleTimeline()
+  })
+
   test("a click keeps the expanded view, another one collapses it", () => {
     const { hud, timeline } = setup()
     const lock = () => timeline.children.find((c) => c.label === "lock")

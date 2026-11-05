@@ -41,6 +41,10 @@ export const COLORS = {
   path: 0xffe066,
   launch: 0xff922b,
   target: 0xff6b6b,
+  /** A heal, a shield: aimed at an ally (blue, like the allies). */
+  support: 0x4dabf7,
+  supportLaunch: 0x74c0fc,
+  supportArea: 0x339af0,
   area: 0xf03e3e,
   divine: 0xb197fc,
   combo: 0x63e6be,

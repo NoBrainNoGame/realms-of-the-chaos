@@ -11,6 +11,7 @@ import {
   equals,
   type FightEvent,
   type Fighter,
+  isSupport,
   keyOf,
   MAX_ELEVATION,
   manhattan,
@@ -1859,33 +1860,29 @@ export default class FightScene extends ViewChip<SceneEvents> {
     const fighter = this._activeHuman
     const hovered = this._hovered
 
-    // planned walks of the local fighters: a bold line from the fighter,
-    // a ring on each stop, the destination filled
+    // planned walks of the local fighters: an arrow on the ground from
+    // the fighter to the destination, a ring on each stop; the hovered
+    // fighter's in white, over the others
     const local = this.localTeams
-    for (const f of this.combat.aliveFighters) {
-      if (local.includes(f.team) && f.path.length) {
-        const destination = f.path[f.path.length - 1]
-        highlights.push({
-          cells: [destination],
-          color: COLORS.path,
-          alpha: 0.45,
-          inset: 4,
-          outline: true,
-        })
-        highlights.push({
-          cells: f.waypoints.filter((w) => !equals(w, destination)),
-          color: COLORS.path,
-          alpha: 0.35,
-          inset: 10,
-          outline: true,
-        })
-        highlights.push({
-          cells: [f.position, ...f.path],
-          color: COLORS.path,
-          alpha: 0.95,
-          trail: true,
-        })
-      }
+    const pointed = this._hovered ? this._fighterAt(this._hovered) : null
+    const walkers = this.combat.aliveFighters
+      .filter((f) => local.includes(f.team) && f.path.length)
+      .sort((a, b) => Number(a === pointed) - Number(b === pointed))
+    for (const f of walkers) {
+      const destination = f.path[f.path.length - 1]
+      highlights.push({
+        cells: f.waypoints.filter((w) => !equals(w, destination)),
+        color: COLORS.path,
+        alpha: 0.35,
+        inset: 10,
+        outline: true,
+      })
+      highlights.push({
+        cells: [f.position, ...f.path],
+        color: f === pointed ? 0xffffff : COLORS.path,
+        alpha: 0.95,
+        trail: true,
+      })
     }
 
     if (fighter && this._inputReady) {
@@ -1931,15 +1928,17 @@ export default class FightScene extends ViewChip<SceneEvents> {
           const action = this._mode.action
           const launch = this.combat.getLaunchCells(fighter, action)
           const targets = this.combat.getValidTargets(fighter, action)
+          // a heal, a shield: its cells are blue, an attack's red
+          const support = isSupport(action)
           highlights.push({
             cells: launch,
-            color: COLORS.launch,
+            color: support ? COLORS.supportLaunch : COLORS.launch,
             alpha: 0.25,
             inset: 6,
           })
           highlights.push({
             cells: targets,
-            color: COLORS.target,
+            color: support ? COLORS.support : COLORS.target,
             alpha: 0.5,
             outline: true,
           })
@@ -1962,7 +1961,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
           } else if (hovered && targets.some((c) => equals(c, hovered))) {
             highlights.push({
               cells: this.combat.getAreaCells(action, hovered),
-              color: COLORS.area,
+              color: support ? COLORS.supportArea : COLORS.area,
               alpha: 0.6,
               outline: true,
             })

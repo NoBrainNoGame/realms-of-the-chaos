@@ -193,3 +193,28 @@ describe("turn delay previews", () => {
     }
   })
 })
+
+describe("step times", () => {
+  test("each step of a planned walk comes when the previous one is paid", () => {
+    const c = new Combat({
+      seed: 1,
+      board: new Board(9, 9),
+      teams: [
+        { controller: "human", fighters: ["eva"] },
+        { controller: "ai", fighters: ["gorr"] },
+      ],
+      positions: [[{ x: 0, y: 0 }], [{ x: 8, y: 8 }]],
+    })
+    const eva = c.fighters[0]
+    eva.path = [
+      { x: 1, y: 0 },
+      { x: 2, y: 0 },
+    ]
+    eva.nextMoveAt = 3
+    const times = c.stepTimes(eva)
+    expect(times[0]).toBe(3)
+    expect(times[1]).toBeCloseTo(
+      3 + c.stepDelay(eva, { x: 0, y: 0 }, { x: 1, y: 0 }),
+    )
+  })
+})

@@ -62,6 +62,9 @@ const TIMELINE_KEY = "realms.timeline.expanded"
 /** Duration of the timeline expanding or collapsing (ms). */
 const TIMELINE_ANIMATION = 500
 
+/** Timeline steps: piles shown before the (+). */
+const MAX_STEP_PILES = 5
+
 export default class Hud extends ViewChip<HudEvents> {
   private _timeline!: Container
   private _timelineCombat: Combat | null = null
@@ -524,6 +527,16 @@ export default class Hud extends ViewChip<HudEvents> {
       }
       scaleNode.addChild(line)
       this._timeline.addChild(scaleNode)
+      if (range > 0)
+        this._drawSteps(
+          combat,
+          first,
+          last,
+          (v) => 8 + size / 2 + (v - first) * scale * t,
+          axisY,
+          t,
+          waits,
+        )
     }
     if (t < 1) {
       hint.alpha = 1 - t
@@ -613,6 +626,139 @@ export default class Hud extends ViewChip<HudEvents> {
     })
     this._timeline.hitArea = new Rectangle(0, 0, width, height)
     this._layout()
+  }
+
+  /**
+   * The steps of the planned walks, on the real-scale axis: a small yellow
+   * arrow in a ring, with a badge of who steps. A fighter's steps in a
+   * row (no turn, no other step between) pile up; past the first few
+   * piles, a (+) at the end.
+   */
+  private _drawSteps(
+    combat: Combat,
+    first: number,
+    last: number,
+    xOf: (wait: number) => number,
+    axisY: number,
+    alpha: number,
+    turns: number[],
+  ) {
+    const steps = combat.aliveFighters
+      .flatMap((fighter) =>
+        combat
+          .stepTimes(fighter)
+          .map((at) => ({ fighter, wait: at - combat.time })),
+      )
+      .filter((s) => s.wait >= first)
+      .sort((a, b) => a.wait - b.wait)
+    // piles: a fighter's next step close to its previous pile joins it
+    const piles: { fighter: Fighter; waits: number[]; x: number }[] = []
+    const later: typeof steps = []
+    for (const step of steps) {
+      const x = xOf(step.wait)
+      // the fighter's previous pile, if nothing happens since: no turn,
+      // no other step
+      const pile = piles[piles.length - 1]
+      const since = pile?.waits[pile.waits.length - 1] ?? 0
+      const quiet =
+        pile?.fighter === step.fighter &&
+        !turns.some((w) => w > since && w < step.wait) &&
+        later.length === 0
+      if (quiet) pile.waits.push(step.wait)
+      else if (step.wait <= last && piles.length < MAX_STEP_PILES)
+        piles.push({ fighter: step.fighter, waits: [step.wait], x })
+      else later.push(step)
+    }
+    const taken = new Map<number, number>()
+    const place = (x: number) => {
+      // piles at the same place stack upwards
+      const column = Math.round(x / 8)
+      const stack = taken.get(column) ?? 0
+      taken.set(column, stack + 1)
+      return axisY - stack * 15
+    }
+    for (const { fighter, waits, x } of piles) {
+      const marker = new Container()
+      marker.label = "step"
+      marker.alpha = alpha
+      marker.position.set(x, place(x))
+      // the pile: one ring per step behind the first (three at most)
+      const depth = Math.min(waits.length, 3)
+      for (let k = depth - 1; k >= 0; k--) {
+        const ring = new Graphics()
+          .circle(k * 2.5, -k * 2.5, 6.5)
+          .fill(0x15121f)
+          .stroke({ width: 1.5, color: MEANING.path })
+        if (k === 0)
+          ring
+            .poly([
+              -3.5, -1, 0.5, -1, 0.5, -3.5, 4, 0, 0.5, 3.5, 0.5, 1, -3.5, 1,
+            ])
+            .fill(MEANING.path)
+        marker.addChild(ring)
+      }
+      if (waits.length > 1) {
+        const count = text(`${waits.length}`, 9, MEANING.path, {
+          stroke: { color: 0x000000, width: 3 },
+        })
+        count.anchor.set(0.5, 0)
+        count.position.set(0, 6)
+        marker.addChild(count)
+      }
+      // the badge: who steps
+      const badge = new Container()
+      badge.position.set(6 + (depth - 1) * 2.5, -6 - (depth - 1) * 2.5)
+      const ring = new Graphics()
+        .circle(0, 0, 5)
+        .fill(0x15121f)
+        .stroke({ width: 1.2, color: TEAM_COLORS[fighter.team] })
+      const face = new Sprite(characterTexture(fighter.presetId))
+      face.anchor.set(0.5, 0)
+      face.scale.set(0.7)
+      face.position.set(0, -5)
+      const mask = new Graphics().circle(0, 0, 4.4).fill(0xffffff)
+      face.mask = mask
+      badge.addChild(ring, mask, face)
+      marker.addChild(badge)
+      marker.eventMode = "static"
+      const when = `${tag("time", `${Math.round(waits[0])} temps`)}`
+      marker.on("pointerover", () =>
+        this.showTooltip(
+          waits.length > 1
+            ? `${fighter.name} avance de ${waits.length} pas, dès ${when}`
+            : `${fighter.name} avance d'un pas dans ${when}`,
+          marker.getGlobalPosition(),
+        ),
+      )
+      marker.on("pointerout", () => this.hideTooltip())
+      this._timeline.addChild(marker)
+    }
+    if (later.length > 0) {
+      // the farther steps: only that there are some
+      const x = xOf(last) + 14
+      const more = new Container()
+      more.label = "moreSteps"
+      more.alpha = alpha
+      more.position.set(x, axisY)
+      more.addChild(
+        new Graphics()
+          .circle(0, 0, 6.5)
+          .fill(0x15121f)
+          .stroke({ width: 1.5, color: MEANING.path })
+          .rect(-3.5, -0.8, 7, 1.6)
+          .rect(-0.8, -3.5, 1.6, 7)
+          .fill(MEANING.path),
+      )
+      more.eventMode = "static"
+      more.on("pointerover", () =>
+        this.showTooltip(
+          `${later.length} pas plus tard`,
+          more.getGlobalPosition(),
+        ),
+      )
+      more.on("pointerout", () => this.hideTooltip())
+      this._timeline.addChild(more)
+    }
   }
 
   // ─── Action bar ───────────────────────────────────────────────────────────
