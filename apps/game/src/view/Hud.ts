@@ -64,7 +64,7 @@ const TIMELINE_ANIMATION = 500
 
 /** The timeline's nodes not about the pointed fighter: this opaque. */
 const TIMELINE_FADE = 0.5
-/** Timeline steps: piles shown before the (+). */
+/** Timeline steps: piles shown at most. */
 const MAX_STEP_PILES = 5
 
 export default class Hud extends ViewChip<HudEvents> {
@@ -690,7 +690,7 @@ export default class Hud extends ViewChip<HudEvents> {
    * The steps of the planned walks, on the real-scale axis: a small yellow
    * arrow in a ring, with a badge of who steps. A fighter's steps in a
    * row (no turn, no other step between) pile up; past the first few
-   * piles, a (+) at the end.
+   * piles or the axis' end, they are not shown.
    */
   private _drawSteps(
     combat: Combat,
@@ -811,33 +811,6 @@ export default class Hud extends ViewChip<HudEvents> {
       marker.on("pointerout", () => this.hideTooltip())
       this._own(marker, [fighter])
       this._timeline.addChild(marker)
-    }
-    if (later.length > 0) {
-      // the farther steps: only that there are some
-      const x = xOf(last) + 14
-      const more = new Container()
-      more.label = "moreSteps"
-      more.alpha = alpha
-      more.position.set(x, axisY)
-      more.addChild(
-        new Graphics()
-          .circle(0, 0, 6.5)
-          .fill(0x15121f)
-          .stroke({ width: 1.5, color: MEANING.path })
-          .rect(-3.5, -0.8, 7, 1.6)
-          .rect(-0.8, -3.5, 1.6, 7)
-          .fill(MEANING.path),
-      )
-      more.eventMode = "static"
-      more.on("pointerover", () =>
-        this._tipUnderTimeline(`${later.length} pas plus tard`, more),
-      )
-      more.on("pointerout", () => this.hideTooltip())
-      this._own(
-        more,
-        later.map((s) => s.fighter),
-      )
-      this._timeline.addChild(more)
     }
   }
 

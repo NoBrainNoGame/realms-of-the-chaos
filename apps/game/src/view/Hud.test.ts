@@ -361,7 +361,7 @@ describe("timeline: real durations", () => {
     expect(timeline.width).toBe(compact)
   })
 
-  test("the planned steps: piled per fighter, the farthest as a (+)", () => {
+  test("the planned steps: piled per fighter, the farthest not shown", () => {
     const { hud, c, timeline } = setup()
     const [eva, , gorr] = c.fighters
     // eva: a step every few temps, far past the last turn
@@ -376,15 +376,13 @@ describe("timeline: real durations", () => {
     tick(hud, 600)
     hud.setTimeline(c)
     const piles = timeline.children.filter((m) => m.label === "step")
-    const more = timeline.children.find((m) => m.label === "moreSteps")
     // eva's steps in a row pile up; merlin's turn, gorr's step split them
     expect(piles.length).toBeGreaterThan(2)
     expect(piles.length).toBeLessThan(6)
     expect(texts(timeline).some((t) => /^[2-9]$/.test(t))).toBe(true)
-    // her steps after the last turn: only a (+), at the end of the axis
+    // her steps after the last turn: not shown, no (+) either
     expect(steps.some((at) => at - c.time > 80)).toBe(true)
-    expect(more).toBeDefined()
-    for (const pile of piles) expect(pile.x).toBeLessThan(more!.x)
+    expect(timeline.children.some((m) => m.label === "moreSteps")).toBe(false)
     hud.toggleTimeline()
   })
 
