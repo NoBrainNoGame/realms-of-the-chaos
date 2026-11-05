@@ -418,6 +418,18 @@ describe("timeline: real durations", () => {
     hud.toggleTimeline()
   })
 
+  test("its tooltips go under it, never over the axis", () => {
+    const { hud, timeline, slots } = setup()
+    hud.toggleTimeline()
+    tick(hud, 600)
+    slots()[0].emit("pointerover", {} as any)
+    const tooltip = (hud as any)._tooltip as Container
+    expect(tooltip.visible).toBe(true)
+    const t = timeline.getBounds()
+    expect(tooltip.getBounds().y).toBeGreaterThanOrEqual(t.y + t.height)
+    hud.toggleTimeline()
+  })
+
   test("a click keeps the expanded view, another one collapses it", () => {
     const { hud, timeline } = setup()
     const lock = () => timeline.children.find((c) => c.label === "lock")

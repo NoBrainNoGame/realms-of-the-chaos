@@ -652,9 +652,9 @@ export default class Hud extends ViewChip<HudEvents> {
       }
       slot.eventMode = "static"
       slot.on("pointerover", () => {
-        this.showTooltip(
+        this._tipUnderTimeline(
           `${fighter.name} — prochain tour dans ${tag("time", `${wait} temps`)}`,
-          slot.getGlobalPosition(),
+          slot,
         )
         this._timelineFocus = fighter
         this._applyFocus()
@@ -766,11 +766,11 @@ export default class Hud extends ViewChip<HudEvents> {
       marker.eventMode = "static"
       const when = `${tag("time", `${Math.round(waits[0])} temps`)}`
       marker.on("pointerover", () =>
-        this.showTooltip(
+        this._tipUnderTimeline(
           waits.length > 1
             ? `${fighter.name} avance de ${waits.length} pas, dès ${when}`
             : `${fighter.name} avance d'un pas dans ${when}`,
-          marker.getGlobalPosition(),
+          marker,
         ),
       )
       marker.on("pointerout", () => this.hideTooltip())
@@ -795,10 +795,7 @@ export default class Hud extends ViewChip<HudEvents> {
       )
       more.eventMode = "static"
       more.on("pointerover", () =>
-        this.showTooltip(
-          `${later.length} pas plus tard`,
-          more.getGlobalPosition(),
-        ),
+        this._tipUnderTimeline(`${later.length} pas plus tard`, more),
       )
       more.on("pointerout", () => this.hideTooltip())
       this._own(
@@ -1110,6 +1107,17 @@ export default class Hud extends ViewChip<HudEvents> {
         lineHeight: 17,
       }),
     )
+  }
+
+  /** A tooltip of the timeline: under it, never over the axis. */
+  private _tipUnderTimeline(content: string, node: Container) {
+    const bounds = this._timeline.getBounds()
+    const scale = this._container.scale.x
+    // showTooltip puts it 50 under the given point
+    this.showTooltip(content, {
+      x: node.getGlobalPosition().x,
+      y: bounds.y + bounds.height + (6 - 50) * scale,
+    })
   }
 
   showTooltip(
