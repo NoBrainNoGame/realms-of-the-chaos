@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 
 import { DIVINE_ACTIONS, equals, manhattan, type Point } from "@realms/engine"
 import { mount } from "../test/harness"
+import type { Highlight } from "./BoardView"
 import FightScene, { classicFight, waterState } from "./FightScene"
 import { COLORS } from "./theme"
 
@@ -270,6 +271,50 @@ describe("no misclick", () => {
       type: "useDivine",
       divineId: "blessing",
     })
+  })
+})
+
+describe("walk previews", () => {
+  test("the arrow goes on, half seen; the planned one's head becomes a joint", () => {
+    const s = scene({ seed: 8, spectate: false })
+    const internals = s as any
+    runUntil(s, () => internals._inputReady)
+    const me = s.combat.activeFighter!
+    let drawn: Highlight[] = []
+    const setHighlights = internals._board.setHighlights.bind(internals._board)
+    internals._board.setHighlights = (h: Highlight[]) => {
+      drawn = h
+      setHighlights(h)
+    }
+    const trails = () => drawn.filter((h) => h.trail)
+    const reachable = s.combat
+      .getReachableCells(me)
+      .filter((c) => manhattan(c, me.position) === 2)
+    // hovering, nothing planned: a half-seen arrow from the fighter
+    internals._hovered = reachable[0]
+    internals._refreshOverlay()
+    expect(trails()).toHaveLength(1)
+    expect(trails()[0].alpha).toBe(0.5)
+    expect(trails()[0].cells[0]).toEqual(me.position)
+    expect(drawn.some((h) => h.inset === 18)).toBe(false)
+
+    // planned, then hovering further: the extension from its end
+    internals._board.emit("cellDown", reachable[0], 0)
+    const end = me.path.at(-1)!
+    const further = s.combat
+      .getReachableCells(me)
+      .find((c) => manhattan(c, end) >= 2 && s.combat.planWalk(me, c, true))!
+    internals._hovered = further
+    internals._refreshOverlay()
+    const [own, extension] = trails()
+    expect(own.head).toBe(false)
+    expect(extension.alpha).toBe(0.5)
+    expect(extension.cells[0]).toEqual(end)
+    // not hovering any more: the planned arrow gets its head back
+    internals._hovered = null
+    internals._refreshOverlay()
+    expect(trails()).toHaveLength(1)
+    expect(trails()[0].head).not.toBe(false)
   })
 })
 

@@ -1865,6 +1865,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
     // fighter's in white, over the others
     const local = this.localTeams
     const pointed = this._hovered ? this._fighterAt(this._hovered) : null
+    const trails = new Map<Fighter, Highlight>()
     const walkers = this.combat.aliveFighters
       .filter((f) => local.includes(f.team) && f.path.length)
       .sort((a, b) => Number(a === pointed) - Number(b === pointed))
@@ -1877,12 +1878,14 @@ export default class FightScene extends ViewChip<SceneEvents> {
         inset: 10,
         outline: true,
       })
-      highlights.push({
+      const trail: Highlight = {
         cells: [f.position, ...f.path],
         color: f === pointed ? 0xffffff : COLORS.path,
         alpha: 0.95,
         trail: true,
-      })
+      }
+      trails.set(f, trail)
+      highlights.push(trail)
     }
 
     if (fighter && this._inputReady) {
@@ -1908,19 +1911,24 @@ export default class FightScene extends ViewChip<SceneEvents> {
             // the leg the click would add (or the walk it would plan)
             const append = fighter.waypoints.length > 0
             const path = this.combat.planWalk(fighter, hovered, append)
-            if (path)
+            if (path?.length) {
+              // the arrow goes on, half seen; the planned one's head
+              // becomes a joint (the extension has its own)
+              const from = append
+                ? (fighter.path[fighter.path.length - 1] ?? fighter.position)
+                : fighter.position
+              const own = trails.get(fighter)
+              if (append && own) own.head = false
               highlights.push({
-                cells: append ? path.slice(fighter.path.length) : path,
+                cells: [
+                  from,
+                  ...(append ? path.slice(fighter.path.length) : path),
+                ],
                 color: COLORS.path,
-                alpha: 0.7,
-                inset: 18,
+                alpha: 0.5,
+                trail: true,
               })
-            highlights.push({
-              cells: [hovered],
-              color: COLORS.path,
-              alpha: 0.35,
-              outline: true,
-            })
+            }
           }
           break
         }
@@ -1951,12 +1959,12 @@ export default class FightScene extends ViewChip<SceneEvents> {
             const path = this.combat
               .movementPaths(fighter, action.movement.maxSteps)
               .get(keyOf(hovered))
-            if (path)
+            if (path?.length)
               highlights.push({
-                cells: path,
+                cells: [fighter.position, ...path],
                 color: COLORS.path,
-                alpha: 0.7,
-                inset: 18,
+                alpha: 0.5,
+                trail: true,
               })
           } else if (hovered && targets.some((c) => equals(c, hovered))) {
             highlights.push({
