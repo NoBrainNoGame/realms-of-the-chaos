@@ -21,7 +21,7 @@ function duel(board: Board, eva: Point, gorr: Point, extra: Point[] = []) {
   return combat
 }
 
-describe("sprint (Course)", () => {
+describe("sprint (Dash)", () => {
   test("every fighter has it, after its own actions", () => {
     expect(COMMON_ACTIONS).toEqual(["sprint"])
     const combat = duel(new Board(9, 9), { x: 0, y: 0 }, { x: 8, y: 8 })
@@ -49,6 +49,22 @@ describe("sprint (Course)", () => {
     expect(keys.has("6,4")).toBe(false) // only reachable through the enemy... in 2 steps
     expect(keys.has("4,4")).toBe(false) // not the starting cell
     expect(keys.has("4,0")).toBe(false) // 4 steps away
+  })
+
+  test("by the pathfinder: water and climbs use up the reach, detours win", () => {
+    const board = Board.fromAscii([".~~~.", ".....", "1...."])
+    const combat = duel(board, { x: 0, y: 0 }, { x: 4, y: 2 })
+    const eva = combat.activeFighter!
+    const keys = new Set(combat.getValidTargets(eva, ACTIONS.sprint).map(keyOf))
+    // two cells away through shallow water: 2 + 2, past the reach of 3
+    expect(keys.has("2,0")).toBe(false)
+    // a climb costs one more: the hill two cells away, at 3, in reach
+    expect(keys.has("0,2")).toBe(true)
+    expect(combat.movementPaths(eva, 2).has("0,2")).toBe(false)
+    // across the water costs 7, around it 6: the dash goes around
+    const path = combat.movementPaths(eva, 6).get("4,0")!
+    expect(path).toHaveLength(6)
+    expect(path.some((p) => board.get(p)!.terrain === "water")).toBe(false)
   })
 
   test("walkers cannot sprint into deep water; swimmers can", () => {

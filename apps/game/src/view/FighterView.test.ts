@@ -130,7 +130,7 @@ describe("movement cost previews", () => {
       .movePreview()!
       .map((part) => part.text)
       .join("")
-    expect(sprint).toContain("Course")
+    expect(sprint).toContain("Dash")
     expect(sprint).toContain("le tour se termine")
 
     // a planned walk shows in the card

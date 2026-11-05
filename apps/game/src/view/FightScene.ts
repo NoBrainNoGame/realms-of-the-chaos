@@ -1841,13 +1841,13 @@ export default class FightScene extends ViewChip<SceneEvents> {
 
     if (this._mode.type === "action" && this._mode.action.movement) {
       const path = this.combat
-        .movementPaths(fighter, this._mode.action.movement.maxSteps)
+        .movementPaths(fighter, this._mode.action.movement.reach)
         .get(keyOf(hovered))
       if (!path) return null
       const t = this.combat.movementTime(fighter, path)
       const actions = this.combat.actionsFor(fighter, t)
       return [
-        { text: "Course  " },
+        { text: "Dash  " },
         cells(path.length),
         { text: " · " },
         time(t),
@@ -1978,7 +1978,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
           ) {
             // sprint: preview the path
             const path = this.combat
-              .movementPaths(fighter, action.movement.maxSteps)
+              .movementPaths(fighter, action.movement.reach)
               .get(keyOf(hovered))
             if (path?.length)
               highlights.push({

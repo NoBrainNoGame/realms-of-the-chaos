@@ -424,34 +424,25 @@ export class Combat {
   }
 
   /**
-   * Paths of a movement action: every cell reachable in at most `maxSteps`
-   * steps (through allies, never through enemies), with its shortest path.
+   * Paths of a movement action: every cell whose cheapest walk costs at
+   * most `reach` (the pathfinder's costs: water and climbing cost more),
+   * through allies, never through enemies, with that walk.
    */
   movementPaths(
     fighter: Fighter,
-    maxSteps: number,
+    reach: number,
     origin: Point = fighter.position,
   ): Map<string, Point[]> {
+    const nodes = this.board.explore(
+      origin,
+      (p) => this.canEnter(fighter, p),
+      reach,
+      fighter.locomotion,
+    )
     const paths = new Map<string, Point[]>()
-    const seen = new Set([keyOf(origin)])
-    let frontier: { point: Point; path: Point[] }[] = [
-      { point: origin, path: [] },
-    ]
-    for (let step = 0; step < maxSteps; step++) {
-      const next: typeof frontier = []
-      for (const { point, path } of frontier) {
-        for (const neighbor of this.board.neighbors(point)) {
-          const key = keyOf(neighbor)
-          if (seen.has(key)) continue
-          if (!this.board.canStep(point, neighbor, fighter.locomotion)) continue
-          if (!this.canEnter(fighter, neighbor)) continue
-          seen.add(key)
-          const route = [...path, neighbor]
-          paths.set(key, route)
-          next.push({ point: neighbor, path: route })
-        }
-      }
-      frontier = next
+    for (const [key, node] of nodes) {
+      if (node.previous === null) continue
+      paths.set(key, Board.pathTo(nodes, node.point)!)
     }
     return paths
   }
@@ -463,7 +454,7 @@ export class Combat {
     origin: Point = fighter.position,
   ): Point[] {
     if (action.movement) {
-      return [...this.movementPaths(fighter, action.movement.maxSteps, origin)]
+      return [...this.movementPaths(fighter, action.movement.reach, origin)]
         .map(([, path]) => path[path.length - 1])
         .sort((a, b) => a.y - b.y || a.x - b.x)
     }
@@ -485,7 +476,7 @@ export class Combat {
     origin: Point = fighter.position,
   ) {
     if (action.movement) {
-      return this.movementPaths(fighter, action.movement.maxSteps, origin).has(
+      return this.movementPaths(fighter, action.movement.reach, origin).has(
         keyOf(target),
       )
     }
@@ -922,7 +913,7 @@ export class Combat {
     action: ActionDefinition,
     target: Point,
   ): string | null {
-    const path = this.movementPaths(fighter, action.movement!.maxSteps).get(
+    const path = this.movementPaths(fighter, action.movement!.reach).get(
       keyOf(target),
     )
     if (!path) return "Cible hors de portée"
@@ -1127,7 +1118,7 @@ export class Combat {
     const action = this.actionsOf(fighter).find((a) => a.id === choice.actionId)
     if (!action) return null
     if (action.movement) {
-      const paths = this.movementPaths(fighter, action.movement.maxSteps)
+      const paths = this.movementPaths(fighter, action.movement.reach)
       if (choice.target) {
         const path = paths.get(keyOf(choice.target))
         return path ? this.movementTime(fighter, path) : null

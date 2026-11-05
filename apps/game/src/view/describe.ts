@@ -120,7 +120,7 @@ export function describeAction(
         combat.delayMultiplier(fighter),
     )
     lines.push(
-      `Jusqu'à ${cells(action.movement.maxSteps)}, en contournant les obstacles et en traversant les alliés (touche C)`,
+      `Jusqu'à ${cells(action.movement.reach)} de terrain plat (l'eau et les montées comptent plus), par le chemin le plus rapide, en traversant les alliés (touche C)`,
       `Coût : ${tag("time", "le temps du trajet")} (≈ ${tag("time", `${step} temps`)} par case sur terrain plat), termine le tour`,
     )
     return lines.join("\n")

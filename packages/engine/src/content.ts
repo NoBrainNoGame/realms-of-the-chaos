@@ -49,14 +49,14 @@ const actionList: ActionDefinition[] = [
   // ── common ──
   {
     id: "sprint",
-    name: "Course",
+    name: "Dash",
     description:
-      "Avance tout de suite jusqu'à 3 cases. Coûte le temps du trajet et termine le tour.",
+      "Avance tout de suite par le chemin le plus rapide, jusqu'à 3 cases de terrain plat (l'eau et les montées comptent plus). Coûte le temps du trajet et termine le tour.",
     launch: { shape: "diamond", min: 1, max: 3 },
     lineOfSight: false,
     target: "any",
     timeCost: 0,
-    movement: { maxSteps: 3 },
+    movement: { reach: 3 },
     effects: [],
   },
   {

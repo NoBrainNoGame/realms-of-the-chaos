@@ -173,7 +173,7 @@ export default class Hud extends ViewChip<HudEvents> {
     this._settings.on("pointertap", () => this.emit("settings"))
 
     const help = text(
-      "Clic : se déplacer · C : course · 1-5 : actions · Espace : passer · Échap / clic droit : annuler",
+      "Clic : se déplacer · C : dash · 1-5 : actions · Espace : passer · Échap / clic droit : annuler",
       12,
       COLORS.muted,
     )

@@ -50,7 +50,7 @@ const DESCRIPTIONS: Record<string, string> = {
     "Les Marées : des vagues de plus en plus fortes. Jusqu'où tiendrez-vous ?",
   settings: "La taille du texte et celle de l'interface.",
   tutorial:
-    "Un combat guidé, pas à pas : la frise du temps, les déplacements, l'eau, le relief, la course, les combos et la caméra.",
+    "Un combat guidé, pas à pas : la frise du temps, les déplacements, l'eau, le relief, le dash, les combos et la caméra.",
 }
 
 interface TitleEvents extends booyah.BaseCompositeEvents {

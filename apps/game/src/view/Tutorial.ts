@@ -277,7 +277,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     allows: (input, t) =>
       (input.type === "action" && input.id === "sprint") ||
       clicks(input, partner(t)?.position),
-    title: "La course",
+    title: "Le dash",
     needsTurn: true,
     anchor: (t) =>
       ui(
@@ -287,7 +287,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
       ),
     done: (t) => used(t, (id) => id === "sprint"),
     text: (t) =>
-      `La {move:Course} (touche C) : jusqu'à {move:3 cases} tout de suite, sans attendre son tour. Elle coûte le {time:temps} du trajet et termine le tour.\n\nFaites courir {ally:${name(t)}} jusqu'à {ally:${partner(t)?.name ?? "son allié"}} : choisissez la Course, puis sa case.`,
+      `Le {move:Dash} (touche C) : jusqu'à {move:3 cases} de terrain plat tout de suite, sans attendre son tour. Elle coûte le {time:temps} du trajet et termine le tour.\n\nFaites courir {ally:${name(t)}} jusqu'à {ally:${partner(t)?.name ?? "son allié"}} : choisissez le Dash, puis sa case.`,
   },
   {
     id: "camera",
