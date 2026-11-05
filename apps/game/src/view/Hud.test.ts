@@ -388,6 +388,36 @@ describe("timeline: real durations", () => {
     hud.toggleTimeline()
   })
 
+  test("a fighter pointed at: the rest of the timeline fades to half", () => {
+    const { hud, c, timeline, slots } = setup()
+    const [eva, merlin] = c.fighters
+    eva.position = { x: 0, y: 0 }
+    eva.path = [{ x: 1, y: 0 }]
+    eva.nextMoveAt = c.time + 20
+    hud.toggleTimeline()
+    tick(hud, 600)
+    hud.setTimeline(c)
+    const step = () => timeline.children.find((m) => m.label === "step")!
+    const alphas = () =>
+      slots()
+        .filter((s) => s.label !== "step")
+        .map((s) => s.alpha)
+    expect(alphas().every((a) => a === 1)).toBe(true)
+    hud.setFocus(merlin)
+    // merlin's portrait stays, eva's and gorr's (and eva's step) fade
+    expect(alphas().filter((a) => a === 1)).toHaveLength(1)
+    expect(alphas().filter((a) => a === 0.5)).toHaveLength(2)
+    expect(step().alpha).toBeCloseTo(0.5)
+    hud.setFocus(eva)
+    expect(step().alpha).toBe(1)
+    // redrawn: still faded
+    hud.setTimeline(c)
+    expect(alphas().filter((a) => a === 0.5)).toHaveLength(2)
+    hud.setFocus(null)
+    expect(alphas().every((a) => a === 1)).toBe(true)
+    hud.toggleTimeline()
+  })
+
   test("a click keeps the expanded view, another one collapses it", () => {
     const { hud, timeline } = setup()
     const lock = () => timeline.children.find((c) => c.label === "lock")

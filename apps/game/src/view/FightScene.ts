@@ -1720,6 +1720,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
     this._hud.setPreview(this.movePreview())
     this._hud.setLanding(this.landingPreview())
     const fighter = this._hovered ? this._fighterAt(this._hovered) : null
+    this._hud.setFocus(fighter)
     if (fighter) {
       const statuses = fighter.statuses.map((s) =>
         describeStatus(s.id, s.turns, s.value),

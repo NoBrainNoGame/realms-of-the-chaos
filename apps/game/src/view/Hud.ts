@@ -62,6 +62,8 @@ const TIMELINE_KEY = "realms.timeline.expanded"
 /** Duration of the timeline expanding or collapsing (ms). */
 const TIMELINE_ANIMATION = 500
 
+/** The timeline's nodes not about the pointed fighter: this opaque. */
+const TIMELINE_FADE = 0.5
 /** Timeline steps: piles shown before the (+). */
 const MAX_STEP_PILES = 5
 
@@ -74,6 +76,11 @@ export default class Hud extends ViewChip<HudEvents> {
   private _expansion = 0
   private _expansionTween: booyah.Tween | null = null
   private _landing: { fighter: Fighter; delay: number } | null = null
+  /** The fighter pointed at, on the board or on the timeline. */
+  private _boardFocus: Fighter | null = null
+  private _timelineFocus: Fighter | null = null
+  /** The timeline's nodes and the fighters they are about. */
+  private _owned: { node: Container; fighters: Fighter[]; alpha: number }[] = []
   private _actionBar!: Container
   /** Glows of the buttons suggested now. */
   private _halos: Graphics[] = []
@@ -110,6 +117,7 @@ export default class Hud extends ViewChip<HudEvents> {
     })
     this._timeline.on("pointerleave", () => {
       this._timelineHovered = false
+      this._timelineFocus = null
       this._syncExpansion()
     })
     this._timeline.on("pointertap", () => {
@@ -364,6 +372,32 @@ export default class Hud extends ViewChip<HudEvents> {
    * hovered (an action, a sprint, a pass): a ghost portrait at that wait.
    * null removes it.
    */
+  /**
+   * The fighter pointed at on the board: on the timeline, what is not
+   * about it fades to half.
+   */
+  setFocus(fighter: Fighter | null) {
+    if (fighter === this._boardFocus) return
+    this._boardFocus = fighter
+    this._applyFocus()
+  }
+
+  /** The fighter the timeline is focused on (tests). */
+  get timelineFocus() {
+    return this._timelineFocus ?? this._boardFocus
+  }
+
+  private _own(node: Container, fighters: Fighter[]) {
+    this._owned.push({ node, fighters, alpha: node.alpha })
+  }
+
+  private _applyFocus() {
+    const focus = this.timelineFocus
+    for (const { node, fighters, alpha } of this._owned)
+      node.alpha =
+        focus && !fighters.includes(focus) ? alpha * TIMELINE_FADE : alpha
+  }
+
   setLanding(landing: { fighter: Fighter; delay: number } | null) {
     const same =
       landing?.fighter === this._landing?.fighter &&
@@ -427,6 +461,7 @@ export default class Hud extends ViewChip<HudEvents> {
     const combat = this._timelineCombat
     if (!combat) return
     clearChildren(this._timeline)
+    this._owned = []
     const t = this._expansion
     const size = 44
     const gap = 6
@@ -609,21 +644,29 @@ export default class Hud extends ViewChip<HudEvents> {
       label.position.set(size - 3, size - 1)
       slot.addChild(label)
 
+      this._own(slot, [fighter])
       if (ghost) {
         slot.label = "landing"
         this._timeline.addChild(slot)
         return
       }
       slot.eventMode = "static"
-      slot.on("pointerover", () =>
+      slot.on("pointerover", () => {
         this.showTooltip(
           `${fighter.name} — prochain tour dans ${tag("time", `${wait} temps`)}`,
           slot.getGlobalPosition(),
-        ),
-      )
-      slot.on("pointerout", () => this.hideTooltip())
+        )
+        this._timelineFocus = fighter
+        this._applyFocus()
+      })
+      slot.on("pointerout", () => {
+        this.hideTooltip()
+        this._timelineFocus = null
+        this._applyFocus()
+      })
       this._timeline.addChild(slot)
     })
+    this._applyFocus()
     this._timeline.hitArea = new Rectangle(0, 0, width, height)
     this._layout()
   }
@@ -731,6 +774,7 @@ export default class Hud extends ViewChip<HudEvents> {
         ),
       )
       marker.on("pointerout", () => this.hideTooltip())
+      this._own(marker, [fighter])
       this._timeline.addChild(marker)
     }
     if (later.length > 0) {
@@ -757,6 +801,10 @@ export default class Hud extends ViewChip<HudEvents> {
         ),
       )
       more.on("pointerout", () => this.hideTooltip())
+      this._own(
+        more,
+        later.map((s) => s.fighter),
+      )
       this._timeline.addChild(more)
     }
   }
