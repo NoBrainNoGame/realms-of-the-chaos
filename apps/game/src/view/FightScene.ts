@@ -1771,7 +1771,20 @@ export default class FightScene extends ViewChip<SceneEvents> {
     const choice =
       this._hoverChoice ??
       (this._mode.type === "action" ? this._mode.action.id : null)
-    if (!choice) return null
+    if (!choice) {
+      // a walk aimed at: it takes no turn time (its steps run on the
+      // timeline), the turn then ends with Avancer
+      const hovered = this._hovered
+      if (
+        this._mode.type !== "move" ||
+        !hovered ||
+        equals(hovered, fighter.position) ||
+        !this.combat.planWalk(fighter, hovered, fighter.waypoints.length > 0)
+          ?.length
+      )
+        return null
+      return { fighter, delay: this.combat.passDelay(fighter) }
+    }
     if (choice === "pass")
       return { fighter, delay: this.combat.passDelay(fighter) }
     const action = this.combat.actionsOf(fighter).find((a) => a.id === choice)

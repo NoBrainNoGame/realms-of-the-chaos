@@ -334,6 +334,27 @@ describe("walk previews", () => {
     ).toBe(false)
   })
 
+  test("a walk aimed at shows the next turn too: Avancer's", () => {
+    const s = scene({ seed: 8, spectate: false })
+    const internals = s as any
+    runUntil(s, () => internals._inputReady)
+    const me = s.combat.activeFighter!
+    const target = s.combat
+      .getReachableCells(me)
+      .find((c) => manhattan(c, me.position) === 2)
+    internals._hovered = target
+    internals._onHover()
+    expect(s.landingPreview()).toEqual({
+      fighter: me,
+      delay: s.combat.passDelay(me),
+    })
+    // its own cell, or nothing hovered: no landing
+    internals._hovered = me.position
+    expect(s.landingPreview()).toBeNull()
+    internals._hovered = null
+    expect(s.landingPreview()).toBeNull()
+  })
+
   test("the arrow goes on, half seen; the planned one's head becomes a joint", () => {
     const s = scene({ seed: 8, spectate: false })
     const internals = s as any
