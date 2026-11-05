@@ -552,7 +552,9 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     column.addChild(parts.overlay)
 
     const surface = this.cellTop(cell)
-    parts.hit.hitArea = new Polygon(diamond())
+    // the top face and the top block's sides: pointing at them is
+    // pointing at the cell (the blocks under it are not)
+    parts.hit.hitArea = new Polygon(withSides(diamond(), levelHeight()))
     parts.hit.position.set(surface.x, surface.y)
     parts.hit.zIndex = depthAlong(cell)
   }
@@ -1110,4 +1112,41 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     container.addChild(blocks)
     return container
   }
+}
+
+/**
+ * A top face (flat x, y list) stretched down by `depth`: the outline of
+ * the face and of the sides under it, as a convex polygon.
+ */
+export function withSides(face: number[], depth: number): number[] {
+  const points: { x: number; y: number }[] = []
+  for (let i = 0; i < face.length; i += 2)
+    points.push(
+      { x: face[i], y: face[i + 1] },
+      { x: face[i], y: face[i + 1] + depth },
+    )
+  // convex hull (monotone chain)
+  points.sort((a, b) => a.x - b.x || a.y - b.y)
+  const cross = (
+    o: { x: number; y: number },
+    a: { x: number; y: number },
+    b: { x: number; y: number },
+  ) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x)
+  const half = (list: { x: number; y: number }[]) => {
+    const out: { x: number; y: number }[] = []
+    for (const p of list) {
+      while (
+        out.length >= 2 &&
+        cross(out[out.length - 2], out[out.length - 1], p) <= 0
+      )
+        out.pop()
+      out.push(p)
+    }
+    out.pop()
+    return out
+  }
+  return [...half(points), ...half([...points].reverse())].flatMap((p) => [
+    p.x,
+    p.y,
+  ])
 }

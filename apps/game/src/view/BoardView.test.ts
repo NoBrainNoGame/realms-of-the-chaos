@@ -7,6 +7,7 @@ import BoardView, {
   DEPTH,
   depthOf,
   waveOffset,
+  withSides,
 } from "./BoardView"
 import FighterView, { WATER_DEPTH } from "./FighterView"
 import { stackOffset, waterState } from "./FightScene"
@@ -287,5 +288,20 @@ describe("fighters on the board", () => {
     runToEnd(view.dieChip(300))
     tick(view, 32)
     expect(view.container.alpha).toBeLessThan(0.05)
+  })
+})
+
+describe("withSides", () => {
+  test("the top face and one block of sides under it, no more", () => {
+    // a diamond: top, right, bottom, left
+    const face = [0, -10, 20, 0, 0, 10, -20, 0]
+    const hull = withSides(face, 12)
+    expect(hull).toHaveLength(12)
+    const ys = hull.filter((_, i) => i % 2 === 1)
+    expect(Math.min(...ys)).toBe(-10)
+    expect(Math.max(...ys)).toBe(22)
+    const xs = hull.filter((_, i) => i % 2 === 0)
+    expect(Math.min(...xs)).toBe(-20)
+    expect(Math.max(...xs)).toBe(20)
   })
 })
