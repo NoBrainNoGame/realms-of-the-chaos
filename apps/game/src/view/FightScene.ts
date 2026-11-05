@@ -638,8 +638,8 @@ export default class FightScene extends ViewChip<SceneEvents> {
     drag.moved = true
     if (drag.kind === "pan") {
       this._zoom.target = this._zoom.value
+      // free while held: past the limit, it eases back once let go
       this._pan = { x: drag.pan.x + dx, y: drag.pan.y + dy }
-      this._clampPan()
       return
     }
     // dragging down looks from higher, sideways turns the board a little
@@ -839,6 +839,19 @@ export default class FightScene extends ViewChip<SceneEvents> {
     this._clampPan()
   }
 
+  /** Let go past the limit: the board eases back to it. */
+  private _settlePan(dt: number) {
+    if (this._drag?.kind === "pan" && this._drag.moved) return
+    const free = { ...this._pan }
+    this._clampPan()
+    const limit = { ...this._pan }
+    const k = 1 - Math.exp(-dt / 90)
+    for (const key of ["x", "y"] as const) {
+      const gap = free[key] - limit[key]
+      this._pan[key] = Math.abs(gap) < 0.5 ? limit[key] : free[key] - gap * k
+    }
+  }
+
   /** The board can't leave the screen (more slack the further the zoom). */
   private _clampPan() {
     const extra = this._zoom.value - 1
@@ -922,6 +935,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
     }
     this._updateCamera(this._lastTickInfo.timeSinceLastTick)
     this._updateZoom(this._lastTickInfo.timeSinceLastTick)
+    this._settlePan(this._lastTickInfo.timeSinceLastTick)
     if (this._turn?.follow) this._keepInMiddle(this._turn.follow)
     this._placeWorld(dx, dy)
   }

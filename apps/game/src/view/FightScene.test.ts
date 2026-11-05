@@ -274,6 +274,35 @@ describe("no misclick", () => {
   })
 })
 
+describe("camera pan", () => {
+  test("free past the limit while held, eased back once let go", () => {
+    const s = scene({ seed: 8, spectate: false })
+    const internals = s as any
+    runUntil(s, () => internals._inputReady)
+    internals._zoom.target = internals._zoom.value = 2
+    internals._hovered = s.combat.activeFighter!.position
+    const at = (x: number, y: number, button = 2) =>
+      ({ clientX: x, clientY: y, button }) as PointerEvent
+    internals._onPointerDown(at(500, 300))
+    internals._onPointerMove(at(5500, 300))
+    s.tick({ timeSinceLastTick: 16 })
+    const held = internals._pan.x
+    // held: not stopped at the limit
+    internals._clampPan()
+    const limit = internals._pan.x
+    internals._pan.x = held
+    expect(held).toBeGreaterThan(limit + 1000)
+    internals._onPointerUp(at(5500, 300))
+    s.tick({ timeSinceLastTick: 16 })
+    const easing = internals._pan.x
+    // let go: on its way back, not snapped
+    expect(easing).toBeLessThan(held)
+    expect(easing).toBeGreaterThan(limit)
+    runUntil(s, () => false, 2000)
+    expect(internals._pan.x).toBeCloseTo(limit, 0)
+  })
+})
+
 describe("walk previews", () => {
   test("the walk aimed at: its steps half seen on the timeline", () => {
     const s = scene({ seed: 8, spectate: false })
