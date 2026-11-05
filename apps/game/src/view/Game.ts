@@ -43,6 +43,7 @@ export function initialScreen(params: Params): Screen {
             enemyTeam: params.enemyTeam,
           }),
           quittable: true,
+          placement: true,
         },
       }
     default:
@@ -62,6 +63,7 @@ export function pickedFight(result: PickerResult, speed: number): SceneOptions {
       seed: result.seed,
       speed,
       quittable: true,
+      placement: true,
       endActions: ends,
       teams: [
         {
@@ -81,6 +83,7 @@ export function pickedFight(result: PickerResult, speed: number): SceneOptions {
     seed: result.seed,
     speed,
     quittable: true,
+    placement: true,
     endActions: ends,
     teams: [
       { name: "Vous", controller: "local", fighters: result.teams[0] },

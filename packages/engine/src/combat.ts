@@ -162,6 +162,11 @@ export class Combat {
   private _log: Command[] = []
   private _presets = new Map<string, CharacterPreset>()
   private _regions = new Map<Locomotion, Set<string>>()
+  /** Placement draws, apart from the fight's: a line-up never changes it. */
+  private _spawnRng: Rng
+  /** Each team's starting cells: what `arrange` chooses from. */
+  private _slots: Point[][] = []
+  private _begun = false
 
   constructor(options: CombatOptions) {
     if (options.teams.length < 2 || options.teams.length > 4) {
@@ -178,6 +183,12 @@ export class Combat {
       energyProgress: 0,
     }))
 
+    this._spawnRng = createRng(
+      (options.seed ?? this.rng.int(0, 2 ** 31 - 1)) + 7919,
+    )
+    const lineUp = this._lineUp(options)
+    this._slots = lineUp ?? []
+
     options.teams.forEach((setup, team) => {
       setup.fighters.forEach((entry, i) => {
         const preset = typeof entry === "string" ? CHARACTERS[entry] : entry
@@ -190,7 +201,9 @@ export class Combat {
         ).length
 
         const position =
-          options.positions?.[team]?.[i] ?? this._randomSpawn(team)
+          options.positions?.[team]?.[i] ??
+          lineUp?.[team][i] ??
+          this._randomSpawn(team)
 
         this.fighters.push({
           id: `${presetId}-${team}-${i}`,
@@ -638,6 +651,7 @@ export class Combat {
    */
   advance(): FightEvent[] {
     if (this._state !== "running") return []
+    this._begun = true
 
     const next = this._nextEvent()
     if (!next) {
@@ -1481,6 +1495,78 @@ export class Combat {
 
   // ─── Placement ────────────────────────────────────────────────────────────
 
+  /**
+   * Two teams face each other: the second at the back of the island (the
+   * cells nearest to the 0,0 corner, the top of the screen), on random
+   * cells; the first on their mirror cells, the same terrain by the
+   * island's symmetry. Every cell takes any fighter (no deep water, the
+   * main walkable area). Both teams get as many cells as the larger one.
+   */
+  private _lineUp(options: CombatOptions): Point[][] | null {
+    if (options.teams.length !== 2) return null
+    const { width, height } = this.board
+    const mirror = (p: Point) => ({
+      x: width - 1 - p.x,
+      y: height - 1 - p.y,
+    })
+    const region = this.walkableRegion
+    const taken = new Set((options.positions ?? []).flat().map(keyOf))
+    const free = (p: Point) => region.has(keyOf(p)) && !taken.has(keyOf(p))
+    const depth = width + height - 2
+    const back = this.board.cells.filter(
+      (c) => c.x + c.y < depth / 2 && free(c) && free(mirror(c)),
+    )
+    const count = Math.max(...options.teams.map((t) => t.fighters.length))
+    // the farthest back that leaves some choice
+    const pool =
+      [0.3, 0.35, 0.4, 0.45]
+        .map((k) => back.filter((c) => c.x + c.y <= depth * k))
+        .find((cells) => cells.length >= count * 2) ?? back
+    const left = pool.map((c) => ({ x: c.x, y: c.y }))
+    const enemy: Point[] = []
+    while (enemy.length < count && left.length > 0)
+      enemy.push(left.splice(this._spawnRng.int(0, left.length - 1), 1)[0])
+    if (enemy.length < count) return null
+    return [enemy.map(mirror), enemy]
+  }
+
+  /** Cells a team may start on (empty when the fight has no line-up). */
+  slotsOf(team: number): readonly Point[] {
+    return this._slots[team] ?? []
+  }
+
+  /** The fight has not started yet: a team may still be arranged. */
+  get begun() {
+    return this._begun
+  }
+
+  /** Every fighter's cell, by team: the `positions` to replay this line-up. */
+  get positions(): Point[][] {
+    return this.teams.map((t) =>
+      this.fighters
+        .filter((f) => f.team === t.index)
+        .map((f) => ({ ...f.position })),
+    )
+  }
+
+  /**
+   * Before the fight starts, puts a team's fighters (in their order) on
+   * these cells, chosen among the team's slots, one each.
+   */
+  arrange(team: number, cells: readonly Point[]): string | null {
+    if (this._begun) return "Le combat a déjà commencé"
+    const fighters = this.fighters.filter((f) => f.team === team)
+    const slots = new Set(this.slotsOf(team).map(keyOf))
+    const keys = cells.map(keyOf)
+    if (cells.length !== fighters.length) return "Une case par personnage"
+    if (new Set(keys).size !== keys.length) return "Une case chacun"
+    if (keys.some((k) => !slots.has(k))) return "Hors des cases de départ"
+    fighters.forEach((f, i) => {
+      f.position = { x: cells[i].x, y: cells[i].y }
+    })
+    return null
+  }
+
   /** Random spawn on the team's side, at least 4 cells away from enemies. */
   private _randomSpawn(team: number): Point {
     const { width, height } = this.board
@@ -1519,7 +1605,7 @@ export class Combat {
     ].find((list) => list.length > 0)
 
     if (!candidates) throw new Error("No room left on the board")
-    const cell = this.rng.pick(candidates)
+    const cell = this._spawnRng.pick(candidates)
     return { x: cell.x, y: cell.y }
   }
 

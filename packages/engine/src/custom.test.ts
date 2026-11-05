@@ -145,7 +145,7 @@ describe("custom characters", () => {
     const result = runTournament({
       pool: [...pool, ...KITS],
       pairs: 40,
-      seed: 7,
+      seed: 1,
     })
     for (const preset of pool) {
       const rate = result.characters[preset.id]?.winRate

@@ -334,6 +334,57 @@ describe("walk previews", () => {
     ).toBe(false)
   })
 
+  test("line-up: the fight waits, the team goes on the foes' mirror cells", () => {
+    const s = mount(
+      new FightScene({
+        ...classicFight({ ...OPTIONS, spectate: false }),
+        placement: true,
+      }),
+    )
+    const internals = s as any
+    expect(s.placing).toBe(true)
+    runUntil(s, () => false, 3000)
+    expect(s.combat.time).toBe(0)
+    expect(internals._inputReady).toBe(false)
+    // the start cells are lit
+    let lit: Highlight[] = []
+    internals._board.setHighlights = (h: Highlight[]) => {
+      lit = h
+    }
+    internals._refreshOverlay()
+    const slots = s.combat.slotsOf(0)
+    expect(lit[0].cells).toEqual([...slots])
+
+    // pick one of the team, then another start cell: they swap
+    const [a, b] = s.combat.fighters.filter((f) => f.team === 0)
+    const from = { ...a.position }
+    const to = { ...b.position }
+    internals._onCellDown(from, 0)
+    expect(internals._placing.selected).toBe(a)
+    internals._onCellDown(to, 0)
+    expect(a.position).toEqual(to)
+    expect(b.position).toEqual(from)
+    expect(internals._cells.get(a.id)).toEqual(to)
+    // a cell out of the line-up: nothing moves
+    internals._onCellDown(a.position, 0)
+    internals._onCellDown({ x: 8, y: 8 }, 0)
+    expect(a.position).toEqual(to)
+
+    // Entrée: the fight starts
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }))
+    expect(s.placing).toBe(false)
+    runUntil(s, () => s.combat.time > 0 || internals._inputReady)
+    expect(s.combat.time > 0 || internals._inputReady).toBe(true)
+  })
+
+  test("no line-up without the option (the tutorial), or spectating", () => {
+    expect(scene({ spectate: false }).placing).toBe(false)
+    const spectating = mount(
+      new FightScene({ ...classicFight(OPTIONS), placement: true }),
+    )
+    expect(spectating.placing).toBe(false)
+  })
+
   test("a walk aimed at shows the next turn too: Avancer's", () => {
     const s = scene({ seed: 8, spectate: false })
     const internals = s as any

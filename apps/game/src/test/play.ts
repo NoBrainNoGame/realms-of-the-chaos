@@ -20,6 +20,8 @@ export function tickUntil(
 export function playLocally(scene: FightScene, maxTurns = 3000) {
   const internals = scene as any
   const over = () => scene.combat.state === "ended"
+  // the line-up as it comes
+  scene.startFight()
   for (let turn = 0; turn < maxTurns && !over(); turn++) {
     tickUntil(scene, () => internals._inputReady || over())
     if (over()) break

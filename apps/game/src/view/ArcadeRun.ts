@@ -37,6 +37,7 @@ export function waveScene(
     seed: options.seed!,
     speed,
     quittable: true,
+    placement: true,
     endActions: [{ id: "continue", label: "Continuer" }],
     teams: options.teams.map((team) => ({
       name: team.name ?? "",

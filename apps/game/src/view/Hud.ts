@@ -38,6 +38,8 @@ export { describeAction }
 interface HudEvents extends booyah.BaseCompositeEvents {
   action: [actionId: string]
   pass: []
+  /** The line-up is done: the fight starts. */
+  fight: []
   /** Cancel the planned walk of the active fighter. */
   cancelWalk: []
   /** An action (or pass, or nothing) is hovered in the action bar. */
@@ -94,6 +96,8 @@ export default class Hud extends ViewChip<HudEvents> {
   private _tooltip!: Container
   private _tooltipText!: Container
   private _banner!: Text
+  /** The line-up panel, before the fight (null: no line-up). */
+  private _placement: Container | null = null
   private _bannerTime = 0
   private _end!: Container
   private _speed!: Text
@@ -284,6 +288,10 @@ export default class Hud extends ViewChip<HudEvents> {
     if (this._quit.visible) right -= this._quit.width + 20
     this._settings.position.set(right, 10)
     this._banner.position.set(w / 2, h * 0.3)
+    this._placement?.position.set(
+      Math.round(w / 2 - this._placement.width / 2),
+      h - 110,
+    )
     if (this._end.visible) this._centerEnd()
   }
 
@@ -1163,6 +1171,46 @@ export default class Hud extends ViewChip<HudEvents> {
 
   hideTooltip() {
     this._tooltip.visible = false
+  }
+
+  /**
+   * Before the fight: how to place the team, and the button that starts
+   * the fight (false removes it).
+   */
+  setPlacement(on: boolean) {
+    if (this._placement) {
+      this._placement.destroy({ children: true })
+      this._placement = null
+    }
+    if (on) {
+      const box = new Container()
+      box.label = "placement"
+      const hint = text(
+        "Placez votre équipe : un personnage, puis une case bleue",
+        14,
+        COLORS.text,
+      )
+      const go = button({
+        width: 190,
+        height: 40,
+        label: "Combattre (Entrée)",
+        onTap: () => this.emit("fight"),
+      })
+      go.view.label = "fight"
+      const width = Math.max(hint.width, 190) + 32
+      box.addChild(panel(width, 96))
+      hint.position.set(Math.round((width - hint.width) / 2), 12)
+      go.view.position.set(Math.round((width - 190) / 2), 44)
+      box.addChild(hint, go.view)
+      this._placement = box
+      this._container.addChild(box)
+    }
+    this._actionBar.visible = !on
+    if (this._width) this._layout()
+  }
+
+  get placing() {
+    return this._placement !== null
   }
 
   banner(message: string, color = COLORS.text) {

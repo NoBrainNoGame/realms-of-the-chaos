@@ -102,6 +102,11 @@ export interface SceneOptions {
   board?: string[]
   /** Start cells per team (random spawns otherwise). */
   positions?: Point[][]
+  /**
+   * Before the fight, the first team (if local) is placed by the player
+   * on the mirror cells of the foes' (not in the tutorial).
+   */
+  placement?: boolean
 }
 
 /** A classic fight: your team (or the AI's if spectating) against the AI. */
@@ -224,6 +229,8 @@ export default class FightScene extends ViewChip<SceneEvents> {
   /** Action (or "pass") hovered in the action bar. */
   private _hoverChoice: string | null = null
   private _hovered: Point | null = null
+  /** The line-up, before the fight: the fighter picked to be moved. */
+  private _placing: { selected: Fighter | null } | null = null
   private _speed: number
   private _lastActive: Fighter | null = null
   private _endShown = false
@@ -372,21 +379,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
       isWater: (p) => this.combat.board.get(p)?.terrain === "water",
     }
 
-    // everyone starts facing the closest enemy
-    for (const fighter of this.combat.fighters) {
-      const enemies = this.combat.fighters.filter(
-        (o) => o.team !== fighter.team,
-      )
-      const closest = enemies.reduce((a, b) =>
-        manhattan(a.position, fighter.position) <=
-        manhattan(b.position, fighter.position)
-          ? a
-          : b,
-      )
-      this._views
-        .get(fighter.id)!
-        .setFacing(facingBetween(fighter.position, closest.position))
-    }
+    this._faceEnemies()
 
     this._hud = new Hud()
     this._activateChildChip(this._hud)
@@ -428,6 +421,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
     this._subscribe(this._hud, "settings", () => this.openSettings())
     this._hud.setQuittable(!!this._options.quittable)
     this._subscribe(this._hud, "speed", () => this._toggleSpeed())
+    this._subscribe(this._hud, "fight", () => this.startFight())
     this._subscribe(window, "keydown", (e: KeyboardEvent) => this._onKey(e))
     window.addEventListener("wheel", this._wheel, { passive: false })
     this._subscribe(window, "pointerdown", (e: PointerEvent) =>
@@ -439,6 +433,77 @@ export default class FightScene extends ViewChip<SceneEvents> {
     this._subscribe(window, "pointerup", (e: PointerEvent) =>
       this._onPointerUp(e),
     )
+
+    if (
+      this._options.placement &&
+      !this._options.positions &&
+      this.localTeams.includes(0) &&
+      this.combat.slotsOf(0).length > 0
+    ) {
+      this._placing = { selected: null }
+      this._hud.setPlacement(true)
+      this._refreshOverlay()
+    }
+  }
+
+  // ─── Line-up ──────────────────────────────────────────────────────────────
+
+  /** The player is placing the team, the fight has not started. */
+  get placing() {
+    return this._placing !== null
+  }
+
+  /** Ends the line-up: the fight starts. */
+  startFight() {
+    if (!this._placing) return
+    this._placing = null
+    this._hud.setPlacement(false)
+    this._refreshOverlay()
+  }
+
+  /**
+   * Line-up click: on one of the team, picks it (again: drops it); on a
+   * start cell with a fighter picked, puts it there (swapping with the
+   * one already there).
+   */
+  private _placeAt(p: Point) {
+    const placing = this._placing!
+    const team = this.combat.fighters.filter((f) => f.team === 0)
+    const there = team.find((f) => equals(f.position, p)) ?? null
+    const selected = placing.selected
+    const isSlot = this.combat.slotsOf(0).some((c) => equals(c, p))
+    if (selected && isSlot && there !== selected) {
+      const cells = team.map((f) =>
+        f === selected ? p : f === there ? selected.position : f.position,
+      )
+      if (this.combat.arrange(0, cells) === null) {
+        for (const f of team) this._cells.set(f.id, f.position)
+        this._settleAll()
+        this._faceEnemies()
+      }
+      placing.selected = null
+    } else {
+      placing.selected = there && there !== selected ? there : null
+    }
+    this._refreshOverlay()
+  }
+
+  /** Everyone faces the closest enemy (at the start). */
+  private _faceEnemies() {
+    for (const fighter of this.combat.fighters) {
+      const enemies = this.combat.fighters.filter(
+        (o) => o.team !== fighter.team,
+      )
+      const closest = enemies.reduce((a, b) =>
+        manhattan(a.position, fighter.position) <=
+        manhattan(b.position, fighter.position)
+          ? a
+          : b,
+      )
+      this._views
+        .get(fighter.id)!
+        .setFacing(facingBetween(fighter.position, closest.position))
+    }
   }
 
   private readonly _wheel = (e: WheelEvent) => this._onWheel(e)
@@ -942,8 +1007,8 @@ export default class FightScene extends ViewChip<SceneEvents> {
 
   protected _onTick() {
     this._updateJuice()
-    // the settings are open: the fight waits
-    if (this._playing || this._settings) return
+    // the settings are open, or the line-up: the fight waits
+    if (this._playing || this._settings || this._placing) return
 
     if (this._pending) {
       const pending = this._pending
@@ -1650,6 +1715,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
     if (this._settings) return
     // the right button cancels on release, unless it dragged the camera
     if (button === 2) return
+    if (this._placing) return this._placeAt(p)
     if (!this.allows({ type: "cell", at: p })) return
     const fighter = this._activeHuman
     if (!fighter) return
@@ -1701,6 +1767,10 @@ export default class FightScene extends ViewChip<SceneEvents> {
     if (e.key === "q" || e.key === "Q") return this.turnCamera(-1)
     if (e.key === "e" || e.key === "E") return this.turnCamera(1)
     if (e.key === "v" || e.key === "V") return this.resetView()
+    if (this._placing && (e.key === " " || e.key === "Enter")) {
+      e.preventDefault()
+      return this.startFight()
+    }
     const fighter = this._activeHuman
     if (!fighter) return
     if (e.key === " " || e.key === "Enter") {
@@ -1905,6 +1975,24 @@ export default class FightScene extends ViewChip<SceneEvents> {
 
   private _refreshOverlay() {
     const highlights: Highlight[] = []
+    if (this._placing) {
+      const selected = this._placing.selected
+      highlights.push({
+        cells: [...this.combat.slotsOf(0)],
+        color: TEAM_COLORS[0],
+        alpha: 0.55,
+        outline: true,
+      })
+      if (selected)
+        highlights.push({
+          cells: [selected.position],
+          color: 0xffffff,
+          alpha: 0.45,
+          outline: true,
+        })
+      this._board.setHighlights(highlights)
+      return
+    }
     const fighter = this._activeHuman
     const hovered = this._hovered
 
