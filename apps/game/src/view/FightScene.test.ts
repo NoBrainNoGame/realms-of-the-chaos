@@ -370,6 +370,27 @@ describe("walk previews", () => {
     internals._onCellDown({ x: 8, y: 8 }, 0)
     expect(a.position).toEqual(to)
 
+    // drag and drop: held, it follows the cells; let go on a start cell
+    const c = s.combat.fighters.filter((f) => f.team === 0)[2]
+    const start = { ...c.position }
+    const target = { ...b.position }
+    internals._onCellDown(start, 0)
+    internals._hovered = target
+    internals._onHover()
+    const top = internals._board.cellTop(target)
+    expect(internals._views.get(c.id).container.y).toBeCloseTo(top.y - 14)
+    internals._onPointerUp({ button: 0 })
+    expect(c.position).toEqual(target)
+    expect(b.position).toEqual(start)
+    expect(internals._placing.selected).toBeNull()
+    // let go off the start cells: back home
+    internals._onCellDown(c.position, 0)
+    internals._hovered = { x: 0, y: 0 }
+    internals._onHover()
+    internals._onPointerUp({ button: 0 })
+    expect(c.position).toEqual(target)
+    expect(internals._cells.get(c.id)).toEqual(target)
+
     // Entrée: the fight starts
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }))
     expect(s.placing).toBe(false)

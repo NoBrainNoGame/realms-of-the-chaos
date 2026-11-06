@@ -231,6 +231,13 @@ export default class FightScene extends ViewChip<SceneEvents> {
   private _hovered: Point | null = null
   /** The line-up, before the fight: the fighter picked to be moved. */
   private _placing: { selected: Fighter | null } | null = null
+  /** The line-up: a fighter held by the pointer, following the cells. */
+  private _carry: {
+    fighter: Fighter
+    from: Point
+    moved: boolean
+    wasSelected: boolean
+  } | null = null
   private _speed: number
   private _lastActive: Fighter | null = null
   private _endShown = false
@@ -456,6 +463,8 @@ export default class FightScene extends ViewChip<SceneEvents> {
   /** Ends the line-up: the fight starts. */
   startFight() {
     if (!this._placing) return
+    this._carry = null
+    this._settleAll()
     this._placing = null
     this._hud.setPlacement(false)
     this._refreshOverlay()
@@ -485,6 +494,54 @@ export default class FightScene extends ViewChip<SceneEvents> {
     } else {
       placing.selected = there && there !== selected ? there : null
     }
+    this._refreshOverlay()
+  }
+
+  /**
+   * Line-up press: one of the team is held (dragged to a start cell, or
+   * clicked); with another one picked, a click puts that one here.
+   */
+  private _pickUp(p: Point, button: number) {
+    const placing = this._placing!
+    const there = this.combat.fighters.find(
+      (f) => f.team === 0 && equals(f.position, p),
+    )
+    const selected = placing.selected
+    if (button !== 0 || !there || (selected && selected !== there))
+      return this._placeAt(p)
+    this._carry = {
+      fighter: there,
+      from: { ...p },
+      moved: false,
+      wasSelected: selected === there,
+    }
+    placing.selected = there
+    this._refreshOverlay()
+  }
+
+  /** The held fighter follows the cell pointed at, lifted a little. */
+  private _carryTo(p: Point | null) {
+    const carry = this._carry
+    if (!carry || !p) return
+    if (!equals(p, carry.from)) carry.moved = true
+    const view = this._views.get(carry.fighter.id)!
+    const { x, y } = this._board.cellTop(p)
+    view.container.position.set(x, y - 14)
+    view.container.zIndex = this._depth(carry.fighter.id, p) + 1
+  }
+
+  /** Let go: on a start cell, the held fighter goes there (or swaps). */
+  private _drop() {
+    const carry = this._carry!
+    const placing = this._placing!
+    this._carry = null
+    const at = this._hovered
+    if (carry.moved && at && !equals(at, carry.from)) {
+      placing.selected = carry.fighter
+      this._placeAt(at)
+      placing.selected = null
+    } else if (carry.wasSelected) placing.selected = null
+    this._settleAll()
     this._refreshOverlay()
   }
 
@@ -712,6 +769,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
   }
 
   private _onPointerUp(e: PointerEvent) {
+    if (this._carry && e.button === 0) return this._drop()
     const drag = this._drag
     if (!drag || e.button !== drag.button) return
     this._drag = null
@@ -1715,7 +1773,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
     if (this._settings) return
     // the right button cancels on release, unless it dragged the camera
     if (button === 2) return
-    if (this._placing) return this._placeAt(p)
+    if (this._placing) return this._pickUp(p, button)
     if (!this.allows({ type: "cell", at: p })) return
     const fighter = this._activeHuman
     if (!fighter) return
@@ -1799,6 +1857,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
   }
 
   private _onHover() {
+    if (this._carry) this._carryTo(this._hovered)
     this._refreshOverlay()
     this._refreshCard()
     // the cost of a move goes to the HUD, out of the way of the board
