@@ -50,8 +50,20 @@ export interface ScriptStep {
   from?: number
   to?: number
   every?: number
+  /** The step only applies while this holds (a pylône still beating...). */
+  while?: ScriptCond
   act: ScriptAct
 }
+
+/** A condition on the state of the fight, read at the turn of a script. */
+export type ScriptCond =
+  /** The crystals `ids` are all (or, with `any`, one of them is) in a state. */
+  | { crystals: string[]; is: string[]; any?: boolean }
+  /** The fighter at `index` of `team` stands within `within` of `of`. */
+  | { near: { team: number; index: number; of: Point; within: number } }
+  | { anyOf: ScriptCond[] }
+  | { allOf: ScriptCond[] }
+  | { not: ScriptCond }
 
 /** The fighter at `index` of `team` plays this script instead of the AI. */
 export interface ScriptRule {
@@ -61,12 +73,21 @@ export interface ScriptRule {
 }
 
 /** A scripted event of the environment, at a clock tick. */
-export interface ScriptedEvent {
-  tick: number
-  kind: "earthquake"
-  /** The cells hit (a Séisme: low cells rise, high ones collapse). */
-  at: Point[]
-}
+export type ScriptedEvent =
+  | {
+      tick: number
+      kind: "earthquake"
+      /** The cells hit (a Séisme: low cells rise, high ones collapse). */
+      at: Point[]
+    }
+  | {
+      tick: number
+      /** Cells set to a given level, fighters or not (a mine settling). */
+      kind: "reshape"
+      cells: { x: number; y: number; level: number }[]
+      /** Hurts a fighter whose cell moves by 2 levels or more. */
+      damage?: number
+    }
 
 /**
  * A fallen fighter reforms `after` ticks later (at its starting cell, or the
@@ -194,12 +215,32 @@ export class ScriptKit {
       (s) =>
         (s.from === undefined || tick >= s.from) &&
         (s.to === undefined || tick <= s.to) &&
-        (s.every === undefined || entry.turns % s.every === 0),
+        (s.every === undefined || entry.turns % s.every === 0) &&
+        (s.while === undefined || this.holds(s.while)),
     )
     if (!step) return null
     const plan = this._play(fighter, step.act)
     if (plan) this.report.acts++
     return plan
+  }
+
+  /** Whether a script condition holds now. */
+  holds(cond: ScriptCond): boolean {
+    if ("not" in cond) return !this.holds(cond.not)
+    if ("allOf" in cond) return cond.allOf.every((c) => this.holds(c))
+    if ("anyOf" in cond) return cond.anyOf.some((c) => this.holds(c))
+    if ("near" in cond) {
+      const { team, index, of, within } = cond.near
+      const f = this._combat.fighters.filter((x) => x.team === team)[index]
+      return !!f && f.alive && manhattan(f.position, of) <= within
+    }
+    const all = this._combat.adventure?.crystals?.crystals ?? []
+    const states = cond.crystals.map(
+      (id) => all.find((c) => c.id === id)?.state ?? "dead",
+    )
+    return cond.any
+      ? states.some((st) => cond.is.includes(st))
+      : states.every((st) => cond.is.includes(st))
   }
 
   private _play(fighter: Fighter, act: ScriptAct): AiCommand[] | null {
@@ -345,6 +386,18 @@ export class ScriptKit {
     const combat = this._combat
     for (const event of this._rules.scripted ?? []) {
       if (event.tick !== tick || combat.state === "ended") continue
+      if (event.kind === "reshape") {
+        const hit = event.cells.filter((c) =>
+          combat.reshape(c, c.level, event.damage ?? 0),
+        )
+        if (hit.length === 0) continue
+        this.report.quakes.push(...hit.map((p) => ({ x: p.x, y: p.y })))
+        combat.emitEvent({
+          type: "quaked",
+          cells: hit.map((p) => ({ x: p.x, y: p.y })),
+        })
+        continue
+      }
       const hit = event.at.filter((cell) => combat.quake(cell) === null)
       if (hit.length === 0) continue
       this.report.quakes.push(...hit.map((p) => ({ ...p })))

@@ -207,6 +207,8 @@ export interface FightLine {
     /** The n-th Cristal broken in the fight. */
     | `crystals:${number}`
     | "gap"
+    /** The Certitude of the speaker of a debate fell to n. */
+    | `certitude:${number}`
     /** The first Intrication of the fight. */
     | "intrication"
     /** A fallen foe set into a rock (a fixed Lacunaire). */

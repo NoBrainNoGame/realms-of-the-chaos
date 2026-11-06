@@ -71,6 +71,8 @@ export class FightVoice {
         if (this._gap) return []
         this._gap = true
         return this._take("gap")
+      case "argued":
+        return this._take(`certitude:${event.certitude}`)
       case "fixed":
         return this._take("fixed")
       case "fleeing":

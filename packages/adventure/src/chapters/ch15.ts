@@ -1,3 +1,4 @@
+import type { ScriptCond } from "@realms/engine/adventure"
 import {
   add,
   all,
@@ -47,10 +48,10 @@ const BRUTUS_MINE = kitOf("brutus", "brutus3", "Brutus III", "Capitaine")
 
 // ─── Combat : la Chambre du Diapason ────────────────────────────────────────
 
-// `P` (the étalon) and `D` (the pylône) are not objects of the engine.
+// `P` (the étalon, a geode) sits at (5,1); `D` (the pylône) at (6,1) is a pillar.
 const BOARD = [
   "##1.....1##.",
-  "#1...22...1#",
+  "#1...2#...1#",
   "1...2..2...1",
   "..a......a..",
   ".aba.##.aba.",
@@ -59,6 +60,19 @@ const BOARD = [
   "~~.........~",
   "w~...11...~w",
 ]
+
+/** The pylône beats while the étalon is in its socket, or once the third Sonneur set the spare one on it. */
+const DIAPASON: ScriptCond = {
+  anyOf: [
+    { crystals: ["premier"], is: ["set"] },
+    {
+      allOf: [
+        { crystals: ["premier"], is: ["loose", "carried", "deposited"] },
+        { near: { team: 1, index: 5, of: { x: 6, y: 1 }, within: 1 } },
+      ],
+    },
+  ],
+}
 
 type Lacune = "aucune" | "elargie" | "habitee" | "recousue"
 
@@ -133,8 +147,13 @@ function chambre(ally: Ally, rallie: boolean, lacune: Lacune): FightSpec {
             preset: GORR,
             at: { x: 11, y: 3 },
             // Gorr obeys the rhythm: Écrasement at every second beat
+            // and stops dead when the Diapason falls silent.
             script: [
-              { every: 4, act: { do: "use", action: "smash", at: "nearest" } },
+              {
+                every: 4,
+                while: DIAPASON,
+                act: { do: "use", action: "smash", at: "nearest" },
+              },
               { act: { do: "stand" } },
             ],
           },
@@ -149,40 +168,73 @@ function chambre(ally: Ally, rallie: boolean, lacune: Lacune): FightSpec {
     rules: {
       immune: [{ team: 2, index: 0 }],
       crystals: {
-        crystals: [{ id: "premier", at: { x: 5, y: 1 }, kind: "geode" }],
+        crystals: [
+          // The étalon: detached three times it comes loose, broken it opens
+          // a Lacune around its socket.
+          {
+            id: "premier",
+            at: { x: 5, y: 1 },
+            kind: "geode",
+            detachSteps: 3,
+          },
+          // The veins, by pairs: breaking one kills the glass of its twin.
+          { id: "veine-o", at: { x: 0, y: 5 }, twin: "veine-e" },
+          { id: "veine-e", at: { x: 11, y: 5 }, twin: "veine-o" },
+          { id: "veine-so", at: { x: 3, y: 6 }, twin: "veine-se" },
+          { id: "veine-se", at: { x: 8, y: 6 }, twin: "veine-so" },
+        ],
         ringAfter: 0,
       },
+      // The mine settles (time 15, 30, 45, 60): a fighter on a cell that moves
+      // by two levels or more is hurt.
       scripted: [
         {
           tick: 3,
-          kind: "earthquake",
-          at: [
-            { x: 5, y: 6 },
-            { x: 6, y: 6 },
+          kind: "reshape",
+          damage: 4,
+          cells: [
+            { x: 5, y: 4, level: -2 },
+            { x: 6, y: 4, level: -2 },
           ],
         },
         {
           tick: 6,
-          kind: "earthquake",
-          at: [
-            { x: 4, y: 3 },
-            { x: 7, y: 3 },
+          kind: "reshape",
+          damage: 4,
+          cells: [
+            // the west hollows rise to level 0, the east ones sink a level
+            ...[
+              [2, 3],
+              [1, 4],
+              [2, 4],
+              [3, 4],
+              [2, 5],
+            ].map(([x, y]) => ({ x, y, level: 0 })),
+            { x: 9, y: 3, level: -2 },
+            { x: 8, y: 4, level: -2 },
+            { x: 9, y: 4, level: -3 },
+            { x: 10, y: 4, level: -2 },
+            { x: 9, y: 5, level: -2 },
           ],
         },
         {
+          // the return line sinks one level, but not the flooded galleries
           tick: 9,
-          kind: "earthquake",
-          at: [
-            { x: 5, y: 7 },
-            { x: 6, y: 7 },
-          ],
+          kind: "reshape",
+          damage: 4,
+          cells: Array.from({ length: 9 }, (_, i) => ({
+            x: i + 2,
+            y: 7,
+            level: -1,
+          })),
         },
         {
           tick: 12,
-          kind: "earthquake",
-          at: [
-            { x: 4, y: 2 },
-            { x: 7, y: 2 },
+          kind: "reshape",
+          damage: 4,
+          cells: [
+            { x: 4, y: 2, level: -1 },
+            { x: 7, y: 2, level: -1 },
           ],
         },
       ],

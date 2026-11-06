@@ -60,6 +60,7 @@ export type {
   RecomposeRule,
   ScriptAct,
   ScriptAim,
+  ScriptCond,
   ScriptedEvent,
   ScriptReport,
   ScriptRule,

@@ -50,6 +50,8 @@ export interface CrystalSpec {
    * it can also be detached, carried and put down (default `vein`).
    */
   kind?: CrystalKind
+  /** Detach actions needed before a geode comes loose (default 1). */
+  detachSteps?: number
   /** The crystal starts carried by this fighter of the line-up. */
   carriedBy?: { team: number; index: number }
 }
@@ -497,9 +499,14 @@ export class CrystalKit {
     })
   }
 
+  private _detachDone = new Map<string, number>()
+
   private _detach(fighter: Fighter, target: Point) {
     const c = this._at(target, ["set"])
     if (!c || !c.at) return
+    const done = (this._detachDone.get(c.spec.id) ?? 0) + 1
+    this._detachDone.set(c.spec.id, done)
+    if (done < (c.spec.detachSteps ?? 1)) return
     this._unplace(c)
     c.state = "loose"
     this._note(c)

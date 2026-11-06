@@ -2009,6 +2009,26 @@ export class Combat {
     this._checkVictory()
   }
 
+  /**
+   * Adventure: a cell is set to `level`. A fighter on it takes `damage` when
+   * the cell moved by two levels or more. False when nothing changed.
+   */
+  reshape(target: Point, level: number, damage = 0): boolean {
+    const cell = this.board.get(target)
+    if (!cell) return false
+    const next = Math.max(MIN_ELEVATION, Math.min(MAX_ELEVATION, level))
+    const moved = Math.abs(next - cell.elevation)
+    if (moved === 0) return false
+    cell.elevation = next
+    this._regions.clear()
+    this._emit({ type: "terrainChanged", cell: { x: target.x, y: target.y } })
+    if (damage > 0 && moved >= 2) {
+      for (const f of this.fightersAt(target).filter((o) => o.alive))
+        this._applyDamage(f, damage, null, false)
+    }
+    return true
+  }
+
   /** The terrain changed under the rules (a hole opened or closed). */
   refreshTerrain() {
     this._regions.clear()

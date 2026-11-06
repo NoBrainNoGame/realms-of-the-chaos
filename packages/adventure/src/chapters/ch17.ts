@@ -180,6 +180,12 @@ function duel(ally: Ally, rallie: boolean, lyraUsee: boolean): FightSpec {
         who: "merlin",
         text: "Restez immobiles. Vous êtes plus faciles à lire.",
       },
+      {
+        when: "certitude:2",
+        who: "merlin",
+        text: "Intéressant. Gênant, mais intéressant.",
+      },
+      { when: "certitude:1", who: "brutus", text: "Maître ?" },
       { when: "tick:5", who: "gorr", text: "Lui… compte. Gorr, pas chiffre." },
     ],
   }

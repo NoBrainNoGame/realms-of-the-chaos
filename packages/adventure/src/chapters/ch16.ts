@@ -1,4 +1,5 @@
 import { CHARACTERS } from "@realms/engine"
+import type { ScriptCond } from "@realms/engine/adventure"
 import {
   add,
   all,
@@ -17,7 +18,7 @@ import {
   stage,
   when,
 } from "../dsl"
-import type { Beat, Chapter, FightSpec } from "../types"
+import type { Beat, Chapter, FightReport, FightSpec } from "../types"
 import {
   ALLY_COND,
   type Ally,
@@ -51,6 +52,26 @@ const BOARD = [
   "##..111..##",
 ]
 
+/** Both pylônes are silent: broken (their glass dead) or detached. */
+const SILENCE: ScriptCond = {
+  crystals: ["pylone-o", "pylone-e"],
+  is: ["loose", "carried", "deposited", "dead", "broken"],
+}
+
+/** The pylônes are silent when one was broken or both were detached. */
+const silenced = (r: FightReport) => {
+  const c = r.crystals
+  if (!c) return false
+  const gone = (id: string) =>
+    c.extracted.some((e) => e.id === id) || c.dead.includes(id)
+  return (
+    gone("pylone-o") ||
+    gone("pylone-e") ||
+    (c.detached.some((d) => d.id === "pylone-o") &&
+      c.detached.some((d) => d.id === "pylone-e"))
+  )
+}
+
 function fonderie(ally: Ally, rallie: boolean, extraits: boolean): FightSpec {
   const allies = [
     { preset: "@hero" as const, at: { x: 4, y: 8 } },
@@ -69,11 +90,17 @@ function fonderie(ally: Ally, rallie: boolean, extraits: boolean): FightSpec {
         name: "Le Collège",
         side: "enemies",
         fighters: [
-          // CUT: Poussée de croissance, Surexcité tied to the pylônes, Ébranlé,
-          // and sharing Gorr's case (Intrication) are not engine mechanics.
-          { preset: GORR(extraits), at: { x: 5, y: 3 } },
-          // SIMPLIFIED: the pylônes (P) are the two Sonneurs; silencing them
-          // means dispersing or driving them off.
+          // Surexcité = Gorr plays his own way while a pylône beats; Ébranlé =
+          // he stands still once both are silent (script `while`).
+          // CUT: Poussée de croissance (a new action: a rising obstacle) and
+          // sharing Gorr's case (an ally standing on an enemy's cell) have no
+          // engine support; the question is asked once the pylônes are silent
+          // and Gorr kept more than 25 % of his health.
+          {
+            preset: GORR(extraits),
+            at: { x: 5, y: 3 },
+            script: [{ while: SILENCE, act: { do: "stand" } }],
+          },
           { preset: SONNEUR, at: { x: 1, y: 2 } },
           { preset: SONNEUR, at: { x: 9, y: 2 } },
           { preset: EXTRACTEUR, at: { x: 3, y: 7 } },
@@ -84,6 +111,29 @@ function fonderie(ally: Ally, rallie: boolean, extraits: boolean): FightSpec {
     // The clock stands for "tenir jusqu'à ce qu'il se passe quelque chose".
     rules: {
       clock: { period: 10, limit: 10, winner: 0 },
+      // The two pylônes sit on twin Cristaux: breaking one kills the other
+      // (both fall silent); each can also be detached (Désaccorder, twice).
+      // The reserve pair is on the east and west edges.
+      crystals: {
+        crystals: [
+          {
+            id: "pylone-o",
+            at: { x: 1, y: 1 },
+            twin: "pylone-e",
+            kind: "geode",
+            detachSteps: 2,
+          },
+          {
+            id: "pylone-e",
+            at: { x: 9, y: 1 },
+            twin: "pylone-o",
+            kind: "geode",
+            detachSteps: 2,
+          },
+          { id: "reserve-o", at: { x: 0, y: 5 }, twin: "reserve-e" },
+          { id: "reserve-e", at: { x: 10, y: 5 }, twin: "reserve-o" },
+        ],
+      },
       flee: { team: 1, below: 0.25, exits: [{ x: 0, y: 0 }] },
       announce: true,
     },
@@ -97,12 +147,8 @@ function fonderie(ally: Ally, rallie: boolean, extraits: boolean): FightSpec {
         label: "Tenir : faire taire les pylônes sans abattre Gorr",
         check: (r) => {
           const g = r.fighters.find((f) => f.preset.startsWith("gorr"))
-          const sonneurs = r.fighters.filter((f) => f.preset === "sonneur")
           return (
-            r.result !== "defeat" &&
-            !!g &&
-            g.hp > GORR_HP * 0.25 &&
-            sonneurs.every((f) => f.hp <= 0 || f.fled)
+            r.result !== "defeat" && !!g && g.hp > GORR_HP * 0.25 && silenced(r)
           )
         },
         success: "Les pylônes se taisent. Gorr ne frappe plus en rythme.",
@@ -113,12 +159,9 @@ function fonderie(ally: Ally, rallie: boolean, extraits: boolean): FightSpec {
       {
         id: "intacts",
         mark: "◆",
-        label: "Aucun Extracteur n'approche de Gorr",
+        label: "Ne briser aucun Cristal",
         check: (r) =>
-          r.result !== "defeat" &&
-          r.fighters
-            .filter((f) => f.preset === "extracteur")
-            .every((f) => f.hp <= 0 || f.fled),
+          r.result !== "defeat" && (r.crystals?.extracted.length ?? 0) === 0,
         onSuccess: [add("confiance.gorr"), add("confiance.lyra")],
       },
     ],

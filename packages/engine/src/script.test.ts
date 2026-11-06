@@ -309,3 +309,70 @@ describe("the Fêlure stops when a Cristal is given back", () => {
     expect(grown(false)).toBeGreaterThan(grown(true))
   })
 })
+
+describe("reshape and conditional steps", () => {
+  const board = () => Board.fromAscii(["....", "....", "....", "...."])
+  test("a reshape sets levels and hurts a fighter moved by two levels", () => {
+    const c = new Combat({
+      seed: 1,
+      board: board(),
+      teams: [
+        { name: "a", controller: "ai", fighters: ["brutus"] },
+        { name: "b", controller: "ai", fighters: ["merlin"] },
+      ],
+      positions: [[{ x: 0, y: 0 }], [{ x: 3, y: 3 }]],
+      adventure: {
+        clock: { period: 10, limit: 2, winner: 0 },
+        noDefeat: [0, 1],
+        scripted: [
+          {
+            tick: 1,
+            kind: "reshape",
+            damage: 4,
+            cells: [
+              { x: 3, y: 3, level: -2 },
+              { x: 2, y: 2, level: -1 },
+            ],
+          },
+        ],
+      },
+    })
+    const m = c.getFighter("merlin-1-0")!
+    const before = m.hp
+    c.adventure?.advance(10)
+    expect(c.board.get({ x: 3, y: 3 })?.elevation).toBe(-2)
+    expect(c.board.get({ x: 2, y: 2 })?.elevation).toBe(-1)
+    expect(m.hp).toBe(before - 4)
+  })
+
+  test("a step with a condition applies only while it holds", () => {
+    const c = new Combat({
+      seed: 1,
+      board: board(),
+      teams: [
+        { name: "a", controller: "ai", fighters: ["brutus"] },
+        { name: "b", controller: "ai", fighters: ["merlin"] },
+      ],
+      positions: [[{ x: 1, y: 0 }], [{ x: 3, y: 3 }]],
+      adventure: {
+        crystals: {
+          crystals: [{ id: "g", at: { x: 1, y: 1 }, kind: "geode" }],
+        },
+        scripts: [
+          {
+            team: 1,
+            index: 0,
+            steps: [
+              { while: { crystals: ["g"], is: ["set"] }, act: { do: "stand" } },
+            ],
+          },
+        ],
+      },
+    })
+    const m = c.getFighter("merlin-1-0")!
+    expect(c.adventure?.script.command(m)).not.toBeNull()
+    const kit = c.adventure!.crystals!
+    kit.operate(c.getFighter("brutus-0-0")!, "detach", { x: 1, y: 1 })
+    expect(c.adventure?.script.command(m)).toBeNull()
+  })
+})
