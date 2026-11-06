@@ -335,6 +335,15 @@ function giantFight(nyx: NyxMode, vesce: VesceMode, fewer: boolean): FightSpec {
       onSuccess: [add("confiance.merlin"), set("derive_protegee")],
     },
   )
+  if (nyx !== "none")
+    objectives.push({
+      id: "ne-pas-frapper-nyx",
+      mark: "◆",
+      label: "Ne pas frapper Nyx",
+      // An ally's blow scares her off the map.
+      check: (r) => (r.scared ?? []).length === 0,
+      onFailure: [set("nyx_effrayee"), add("confiance.nyx", -3)],
+    })
   if (nyx === "accept")
     objectives.push({
       id: "habiter-nyx",
@@ -345,7 +354,13 @@ function giantFight(nyx: NyxMode, vesce: VesceMode, fewer: boolean): FightSpec {
       when: { visited: { region: "coeur", who: "@hero" } },
       check: (r) => {
         const n = r.fighters.find((f) => f.preset === "nyx")
-        return r.intrications >= 2 && !!n && n.hp > 0 && !n.fled
+        return (
+          r.intrications >= 2 &&
+          !!n &&
+          n.hp > 0 &&
+          !n.fled &&
+          !(r.scared ?? []).includes(n.id)
+        )
       },
       onSuccess: [
         set("intrication_nyx"),
@@ -376,6 +391,25 @@ function giantFight(nyx: NyxMode, vesce: VesceMode, fewer: boolean): FightSpec {
         ],
       },
       fixOnDeath: [2],
+      // fixed, the giant is a block of ice on the heart that melts into
+      // shallow water within a turn
+      fixIce: { melt: 1 },
+      // the Ghom du Chaos never uses its Élan, as in ch. 5
+      mute: [1],
+      // six crystals on the edge of the Lacune, flashing by pairs
+      decor: {
+        crystals: [
+          { x: 3, y: 3 },
+          { x: 7, y: 3 },
+          { x: 3, y: 5 },
+          { x: 7, y: 5 },
+          { x: 5, y: 1 },
+          { x: 5, y: 7 },
+        ],
+        toward: { x: 5, y: 4 },
+        near: 3,
+        ...(nyx === "accept" ? { dark: { team: 3, index: 0 } } : {}),
+      },
       // The giant: hunts the hottest Echo of any camp, sinks into the Clair
       // under half its health; Merlin cannot be dispersed.
       hottest: [{ team: 2, index: 0 }],
@@ -386,7 +420,10 @@ function giantFight(nyx: NyxMode, vesce: VesceMode, fewer: boolean): FightSpec {
       ...(nyx !== "none"
         ? {
             coldProof: [{ team: 3, index: 0 }],
+            // the giant's blows pass through her; an ally's blow frightens
+            // her off the map instead
             immune: [{ team: 3, index: 0 }],
+            shy: [{ team: 3, index: 0, by: [0] }],
           }
         : {}),
       // Vesce, once given up, never strikes the Dérive.
@@ -715,7 +752,7 @@ export const ch06: Chapter = {
         say("merlin", "Il n'y a rien sur la Lisière."),
         stage("Un temps."),
         say("merlin", "Presque rien."),
-        when(is("nyx_epargnee"), [
+        when(all(is("nyx_epargnee"), not(is("nyx_effrayee"))), [
           stage(
             "Dans le gris de la Lacune, à quelques pas du bord, une silhouette accroupie, à peine nette, comme une feuille trop lavée. Nyx. Elle est dedans. Elle ne bouge pas.",
           ),

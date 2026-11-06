@@ -221,9 +221,11 @@ function bord(b: Bits): FightSpec {
       ],
       neutral: [3],
       // The Déliés share a cell (Habiter) after a ceasefire; see `rulesIf`.
-      // A Lacunaire of the Chaos "fixes" instead of dying: brought to a stable
-      // form, it stops.
-      fixOnDeath: [2],
+      // The peace to three: a Lacunaire of the Chaos (the giant, Squalor IV,
+      // Merlin IV) brought onto an inhabited cell settles in a stable form and
+      // stops; the Ghom du Chaos then stops putting cells out, one turn goes
+      // by in silence, and the rift comes.
+      settle: { teams: [2], calm: true },
       clock: { period: 10, limit: 10, winner: 0 },
       announce: true,
     },
@@ -267,7 +269,7 @@ function bord(b: Bits): FightSpec {
         id: "paix-a-trois",
         mark: "◆",
         label: "La paix à trois : le camp du Chaos entre dans l'Intrication",
-        check: (r) => paix(r) && r.fixed.length >= 1,
+        check: (r) => paix(r) && (r.settled ?? []).length >= 1,
         onSuccess: [
           set("paix_a_trois"),
           add("lacunes.habitees"),

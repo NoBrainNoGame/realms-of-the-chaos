@@ -90,6 +90,8 @@ const jointure: FightSpec = {
     },
   ],
   rules: {
+    // The Ghom du Chaos does not act: its Élan is full and stays so.
+    mute: [1],
     // The seam: column 4 hurts whoever starts a turn on it.
     silent: Array.from({ length: 9 }, (_, y) => ({ x: 4, y })),
     silentDamage: 2,

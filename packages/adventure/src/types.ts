@@ -406,6 +406,12 @@ export interface FightReport {
   sunk?: string[]
   /** Fighters carried off the map (Sel, taken by the giant). */
   snatched?: string[]
+  /** Fighters scared off the map by an ally's blow (Nyx, ch. 6). */
+  scared?: string[]
+  /** Fighters settled in a stable form on an inhabited cell (ch. 24). */
+  settled?: string[]
+  /** Cells inhabited by two Échos of the ceasefire camps. */
+  inhabitedAt?: { x: number; y: number }[]
   /** An Intrication between the two camps of a ceasefire was made. */
   peace?: boolean
   /** Distorsions of the bodiless Ghom: ids of the fighters hit. */

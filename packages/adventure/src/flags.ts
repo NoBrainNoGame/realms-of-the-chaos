@@ -64,6 +64,7 @@ export const FLAGS: Record<string, FlagSpec> = {
   "premier_cristal.lieu": text("aucun", "cairn", "lacune"),
   "premier_cristal.paire": text("aucune", "heros+nyx", "autre"),
   nyx_epargnee: bool,
+  nyx_effrayee: bool,
   objet_de_nyx: bool,
   fragments: text("aucun", "fusion", "separation"),
   lacune_geante_habitee: bool,
