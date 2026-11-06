@@ -130,7 +130,9 @@ const fightNuit: FightSpec = {
         { preset: instable, at: { x: 1, y: 3 } },
         { preset: instable, at: { x: 2, y: 3 } },
         { preset: effilocheur, at: { x: 3, y: 3 } },
-        // CUT: 2 more instables out of the granary at tour 5 (no spawning).
+        // 2 more instables out of the granary at turn 5 (about time 40).
+        { preset: instable, at: { x: 2, y: 2 }, arrives: { time: 40 } },
+        { preset: instable, at: { x: 1, y: 2 }, arrives: { time: 40 } },
       ],
     },
     {

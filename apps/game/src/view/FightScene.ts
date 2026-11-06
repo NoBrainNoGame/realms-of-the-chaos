@@ -697,8 +697,14 @@ export default class FightScene extends ViewChip<SceneEvents> {
   bringIn(fighterId: string, at: Point, delay: number) {
     if (!this.combat.offstage.has(fighterId)) return
     this.combat.bringIn(fighterId, at, delay)
-    const fighter = this.combat.getFighter(fighterId)!
-    const view = this._views.get(fighterId)!
+    this._showEntry(fighterId, at)
+  }
+
+  /** The view of an entry the combat already made (a wave, a reinforcement). */
+  private _showEntry(fighterId: string, at: Point) {
+    const fighter = this.combat.getFighter(fighterId)
+    const view = this._views.get(fighterId)
+    if (!fighter || !view) return
     this._cells.set(fighterId, fighter.position)
     const enemies = this.combat.aliveFighters.filter((o) =>
       this.combat.isEnemy(fighter, o),
@@ -1662,6 +1668,25 @@ export default class FightScene extends ViewChip<SceneEvents> {
               `${this.combat.getFighter(event.fighterId)?.name ?? "?"} bat en retraite.`,
             ),
           ),
+        ]
+
+      case "arrived":
+        return [
+          new booyah.Lambda(() =>
+            this._showEntry(event.fighterId, event.position),
+          ),
+        ]
+
+      case "switched":
+        return [
+          new booyah.Lambda(() => {
+            const fighter = this.combat.getFighter(event.fighterId)
+            this._views.get(event.fighterId)?.recolor()
+            this._hud.log(
+              `${fighter?.name ?? "?"} passe chez ${this.combat.teams[event.to].name}.`,
+            )
+            this._refreshAll()
+          }),
         ]
 
       case "timeUp":

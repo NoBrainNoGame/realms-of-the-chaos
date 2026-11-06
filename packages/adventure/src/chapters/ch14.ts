@@ -114,8 +114,12 @@ function premierGel(ally: Ally): FightSpec {
       {
         name: "La Marée",
         side: "enemies",
-        // SIMPLIFIED: three waves, all present from the start.
-        fighters: [1, 3, 5].map((y) => ({ preset: VAGUE, at: { x: 6, y } })),
+        // Three waves: the first at the start, then ticks 3 and 6.
+        fighters: [1, 3, 5].map((y, wave) => ({
+          preset: VAGUE,
+          at: { x: 6, y },
+          ...(wave ? { arrives: { tick: wave * 3 } } : {}),
+        })),
       },
     ],
     // SIMPLIFIED: the Collège is a neutral team that fights nobody; its six
@@ -184,10 +188,9 @@ function fonds(ally: Ally, rallie: boolean): FightSpec {
         { preset: EXTRACTEUR, at: { x: 6, y: 0 } },
         { preset: EXTRACTEUR, at: { x: 5, y: 8 } },
         { preset: ARBALETRIER, at: { x: 6, y: 8 } },
-        // SIMPLIFIED: the reinforcements of times 30 and 50 stand there from
-        // the start, reduced to one Hallebardier and the Sonneur.
-        { preset: HALLEBARDIER, at: { x: 2, y: 0 } },
-        { preset: SONNEUR, at: { x: 9, y: 8 } },
+        // The reinforcements of times 30 and 50 (ticks 3 and 5).
+        { preset: HALLEBARDIER, at: { x: 2, y: 0 }, arrives: { tick: 3 } },
+        { preset: SONNEUR, at: { x: 9, y: 8 }, arrives: { tick: 5 } },
       ],
     },
   ]

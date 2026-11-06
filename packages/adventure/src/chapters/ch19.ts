@@ -59,10 +59,9 @@ const guetteurs: FightSpec = {
       fighters: [
         { preset: "@hero", at: { x: 4, y: 2 } },
         { preset: "gorr", at: { x: 3, y: 2 } },
-        // SIMPLIFIED: Brutus IV (turn 2) and Lyra IV (turn 3) enter by the
-        // west and north edges; the engine cannot bring fighters in mid-fight.
-        { preset: BRUTUS4, at: { x: 0, y: 3 } },
-        { preset: LYRA4, at: { x: 4, y: 0 } },
+        // Brutus IV (turn 2) and Lyra IV (turn 3) enter by the west and north edges.
+        { preset: BRUTUS4, at: { x: 0, y: 3 }, arrives: { tick: 2 } },
+        { preset: LYRA4, at: { x: 4, y: 0 }, arrives: { tick: 3 } },
       ],
     },
     {

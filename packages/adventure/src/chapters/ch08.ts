@@ -59,12 +59,14 @@ const ile: FightSpec = {
     {
       name: "Squalor",
       side: "enemies",
-      fighters: [{ preset: "squalor", at: { x: 1, y: 7 } }],
+      // He comes in at tick 4 (time 40) by the south-west.
+      fighters: [
+        { preset: "squalor", at: { x: 1, y: 7 }, arrives: { time: 40 } },
+      ],
     },
   ],
   rules: {
-    // SIMPLIFIED: Squalor is on the board from the start (not at tick 4) and
-    // leaves under half his hit points; "after two Lacunaires eaten" does not
+    // SIMPLIFIED: Squalor leaves under half his hit points; "after two Lacunaires eaten" does not
     // exist, nor the Superposition layer and the recoherence around the Lacune.
     flee: { team: 2, below: 0.5, exits: [{ x: 5, y: 7 }] },
   },

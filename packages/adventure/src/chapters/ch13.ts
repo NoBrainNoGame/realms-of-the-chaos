@@ -87,18 +87,19 @@ function citernes(ally: Ally, extras: number, broke: boolean): FightSpec {
     { preset: ARBALETRIER, at: { x: 11, y: 6 } },
     { preset: ARBALETRIER, at: { x: 6, y: 7 } },
     { preset: SONNEUR, at: { x: 11, y: 7 } },
-    // SIMPLIFIED: Brutus III enters at time 20 by the south-west corner; the
-    // engine cannot bring a fighter in later, he waits there from the start.
-    { preset: BRUTUS3, at: { x: 0, y: 7 } },
+    // Brutus III enters at time 20 (tick 2) by the south-west corner.
+    { preset: BRUTUS3, at: { x: 0, y: 7 }, arrives: { tick: 2 } },
   ]
   const allies: FighterSpec[] = [
     { preset: "@hero", at: { x: 0, y: 2 } },
     { preset: LYRA3, at: { x: 0, y: 4 } },
   ]
-  // SIMPLIFIED: Eva III / Squalor III arrive at time 30 (a scripted entry the
-  // engine lacks): they stand by the exits from the start.
-  if (ally === "eva") allies.push({ preset: EVA3, at: { x: 13, y: 0 } })
-  if (ally === "squalor") allies.push({ preset: SQUALOR3, at: { x: 12, y: 1 } })
+  // Eva III / Squalor III arrive at time 30 (tick 3) by the exits.
+  const late = { tick: 3 }
+  if (ally === "eva")
+    allies.push({ preset: EVA3, at: { x: 13, y: 0 }, arrives: late })
+  if (ally === "squalor")
+    allies.push({ preset: SQUALOR3, at: { x: 12, y: 1 }, arrives: late })
 
   const teams: FightTeamSpec[] = [
     { name: "Alliés", side: "allies", fighters: allies },

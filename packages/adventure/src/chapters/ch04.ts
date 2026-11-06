@@ -89,12 +89,16 @@ const mareeDuLent: FightSpec = {
       name: "Lacunaires de l'abysse",
       side: "enemies",
       fighters: [
-        // SIMPLIFIED: no respawn at each high tide; everyone is there from the
-        // start (the swarm of the doc is 3 + 2 per tide + 1 effilocheur).
+        // The swarm of the doc: 3 + 2 more at each high tide (ticks 1 and 2)
+        // + 1 effilocheur.
         { preset: unstable(1), at: { x: 3, y: 3 } },
         { preset: unstable(2), at: { x: 5, y: 3 } },
         { preset: unstable(3), at: { x: 4, y: 4 } },
         { preset: effilocheur, at: { x: 4, y: 2 } },
+        { preset: unstable(4), at: { x: 3, y: 4 }, arrives: { tick: 1 } },
+        { preset: unstable(5), at: { x: 5, y: 4 }, arrives: { tick: 1 } },
+        { preset: unstable(6), at: { x: 4, y: 3 }, arrives: { tick: 2 } },
+        { preset: unstable(7), at: { x: 4, y: 2 }, arrives: { tick: 2 } },
       ],
     },
   ],

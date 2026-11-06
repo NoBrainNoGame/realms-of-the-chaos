@@ -344,6 +344,22 @@ export class Combat {
     fighter.nextActionAt = this._time + delay
   }
 
+  /**
+   * Adventure rules: the fighter changes sides (and takes that side's
+   * controller). Returns whether it did.
+   */
+  switchTeam(fighter: Fighter, toTeam: number) {
+    const team = this.teams[toTeam]
+    if (!team || fighter.team === toTeam) return false
+    const from = fighter.team
+    fighter.team = toTeam
+    fighter.controller = team.controller
+    this._clearWalk(fighter)
+    this._emit({ type: "switched", fighterId: fighter.id, from, to: toTeam })
+    this._checkVictory()
+    return true
+  }
+
   /** Character sheet a fighter was created from. */
   presetOf(fighter: Fighter): CharacterPreset {
     return this._presets.get(fighter.presetId) ?? CHARACTERS[fighter.presetId]

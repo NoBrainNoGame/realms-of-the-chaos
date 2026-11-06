@@ -89,6 +89,14 @@ export default class FighterView extends ViewChip {
     return this._water
   }
 
+  /** The fighter changed sides: its ring takes the new team's colour. */
+  recolor() {
+    this._ring
+      ?.clear()
+      .ellipse(0, 0, 13, 5.8)
+      .stroke({ width: 1.6, color: TEAM_COLORS[this.fighter.team], alpha: 0.9 })
+  }
+
   protected _onActivate() {
     const team = TEAM_COLORS[this.fighter.team]
 

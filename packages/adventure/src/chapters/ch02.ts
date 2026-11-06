@@ -112,8 +112,11 @@ const fightCoeur: FightSpec = {
         { preset: instable, at: { x: 4, y: 0 } },
         { preset: instable, at: { x: 7, y: 1 } },
         { preset: effilocheur, at: { x: 6, y: 0 } },
-        // CUT: 2 instables en renfort au tour 5 and a second effilocheur at
-        // tour 6 (no spawning in AdventureRules).
+        // Reinforcements, in the three ticks the seam is held: 2 instables,
+        // then a second effilocheur.
+        { preset: instable, at: { x: 2, y: 0 }, arrives: { tick: 1 } },
+        { preset: instable, at: { x: 7, y: 0 }, arrives: { tick: 1 } },
+        { preset: effilocheur, at: { x: 5, y: 0 }, arrives: { tick: 2 } },
       ],
     },
   ],

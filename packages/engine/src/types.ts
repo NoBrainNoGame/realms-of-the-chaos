@@ -142,10 +142,11 @@ export interface Fighter {
   readonly id: string
   readonly presetId: string
   readonly name: string
-  readonly team: number
+  /** Mutable only for the Adventure's `switches` rule. */
+  team: number
   readonly stats: Stats
   readonly actions: readonly ActionDefinition[]
-  readonly controller: Controller
+  controller: Controller
   readonly locomotion: Locomotion
   hp: number
   /** Max hit points lost for good (erosion: part of every wound). */
@@ -229,6 +230,10 @@ export type FightEvent =
   /** Adventure rules: the clock ticked, a zone changed, a fighter fled. */
   | { type: "clockTick"; tick: number }
   | { type: "zoneChanged"; zoneId: string; state: "active" | "silent" | "lost" }
+  /** Adventure rules: a fighter enters the island (a wave, a reinforcement). */
+  | { type: "arrived"; fighterId: string; position: Point }
+  /** Adventure rules: a fighter changes sides mid-fight. */
+  | { type: "switched"; fighterId: string; from: number; to: number }
   | { type: "fleeing"; fighterId: string }
   | { type: "fled"; fighterId: string }
   | { type: "timeUp" }

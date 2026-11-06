@@ -93,4 +93,103 @@ describe("adventure rules are opt-in", () => {
     expect(c.adventure?.report.fled).toContain("merlin-1-0")
     expect(c.winnerTeam).toBe(0)
   })
+
+  test("an arrival is offstage until its tick, then enters and fights", () => {
+    const c = fight({
+      clock: { period: 10, limit: 30, winner: 0 },
+      noDefeat: [0, 1],
+      arrivals: [{ team: 1, index: 0, tick: 2 }],
+    })
+    expect(c.offstage.has("merlin-1-0")).toBe(true)
+    // a team still to come is not beaten
+    expect(c.aliveFighters.some((f) => f.team === 1)).toBe(false)
+    const events = c.run()
+    const at = events.findIndex((e) => e.type === "arrived")
+    expect(at).toBeGreaterThan(-1)
+    const tick2 = events.findIndex(
+      (e) => e.type === "clockTick" && e.tick === 2,
+    )
+    expect(tick2).toBeLessThan(at)
+    expect(c.offstage.has("merlin-1-0")).toBe(false)
+    expect(c.adventure?.report.arrived).toEqual(["merlin-1-0"])
+  })
+
+  test("an arrival by time takes the closest free cell when its own is taken", () => {
+    const c = new Combat({
+      seed: 2,
+      board: ground(),
+      teams: [
+        { controller: "ai", fighters: ["lyra", "brutus"] },
+        { controller: "ai", fighters: ["merlin", "squalor"] },
+      ],
+      positions: [
+        [
+          { x: 1, y: 1 },
+          { x: 1, y: 2 },
+        ],
+        [
+          { x: 6, y: 2 },
+          { x: 1, y: 1 },
+        ],
+      ],
+      adventure: { arrivals: [{ team: 1, index: 1, time: 5 }] },
+    })
+    const ev = c.run()
+    const arrived = ev.find((e) => e.type === "arrived")
+    expect(arrived).toBeDefined()
+    if (arrived?.type === "arrived") {
+      expect(arrived.position).not.toEqual({ x: 1, y: 1 })
+    }
+  })
+
+  test("the pending wave keeps its team in the fight", () => {
+    const c = fight({
+      clock: { period: 40, limit: 6, winner: 0 },
+      arrivals: [{ team: 1, index: 0, tick: 5 }],
+    })
+    c.run()
+    expect(c.adventure?.report.timeUp).toBe(true)
+  })
+
+  test("a switch changes team and controller, and is reported", () => {
+    const c = new Combat({
+      seed: 4,
+      board: ground(),
+      teams: [
+        { controller: "human", fighters: ["lyra"] },
+        { controller: "ai", fighters: ["merlin", "brutus"] },
+      ],
+      positions: [
+        [{ x: 0, y: 0 }],
+        [
+          { x: 7, y: 4 },
+          { x: 7, y: 0 },
+        ],
+      ],
+      adventure: {
+        clock: { period: 10, limit: 2, winner: 0 },
+        switches: [{ team: 1, index: 1, toTeam: 0, tick: 1 }],
+      },
+    })
+    expect(c.getFighter("brutus-1-1")?.team).toBe(1)
+    const events: ReturnType<typeof c.advance> = []
+    for (let i = 0; i < 400 && c.state !== "ended"; i++) {
+      if (c.state === "awaitingInput")
+        c.execute({ type: "pass", fighterId: c.activeFighter!.id })
+      else events.push(...c.advance())
+    }
+    const sw = events.find((e) => e.type === "switched")
+    expect(sw).toEqual({
+      type: "switched",
+      fighterId: "brutus-1-1",
+      from: 1,
+      to: 0,
+    })
+    const f = c.getFighter("brutus-1-1")
+    expect(f?.team).toBe(0)
+    expect(f?.controller).toBe("human")
+    expect(c.adventure?.report.switched).toEqual([
+      { fighterId: "brutus-1-1", to: 0 },
+    ])
+  })
 })

@@ -1,5 +1,10 @@
 /** Adventure fights: a chapter's FightSpec to scene options, and back to a report. */
-import type { Carry, FightReport, FightSpec } from "@realms/adventure"
+import {
+  type Carry,
+  type FightReport,
+  type FightSpec,
+  fightRules,
+} from "@realms/adventure"
 import {
   CHARACTERS,
   type CharacterPreset,
@@ -77,7 +82,7 @@ export function fightOptions(
     })),
     hold: spec.teams.flatMap((t, i) => (t.side === "neutral" ? [i] : [])),
     adventure: {
-      ...spec.rules,
+      ...fightRules(spec),
       lockedDivine: spec.rules.lockedDivine ?? locked,
     },
     endActions,
@@ -122,6 +127,8 @@ export function reportOf(spec: FightSpec, combat: Combat): FightReport {
     zonesLost: [...(tracker?.zonesLost ?? [])],
     zoneStates: { ...(tracker?.zoneStates ?? {}) },
     fixed: [...(tracker?.fixed ?? [])],
+    arrived: [...(tracker?.arrived ?? [])],
+    switched: (tracker?.switched ?? []).map((s) => ({ ...s })),
     fighters: combat.fighters.map((f) => ({
       id: f.id,
       preset: presetOf(f),

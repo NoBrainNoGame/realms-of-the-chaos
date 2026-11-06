@@ -1,4 +1,5 @@
 import { compile } from "./compile"
+import { entryProblems } from "./entries"
 import { flagSpec } from "./flags"
 import { type Chapter, type Cond, type Effect, END } from "./types"
 
@@ -62,6 +63,7 @@ export function validateChapter(chapter: Chapter): string[] {
           jumps.push(op.after)
           break
         case "fight":
+          for (const m of entryProblems(op.fight)) err(`${where}: ${m}`)
           for (const o of op.fight.objectives) {
             effects(o.onSuccess ?? [], `${where} fight ${op.fight.id}`)
             effects(o.onFailure ?? [], `${where} fight ${op.fight.id}`)

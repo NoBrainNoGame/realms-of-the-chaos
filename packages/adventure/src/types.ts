@@ -99,6 +99,13 @@ export interface FighterSpec {
   preset: string | CharacterPreset
   at: { x: number; y: number }
   hp?: number
+  /**
+   * Not there at the start: the fighter enters at a clock tick or a timeline
+   * time, on `at` (or the closest free cell). Until then its team is not beaten.
+   */
+  arrives?: { tick?: number; time?: number }
+  /** Changes to the team of that index (and its controller) mid-fight. */
+  switchTo?: { team: number; tick?: number; time?: number }
 }
 
 export interface ObjectiveSpec {
@@ -272,6 +279,10 @@ export interface FightReport {
   zonesLost: string[]
   zoneStates: Record<string, "active" | "silent" | "lost">
   fixed: string[]
+  /** Ids of the fighters that entered mid-fight (waves, reinforcements). */
+  arrived?: string[]
+  /** Fighters that changed sides, with the team they went to. */
+  switched?: { fighterId: string; to: number }[]
   fighters: {
     id: string
     preset: string

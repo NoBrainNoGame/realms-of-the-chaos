@@ -45,10 +45,37 @@ export interface AdventureRules {
   flee?: { team: number; below: number; exits: Point[] }
   /** A fighter of these teams "fixes" into a rock (+1 height) instead of dying. */
   fixOnDeath?: number[]
+  /** Waves, reinforcements, allies entering mid-fight. */
+  arrivals?: ArrivalRule[]
+  /** Fighters changing sides mid-fight. */
+  switches?: SwitchRule[]
   /** Influences the Ghom has not unlocked yet (see `Combat.unlockDivine`). */
   lockedDivine?: string[]
   /** Time limit of a held position, in ticks, shown by the interface. */
   announce?: boolean
+}
+
+/**
+ * A fighter of the line-up that is not on the island at the start: it enters
+ * at a clock tick (`tick`, needs a `clock`) or at a timeline time (`time`),
+ * on its listed cell or, if that one is taken, on the closest free cell.
+ * Until then it counts as "still to come": its team is not beaten.
+ */
+export interface ArrivalRule {
+  team: number
+  /** Index of the fighter in its team's line-up. */
+  index: number
+  tick?: number
+  time?: number
+}
+
+/** A fighter changes team (and so controller) at a tick or a time. */
+export interface SwitchRule {
+  team: number
+  index: number
+  toTeam: number
+  tick?: number
+  time?: number
 }
 
 export type ZoneState = "active" | "silent" | "lost"
@@ -62,6 +89,10 @@ export interface AdventureReport {
   intrications: number
   fled: string[]
   fixed: string[]
+  /** Ids of the fighters that entered mid-fight, in order. */
+  arrived: string[]
+  /** Fighters that changed sides, in order. */
+  switched: { fighterId: string; to: number }[]
   zonesLost: string[]
   zoneStates: Record<string, ZoneState>
   timeUp: boolean
@@ -80,6 +111,8 @@ export class AdventureTracker {
     intrications: 0,
     fled: [],
     fixed: [],
+    arrived: [],
+    switched: [],
     zonesLost: [],
     zoneStates: {},
     timeUp: false,
@@ -87,6 +120,8 @@ export class AdventureTracker {
   private _idle = new Map<string, number>()
   private _worked = new Set<string>()
   private _nextTick: number
+  private _arrivals: { rule: ArrivalRule; id: string; done: boolean }[] = []
+  private _switches: { rule: SwitchRule; id: string; done: boolean }[] = []
 
   constructor(
     private readonly _combat: Combat,
@@ -95,6 +130,23 @@ export class AdventureTracker {
     this.rules = rules
     this.locked = new Set(rules.lockedDivine)
     this._nextTick = rules.clock?.period ?? Infinity
+    const member = (team: number, index: number) => {
+      const found = _combat.fighters.filter((f) => f.team === team)[index]
+      if (!found) throw new Error(`No fighter ${index} in team ${team}`)
+      return found.id
+    }
+    for (const rule of rules.arrivals ?? []) {
+      const id = member(rule.team, rule.index)
+      this._arrivals.push({ rule, id, done: false })
+      _combat.offstage.add(id)
+    }
+    for (const rule of rules.switches ?? []) {
+      this._switches.push({
+        rule,
+        id: member(rule.team, rule.index),
+        done: false,
+      })
+    }
     for (const p of rules.silent ?? []) this.silent.add(keyOf(p))
     for (const zone of rules.zones ?? []) {
       this._idle.set(zone.id, 0)
@@ -177,6 +229,7 @@ export class AdventureTracker {
 
   /** The timeline moved on to `time`: the clock ticks. */
   advance(time: number) {
+    this._release(time)
     const clock = this.rules.clock
     if (!clock) return
     while (time >= this._nextTick && this._combat.state !== "ended") {
@@ -184,12 +237,69 @@ export class AdventureTracker {
       this.report.ticks++
       this._tick()
       this._combat.emitEvent({ type: "clockTick", tick: this.report.ticks })
+      this._release(time)
       if (clock.limit !== undefined && this.report.ticks >= clock.limit) {
         this.report.timeUp = true
         this._combat.emitEvent({ type: "timeUp" })
         this._combat.finish(clock.winner ?? null)
       }
     }
+  }
+
+  private _due(rule: { tick?: number; time?: number }, time: number) {
+    return (
+      (rule.time !== undefined && time >= rule.time) ||
+      (rule.tick !== undefined && this.report.ticks >= rule.tick)
+    )
+  }
+
+  /** Lets in the fighters whose turn has come, and switches the sides. */
+  private _release(time: number) {
+    const combat = this._combat
+    for (const entry of this._arrivals) {
+      if (entry.done || !this._due(entry.rule, time)) continue
+      if (combat.state === "ended") return
+      entry.done = true
+      const fighter = combat.getFighter(entry.id)
+      if (!fighter?.alive) continue
+      const at = this._entryCell(fighter)
+      combat.bringIn(fighter.id, at, combat.baseDelay(fighter) * 0.65)
+      this.report.arrived.push(fighter.id)
+      combat.emitEvent({ type: "arrived", fighterId: fighter.id, position: at })
+    }
+    for (const entry of this._switches) {
+      if (entry.done || !this._due(entry.rule, time)) continue
+      if (combat.state === "ended") return
+      entry.done = true
+      const fighter = combat.getFighter(entry.id)
+      if (!fighter?.alive || combat.departed.has(fighter.id)) continue
+      if (!combat.switchTeam(fighter, entry.rule.toTeam)) continue
+      this.fleeing.delete(fighter.id)
+      this.report.switched.push({
+        fighterId: fighter.id,
+        to: entry.rule.toTeam,
+      })
+    }
+  }
+
+  /** The listed cell of an arriving fighter, or the closest free one. */
+  private _entryCell(fighter: Fighter): Point {
+    const combat = this._combat
+    const free = (p: Point) =>
+      combat.board.canStand(p, fighter.locomotion) &&
+      combat.fightersAt(p).length === 0
+    if (free(fighter.position)) return { ...fighter.position }
+    const region = combat.regionFor(fighter.locomotion)
+    const cells = combat.board.cells.filter(free)
+    const pool = cells.filter((c) => region.has(keyOf(c)))
+    const best = (pool.length ? pool : cells).reduce<Point | null>(
+      (a, b) =>
+        !a || manhattan(b, fighter.position) < manhattan(a, fighter.position)
+          ? b
+          : a,
+      null,
+    )
+    return { ...(best ?? fighter.position) }
   }
 
   private _tick() {

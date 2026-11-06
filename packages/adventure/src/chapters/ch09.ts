@@ -116,7 +116,8 @@ const faim: FightSpec = {
       name: "Squalor et ses squales",
       side: "enemies",
       fighters: [
-        { preset: "squalor", at: { x: 1, y: 2 } },
+        // Squalor dives in on turn 1.
+        { preset: "squalor", at: { x: 1, y: 2 }, arrives: { tick: 1 } },
         { preset: SQUALE, at: { x: 0, y: 1 } },
         { preset: SQUALE, at: { x: 1, y: 6 } },
       ],
@@ -133,8 +134,8 @@ const faim: FightSpec = {
     },
   ],
   rules: {
-    // SIMPLIFIED: Squalor's dive on turn 1, the final-blow attribution and the
-    // fight ending on "Squalor kills a Lacunaire" do not exist. Squalor flees
+    // SIMPLIFIED: the final-blow attribution and the fight ending on
+    // "Squalor kills a Lacunaire" do not exist. Squalor flees
     // under a quarter of his hit points (as in the doc); the clock bounds it.
     flee: { team: 1, below: 0.25, exits: [{ x: 1, y: 7 }] },
     clock: { period: 1, limit: 16, winner: 0 },

@@ -145,19 +145,18 @@ function marree(ile: Ile, squalor: boolean, ombres: boolean): FightSpec {
           { preset: UNSTABLE, at: { x: 8, y: 1 } },
           { preset: UNSTABLE, at: { x: 1, y: 4 } },
           { preset: UNSTABLE, at: { x: 9, y: 4 } },
-          // wave 2
-          { preset: DEDOUBLE, at: { x: 1, y: 3 } },
-          { preset: DEDOUBLE, at: { x: 9, y: 5 } },
-          // wave 3
-          { preset: EFFILOCHEUR, at: { x: 3, y: 7 } },
-          { preset: EFFILOCHEUR, at: { x: 7, y: 7 } },
-          // wave 4
-          { preset: GIANT, at: { x: 8, y: 6 } },
+          // wave 2 (tick 4)
+          { preset: DEDOUBLE, at: { x: 1, y: 3 }, arrives: { tick: 4 } },
+          { preset: DEDOUBLE, at: { x: 9, y: 5 }, arrives: { tick: 4 } },
+          // wave 3 (tick 8)
+          { preset: EFFILOCHEUR, at: { x: 3, y: 7 }, arrives: { tick: 8 } },
+          { preset: EFFILOCHEUR, at: { x: 7, y: 7 }, arrives: { tick: 8 } },
+          // wave 4 (tick 12)
+          { preset: GIANT, at: { x: 8, y: 6 }, arrives: { tick: 12 } },
         ],
       },
     ],
-    // SIMPLIFIED: no waves (all the Marée is on the board at once, fewer
-    // bodies), no rings of Superposition, no Front de Marée, no engulfment
+    // SIMPLIFIED: no rings of Superposition, no Front de Marée, no engulfment
     // scripted at the end of wave 4 (it is told in the next scene), no
     // adjustments from `lacune_geante_habitee`, from Peut-Être's heart or
     // from the star of ch. 7. The clock stands for "hold the four waves".

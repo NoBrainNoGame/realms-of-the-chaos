@@ -13,6 +13,7 @@ export {
 } from "./chapters/era5"
 export { compile } from "./compile"
 export * from "./dsl"
+export { entryProblems, fightRules } from "./entries"
 export {
   DISPERSION_WORLDS,
   ENDING_NAMES,

@@ -101,9 +101,8 @@ const lacMuet: FightSpec = {
         { preset: EFFILOCHEUR, at: { x: 6, y: 5 } },
         { preset: UNSTABLE, at: { x: 5, y: 3 } },
         { preset: UNSTABLE, at: { x: 5, y: 5 } },
-        // SIMPLIFIED: the doubled Lacunaire comes out of the centre on turn 5;
-        // the engine cannot spawn, it waits at the edge of the Lacune.
-        { preset: GIANT, at: { x: 3, y: 4 }, hp: 12 },
+        // The doubled Lacunaire comes out of the centre on turn 5.
+        { preset: GIANT, at: { x: 5, y: 4 }, hp: 12, arrives: { tick: 5 } },
       ],
     },
     {

@@ -95,14 +95,15 @@ const tenirLesBords: FightSpec = {
     {
       name: "Lacunaires",
       side: "enemies",
-      // SIMPLIFIED: three waves (2 at turn 1, 2 at turn 4, 3 at turn 7) become
-      // five Lacunaires present from the start along the east fringe.
+      // Three waves along the east fringe: 2 at turn 1, 2 at turn 4, 3 at turn 7.
       fighters: [
-        { preset: lacunaireInstable, at: { x: 8, y: 0 } },
-        { preset: lacunaireInstable, at: { x: 8, y: 2 } },
-        { preset: lacunaireInstable, at: { x: 8, y: 4 } },
-        { preset: lacunaireInstable, at: { x: 8, y: 6 } },
-        { preset: lacunaireInstable, at: { x: 8, y: 8 } },
+        { preset: lacunaireInstable, at: { x: 8, y: 2 }, arrives: { tick: 1 } },
+        { preset: lacunaireInstable, at: { x: 8, y: 6 }, arrives: { tick: 1 } },
+        { preset: lacunaireInstable, at: { x: 8, y: 0 }, arrives: { tick: 4 } },
+        { preset: lacunaireInstable, at: { x: 8, y: 4 }, arrives: { tick: 4 } },
+        { preset: lacunaireInstable, at: { x: 8, y: 1 }, arrives: { tick: 7 } },
+        { preset: lacunaireInstable, at: { x: 8, y: 5 }, arrives: { tick: 7 } },
+        { preset: lacunaireInstable, at: { x: 8, y: 8 }, arrives: { tick: 7 } },
       ],
     },
   ],

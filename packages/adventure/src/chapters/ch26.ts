@@ -90,14 +90,14 @@ const fight: FightSpec = {
     {
       name: "La Marée",
       side: "enemies",
-      // SIMPLIFIED: five waves become five Tiédeurs standing from the start
-      // (the engine cannot spawn): one real, four unstable ones.
+      // Five waves: the real Tiédeur at the start, then an unstable one every
+      // other turn.
       fighters: [
         at(TIEDEUR, 7, 4),
-        at(UNSTABLE, 7, 2),
-        at(UNSTABLE, 7, 6),
-        at(UNSTABLE, 6, 1),
-        at(UNSTABLE, 6, 7),
+        { ...at(UNSTABLE, 7, 2), arrives: { tick: 2 } },
+        { ...at(UNSTABLE, 7, 6), arrives: { tick: 4 } },
+        { ...at(UNSTABLE, 6, 1), arrives: { tick: 6 } },
+        { ...at(UNSTABLE, 6, 7), arrives: { tick: 8 } },
       ],
     },
   ],
