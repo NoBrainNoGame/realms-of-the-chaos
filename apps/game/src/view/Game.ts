@@ -1,6 +1,12 @@
 import type * as booyah from "@ghom/booyah"
 import type { FightReport, FightSpec, Run } from "@realms/adventure"
-import { explorationOf } from "@realms/adventure"
+import {
+  chapterById,
+  explorationOf,
+  getFlag,
+  START_CARRY,
+  teleportReaction,
+} from "@realms/adventure"
 import type { CustomLook } from "@realms/engine"
 import {
   allyTeam,
@@ -17,7 +23,12 @@ import {
 } from "../adventure/progress"
 import { SECRET_ENDINGS } from "../endings"
 import type { Params } from "../params"
-import { takeCongratulation, vacuumDecayWipe } from "../storage"
+import {
+  adventureSave,
+  takeCongratulation,
+  vacuumDecayWipe,
+  writeAdventureSave,
+} from "../storage"
 import AppearanceEditor from "./AppearanceEditor"
 import ArcadeRun from "./ArcadeRun"
 import Chronicles from "./Chronicles"
@@ -34,6 +45,7 @@ import TitleScreen, { type TitleChoice } from "./TitleScreen"
 import Tutorial from "./Tutorial"
 import { applyScars } from "./theme"
 import ViewChip from "./ViewChip"
+import WorldMap from "./WorldMap"
 
 export type Screen =
   | { type: "title" }
@@ -47,6 +59,8 @@ export type Screen =
     }
   /** « Chroniques »: the chapter selector. */
   | { type: "chronicles" }
+  /** The map of the Fragments (the Ghom sends the hero). */
+  | { type: "map" }
   /** The story player, on the saved run (`start`: opens that chapter first). */
   | {
       type: "story"
@@ -56,6 +70,8 @@ export type Screen =
       sandbox?: Run | true
       /** A chapter just over (the walked island hands it over). */
       done?: Run
+      /** The hero arrives by the map: what he says (the teleport). */
+      arrival?: string[]
     }
   /** Which saved Écho plays the hero. */
   | { type: "hero" }
@@ -329,6 +345,7 @@ export default class Game extends ViewChip {
         const chronicles = new Chronicles()
         this._subscribeOnce(chronicles, "choose", (choice) => {
           if (choice.kind === "back") this.show({ type: "title" })
+          else if (choice.kind === "map") this.show({ type: "map" })
           else if (choice.kind === "new") this.show({ type: "hero" })
           else if (choice.kind === "resume") {
             const next = continuation()
@@ -354,7 +371,9 @@ export default class Game extends ViewChip {
             run,
             sandbox: replay,
             makeFight: (spec, r) => this._siteFight(spec, r),
+            arrival: screen.arrival,
           })
+          this._subscribeOnce(island, "map", () => this.show({ type: "map" }))
           this._subscribeOnce(island, "back", () =>
             this.show({ type: "chronicles" }),
           )
@@ -390,6 +409,37 @@ export default class Game extends ViewChip {
           this.show(this._adventureFight(spec, r, replay ? r : undefined)),
         )
         return story
+      }
+
+      case "map": {
+        const map = new WorldMap()
+        this._subscribeOnce(map, "back", () => {
+          const next = continuation()
+          this.show(next ? { type: "story" } : { type: "chronicles" })
+        })
+        this._subscribeOnce(map, "travel", (id: string, current: boolean) => {
+          const save = adventureSave()
+          const arrival = teleportReaction(
+            {
+              trips: save.trips,
+              chapter: chapterById(id).number,
+              usure: Number(getFlag(save.run ?? START_CARRY, "usure")),
+            },
+            randomSeed(),
+          )
+          save.trips++
+          writeAdventureSave(save)
+          this.show(
+            current
+              ? {
+                  type: "story",
+                  start: continuation()?.kind === "chapter" ? id : undefined,
+                  arrival,
+                }
+              : { type: "story", start: id, sandbox: true, arrival },
+          )
+        })
+        return map
       }
 
       case "hero": {

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, test } from "bun:test"
 import { CHAPTERS } from "@realms/adventure"
-import { unlockedChapters } from "../adventure/progress"
+import { STARTING_LOOK } from "../adventure/hero"
+import { newGame, unlockedChapters } from "../adventure/progress"
 import { parseParams } from "../params"
 import { resetSettings } from "../settings"
 import {
@@ -18,6 +19,7 @@ import ExplorationScene from "./ExplorationScene"
 import type FightScene from "./FightScene"
 import Game from "./Game"
 import type TitleScreen from "./TitleScreen"
+import type WorldMap from "./WorldMap"
 
 const game = (query = "") =>
   mount(new Game(parseParams(new URLSearchParams(query))))
@@ -289,5 +291,39 @@ describe("exploration", () => {
     expect(g.current).not.toBe(i)
     f = (g.current as any).frame
     expect(f.kind).toBe("done")
+  })
+})
+
+describe("the map of the Fragments", () => {
+  test("only the open Fragments are travelled to; the hero reacts on arrival, once more each time", () => {
+    const g = game("chapter=prologue")
+    const island = g.current as ExplorationScene
+    ;(island as any).emit("map")
+    tick(g, 50)
+    expect(g.screen.type).toBe("map")
+    const map = g.current as WorldMap
+    const open = map.islands.filter((i) => i.enabled)
+    expect(open.map((i) => i.id)).toEqual(["prologue"])
+    expect(map.travel(CHAPTERS[1].id)).toBe(false)
+    expect(map.travel("prologue")).toBe(true)
+    expect(g.screen.type).toBe("story")
+    const back = g.current as ExplorationScene
+    expect(back.mode).toBe("look")
+    expect(back.run.chapter).toBe("prologue")
+    expect(adventureSave().trips).toBe(1)
+    // the reaction is read, then the hero walks again
+    back.advance()
+    expect(back.mode === "walk" || back.mode === "story").toBe(true)
+  })
+
+  test("the selector offers the map once the hero exists", () => {
+    const g = game("mode=chronicles")
+    const sel = g.current as Chronicles
+    expect(sel.menu.items.some((i) => i.id === "map")).toBe(false)
+    newGame(STARTING_LOOK)
+    const g2 = game("mode=chronicles")
+    const sel2 = g2.current as Chronicles
+    sel2.menu.select(sel2.menu.items.findIndex((i) => i.id === "map"))
+    expect(g2.screen.type).toBe("map")
   })
 })

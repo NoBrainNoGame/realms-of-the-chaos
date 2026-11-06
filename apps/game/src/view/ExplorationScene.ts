@@ -49,6 +49,8 @@ interface ExplorationEvents extends booyah.BaseCompositeEvents {
   /** The chapter is over: the end screen follows. */
   done: [run: Run]
   back: []
+  /** The player opens the map of the Fragments. */
+  map: []
   /** A vacuum decay in a fight of the island: the save is wiped. */
   vacuumDecay: []
   /** The hero moved or the story did (a hook for the world map, the Carnet…). */
@@ -61,6 +63,8 @@ export interface ExplorationOptions {
   sandbox?: boolean
   /** The fight scene for a spec (its end actions are the Adventure's). */
   makeFight: (spec: FightSpec, run: Run) => FightScene
+  /** What the hero says on arriving by the map (the Ghom's teleport). */
+  arrival?: string[]
 }
 
 /** Time to cross one cell (ms). */
@@ -209,6 +213,16 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
     this._seedTrail(ex.start)
     this._sync()
     this._afterRun()
+    const arrival = this._options.arrival ?? []
+    if (arrival.length && this._mode === "walk") {
+      this._looks = arrival.map((text) => ({
+        who: "heros",
+        style: "say" as const,
+        text,
+      }))
+      this._mode = "look"
+      this._renderBox()
+    }
     this._subscribe(window, "keydown", (e: KeyboardEvent) => this._key(e))
   }
 
@@ -668,6 +682,7 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
       this._looks.shift()
       if (!this._looks.length) {
         this._mode = "walk"
+        this._autoIn = pending(this._run)?.auto ? 450 : 0
         this._sync()
         this.emit("changed", this._run)
       }
@@ -709,6 +724,10 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
   }
 
   private _key(e: KeyboardEvent) {
+    if (this._mode === "walk" && (e.key === "m" || e.key === "M")) {
+      this.emit("map")
+      return
+    }
     if (this._menu) {
       if (this._menu.handleKey(e.key)) e.preventDefault()
       return
@@ -916,7 +935,7 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
     const here = pending(this._run)
     const t = text(
       here
-        ? `Clic : marcher · à trouver : ${here.label}`
+        ? `Clic : marcher · M : carte · à trouver : ${here.label}`
         : "Clic : marcher, s'approcher, regarder",
       14,
       COLORS.muted,

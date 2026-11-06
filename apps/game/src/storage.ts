@@ -167,6 +167,8 @@ export interface AdventureSave {
   completed: string[]
   /** The single run in progress (auto-saved, choices are final). */
   run: Run | null
+  /** Journeys the Ghom made the hero take across the map. */
+  trips: number
 }
 
 export const emptyAdventureSave = (): AdventureSave => ({
@@ -175,6 +177,7 @@ export const emptyAdventureSave = (): AdventureSave => ({
   starts: {},
   completed: [],
   run: null,
+  trips: 0,
 })
 
 export function adventureSave(): AdventureSave {

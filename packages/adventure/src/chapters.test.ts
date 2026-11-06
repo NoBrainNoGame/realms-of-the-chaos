@@ -18,6 +18,8 @@ import {
   type Run,
   START_CARRY,
   startChapter,
+  TELEPORT_POOLS,
+  teleportReaction,
   validateChapter,
   wanderFight,
 } from "./index"
@@ -154,5 +156,26 @@ describe("exploration", () => {
     expect(foe.x - hero.x).toBe(2)
     expect(foe.y - hero.y).toBe(1)
     expect(hero.x).toBeLessThan(spec.board[0].length)
+  })
+})
+
+describe("teleport reactions", () => {
+  test("they change with the journeys made, and stay deterministic", () => {
+    const first = teleportReaction({ trips: 0, chapter: 1 }, 5)
+    const early = teleportReaction({ trips: 2, chapter: 1 }, 5)
+    const used = teleportReaction({ trips: 9, chapter: 1 }, 5)
+    expect(TELEPORT_POOLS.FIRST).toContain(first[0])
+    expect(TELEPORT_POOLS.EARLY).toContain(early[0])
+    expect(TELEPORT_POOLS.USED).toContain(used[0])
+    expect(teleportReaction({ trips: 0, chapter: 1 }, 5)).toEqual(first)
+    const seen = new Set(
+      [0, 1, 2, 3, 4, 5].map(
+        (s) => teleportReaction({ trips: 5, chapter: 1 }, s)[0],
+      ),
+    )
+    expect(seen.size).toBeGreaterThan(2)
+    expect(
+      teleportReaction({ trips: 5, chapter: 1, usure: 4 }, 1),
+    ).toHaveLength(2)
   })
 })

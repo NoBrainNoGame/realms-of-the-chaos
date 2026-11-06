@@ -16,6 +16,8 @@ export type ChroniclesChoice =
   | { kind: "new" }
   /** A past chapter replayed in a sandbox: the run is not touched. */
   | { kind: "chapter"; id: string }
+  /** The map of the Fragments. */
+  | { kind: "map" }
   | { kind: "back" }
 
 interface ChroniclesEvents extends booyah.BaseCompositeEvents {
@@ -127,6 +129,7 @@ export default class Chronicles extends ViewChip<ChroniclesEvents> {
         enabled: done,
       })
     }
+    if (save.body) items.push({ id: "map", label: "Carte des Fragments" })
     items.push({ id: "back", label: "Retour" })
 
     this._menu = new Menu(items, {
@@ -137,6 +140,7 @@ export default class Chronicles extends ViewChip<ChroniclesEvents> {
         if (id === "resume") this.emit("choose", { kind: "resume" })
         else if (id.startsWith("chapter:"))
           this.emit("choose", { kind: "chapter", id: id.slice(8) })
+        else if (id === "map") this.emit("choose", { kind: "map" })
         else if (id === "new") this.emit("choose", { kind: "new" })
         else this.emit("choose", { kind: "back" })
       },
