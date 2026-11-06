@@ -1,5 +1,5 @@
 import * as booyah from "@ghom/booyah"
-import { Application, TextureStyle } from "pixi.js"
+import { Application, CanvasTextMetrics, TextureStyle } from "pixi.js"
 import { ENDING_BASCULE, ENDING_GRATUITE } from "./endings"
 import { params } from "./params"
 import {
@@ -25,6 +25,10 @@ else if (params.ending === ENDING_GRATUITE && secondEndingAvailable()) {
 // the scars of past vacuum decays drift the colours (before anything draws)
 applyScars(scarCount())
 for (const id of params.grant) grantHeroSpell(id)
+
+// the canvas's own letter spacing: Pixi's fallback draws letter by letter,
+// which still ran the font's "fi" ligature into an "A" in small texts
+CanvasTextMetrics.experimentalLetterSpacing = true
 
 // crisp pixel art everywhere
 TextureStyle.defaultOptions.scaleMode = "nearest"
