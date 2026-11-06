@@ -63,6 +63,13 @@ export function fightRules(
   const allies: AutonomyEntry[] = []
   const scripts: NonNullable<AdventureRules["scripts"]> = []
   const recompose: NonNullable<AdventureRules["recompose"]> = []
+  const raw = (key: string) => {
+    try {
+      return flag?.(key)
+    } catch {
+      return undefined
+    }
+  }
   const num = (key: string) => {
     try {
       const v = flag?.(key)
@@ -73,7 +80,12 @@ export function fightRules(
   }
   spec.teams.forEach((team, t) => {
     team.fighters.forEach((f, index) => {
-      if (f.script) scripts.push({ team: t, index, steps: f.script })
+      const alt = f.scriptIf
+      const v = alt ? raw(alt.flag) : undefined
+      const useAlt =
+        alt && (typeof v === "number" ? v >= (alt.atLeast ?? 1) : v === true)
+      const steps = useAlt ? alt.script : f.script
+      if (steps) scripts.push({ team: t, index, steps })
       if (f.recompose) recompose.push({ team: t, index, ...f.recompose })
       if (f.arrives) arrivals.push({ team: t, index, ...f.arrives })
       if (f.switchTo) {

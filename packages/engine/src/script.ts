@@ -8,6 +8,15 @@ import type { FightEvent, Fighter } from "./types"
 // relief), fallen fighters that reform (the Recomposition) and cells that go
 // tepid (the Tiédeur). Nothing here runs unless a rule asks for it.
 
+/** A way out of the island; open on a window of ticks, or once a team is down. */
+export interface ScriptExit {
+  at: Point
+  from?: number
+  to?: number
+  /** Opens only when every fighter of this team has fallen or left. */
+  afterDown?: number
+}
+
 /** What a scripted fighter aims at. */
 export type ScriptAim =
   | Point
@@ -21,6 +30,12 @@ export type ScriptAct =
   | { do: "use"; action: string; at: ScriptAim }
   | { do: "stand" }
   | { do: "follow"; team: number; index: number }
+  /**
+   * Walk to the nearest open exit and leave the island there. With `escort`,
+   * the fighter only moves on a turn that starts next to a fighter of that
+   * team (a group that does not move alone).
+   */
+  | { do: "leave"; exits: ScriptExit[]; escort?: number }
 
 /**
  * One step of a script. It applies at a turn of the fighter when the clock is
@@ -216,6 +231,8 @@ export class ScriptKit {
           ? [{ type: "move", destination: best }, { type: "pass" }]
           : [{ type: "pass" }]
       }
+      case "leave":
+        return this._leave(fighter, act.exits, act.escort)
       case "use": {
         const action = fighter.actions.find((a) => a.id === act.action)
         if (!action || combat.isOnCooldown(fighter, action)) return null
@@ -250,6 +267,55 @@ export class ScriptKit {
           : null
       }
     }
+  }
+
+  private _leave(
+    fighter: Fighter,
+    exits: ScriptExit[],
+    escort: number | undefined,
+  ): AiCommand[] | null {
+    const combat = this._combat
+    const tick = this._ticks()
+    const open = exits
+      .filter(
+        (e) =>
+          (e.from === undefined || tick >= e.from) &&
+          (e.to === undefined || tick <= e.to) &&
+          (e.afterDown === undefined ||
+            combat.fighters
+              .filter((f) => f.team === e.afterDown)
+              .every((f) => !f.alive || combat.departed.has(f.id))),
+      )
+      .map((e) => e.at)
+    if (!open.length) return [{ type: "pass" }]
+    if (open.some((e) => equals(e, fighter.position))) {
+      combat.depart(fighter)
+      return []
+    }
+    if (
+      escort !== undefined &&
+      !combat.fighters.some(
+        (f) =>
+          f.team === escort &&
+          f.alive &&
+          !combat.departed.has(f.id) &&
+          manhattan(f.position, fighter.position) <= 1,
+      )
+    )
+      return [{ type: "pass" }]
+    const score = (p: Point) => Math.min(...open.map((e) => manhattan(p, e)))
+    let best: Point | null = null
+    let bestScore = score(fighter.position)
+    for (const node of combat.explore(fighter).values()) {
+      const sc = score(node.point)
+      if (sc < bestScore) {
+        best = node.point
+        bestScore = sc
+      }
+    }
+    return best
+      ? [{ type: "move", destination: best }, { type: "pass" }]
+      : [{ type: "pass" }]
   }
 
   private _aim(at: ScriptAim): Point | "nearest" | null {

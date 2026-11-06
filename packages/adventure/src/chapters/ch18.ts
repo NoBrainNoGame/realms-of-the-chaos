@@ -1,3 +1,4 @@
+import type { ScriptStep } from "@realms/engine/adventure"
 import {
   add,
   all,
@@ -16,7 +17,7 @@ import {
   stage,
   when,
 } from "../dsl"
-import type { Beat, Chapter, FightSpec } from "../types"
+import type { Beat, Chapter, FightReport, FightSpec } from "../types"
 import {
   ALLY_COND,
   type Ally,
@@ -59,11 +60,32 @@ const GROUPES = [
   { x: 3, y: 7 },
 ]
 
+// The ways out. The Portes (north) are shut while the Garde holds them; the
+// Pont de l'Est (east) is cut after tick 3.
+const PORTES = [4, 5, 6, 7, 8].map((x) => ({ x, y: 0 }))
+const PONT = { x: 12, y: 4 }
+
+/** The cells next to the heart of the Fêlure: where a Cristal is given back. */
+const COEUR = { x: 6, y: 4 }
+const AUTOUR = [
+  { x: 5, y: 4 },
+  { x: 7, y: 4 },
+  { x: 6, y: 3 },
+  { x: 6, y: 5 },
+]
+
+/** Where the groups walk to when they leave. */
+const sorties = (portes: boolean) => [
+  ...PORTES.map((at) => (portes ? { at } : { at, afterDown: 1 })),
+  { at: PONT, to: 3 },
+]
+
 function evacuation(
   ally: Ally,
   rallie: boolean,
   merlin: boolean,
   portes: boolean,
+  rend: boolean,
 ): FightSpec {
   const allies = [
     { preset: "@hero" as const, at: { x: 4, y: 8 } },
@@ -79,7 +101,7 @@ function evacuation(
     { preset: HALLEBARDIER, at: { x: 10, y: 1 } },
   ]
   return {
-    id: `ch18-evacuation-${ally}-${rallie ? "c" : "n"}-${merlin ? "m" : "x"}-${portes ? "o" : "f"}`,
+    id: `ch18-evacuation-${ally}-${rallie ? "c" : "n"}-${merlin ? "m" : "x"}-${portes ? "o" : "f"}-${rend ? "r" : "g"}`,
     title: "L'évacuation",
     goal: "Faire sortir au moins trois groupes d'habitants avant que la place ne s'effondre. La Fêlure est l'adversaire.",
     board: BOARD,
@@ -94,18 +116,64 @@ function evacuation(
       {
         name: "Les habitants",
         side: "neutral",
-        // The groups follow the hero (a scripted walk).
-        // CUT: autonomous groups (Odile, Tobin, Pia, Corin), the Fêlure growing in steps, Pont de cristal, Rendre,
-        // lampadaires. Habitants are neutral units that must survive.
-        fighters: GROUPES.map((at) => ({
-          preset: HABITANTS,
-          at,
-          script: [{ act: { do: "follow", team: 0, index: 0 } }],
-        })),
+        // A group does not move alone: it leaves while an ally stands next to
+        // it. Where the hero reopened a question (`questions_rouvertes`), or
+        // the Garde opened the gates, a group walks out by itself.
+        fighters: GROUPES.map((at, i) => {
+          const leave = (escort?: number): ScriptStep[] => [
+            { act: { do: "leave", exits: sorties(portes), escort } },
+          ]
+          return {
+            preset: HABITANTS,
+            at,
+            script: portes && i >= 4 ? leave() : leave(0),
+            ...(portes && i >= 4
+              ? {}
+              : {
+                  scriptIf: {
+                    flag: "questions_rouvertes",
+                    atLeast: i + 1,
+                    script: leave(),
+                  },
+                }),
+          }
+        }),
       },
     ],
     rules: {
       neutral: [2],
+      // The Fêlure opens from its heart, ring after ring, until a Cristal is
+      // given back (Rendre).
+      lacunes: {
+        cells: [COEUR],
+        every: 2,
+        spread: 2,
+        mendTeams: [],
+        stopOnDeposit: true,
+      },
+      crystals: {
+        crystals: [
+          ...(rend
+            ? [
+                {
+                  id: "rendu",
+                  at: { x: 4, y: 8 },
+                  kind: "geode" as const,
+                  carriedBy: { team: 0, index: 0 },
+                },
+              ]
+            : []),
+          // Gorr's bridge: a Cristal laid over the Fêlure (Pont de cristal).
+          {
+            id: "pont",
+            at: { x: 6, y: 8 },
+            kind: "geode" as const,
+            carriedBy: { team: 0, index: 2 },
+          },
+        ],
+        deposits: AUTOUR,
+        bridge: { span: 2 },
+      },
       clock: { period: 1, limit: 12, winner: 0 },
       ...(portes
         ? {}
@@ -116,13 +184,32 @@ function evacuation(
     startEnergy: 3,
     defeat: [set("defaite"), add("usure")],
     objectives: [
+      ...(rend
+        ? [
+            {
+              id: "rendre",
+              mark: "★" as const,
+              label: "Rendre un Cristal au monde",
+              // Rendre: the Cristal is put down next to the heart of the Fêlure.
+              check: (r: FightReport) => !!r.crystals?.deposited.length,
+              success: "Le Cristal est rendu. La Fêlure se tait, un instant.",
+              failure: "Le Cristal n'a pas été rendu à temps.",
+              onFailure: [
+                set("cristal_rendu", "aucun"),
+                set("transformation.3", "A"),
+                add("cristaux.donnes", -1),
+                add("lacunes.recousues", -1),
+              ],
+            },
+          ]
+        : []),
       {
         id: "evacues",
         mark: "◆",
         label: "Évacuer au moins trois groupes d'habitants",
         check: (r) =>
-          r.fighters.filter((f) => f.preset === "habitants" && f.hp > 0)
-            .length >= 3,
+          r.fighters.filter((f) => f.preset === "habitants" && f.fled).length >=
+          3,
         success: "Au moins trois groupes sont dehors.",
         onSuccess: [add("vitrelle_evacues", 3)],
       },
@@ -131,8 +218,8 @@ function evacuation(
         mark: "◆",
         label: "Les six groupes sortent",
         check: (r) =>
-          r.fighters.filter((f) => f.preset === "habitants" && f.hp > 0)
-            .length >= 6,
+          r.fighters.filter((f) => f.preset === "habitants" && f.fled).length >=
+          6,
         onSuccess: [add("vitrelle_evacues", 3), add("confiance", 2)],
       },
     ],
@@ -163,24 +250,41 @@ function evacuation(
 }
 
 function evacuationBeat(): Beat {
-  const make = (ally: Ally, rallie: boolean): Beat =>
-    when(
+  const make = (ally: Ally, rallie: boolean): Beat => {
+    const fight = (merlin: boolean, portes: boolean): Beat =>
+      when(
+        is("cristal_rendu", "aucun"),
+        [
+          {
+            t: "fight",
+            fight: evacuation(ally, rallie, merlin, portes, false),
+          },
+        ],
+        [
+          {
+            t: "fight",
+            fight: evacuation(ally, rallie, merlin, portes, true),
+          },
+        ],
+      )
+    return when(
       is("merlin_convaincu"),
       [
         when(
           is("brutus_portes_ouvertes"),
-          [{ t: "fight", fight: evacuation(ally, rallie, true, true) }],
-          [{ t: "fight", fight: evacuation(ally, rallie, true, false) }],
+          [fight(true, true)],
+          [fight(true, false)],
         ),
       ],
       [
         when(
           is("brutus_portes_ouvertes"),
-          [{ t: "fight", fight: evacuation(ally, rallie, false, true) }],
-          [{ t: "fight", fight: evacuation(ally, rallie, false, false) }],
+          [fight(false, true)],
+          [fight(false, false)],
         ),
       ],
     )
+  }
   return when(
     is("chroniqueur_rejoint"),
     [byAlly((a) => make(a, true))],

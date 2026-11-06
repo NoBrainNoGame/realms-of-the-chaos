@@ -151,8 +151,10 @@ export interface LacuneRules {
   spread?: number
   from?: number
   swallow?: number
-  /** Teams whose actions mend cells (default: team 0). */
+  /** Teams whose actions mend cells (default: team 0; `[]`: nobody). */
   mendTeams?: number[]
+  /** Once a crystal was deposited (Rendre), the Lacune stops growing. */
+  stopOnDeposit?: boolean
 }
 
 /**
@@ -638,6 +640,8 @@ export class AdventureTracker {
     const combat = this._combat
     const ticks = this.report.ticks
     if (ticks < (rules.from ?? rules.every) || ticks % rules.every !== 0) return
+    if (rules.stopOnDeposit && this.crystals?.report.crystals.deposited.length)
+      return
     const voids = combat.board.voids
     const seen = new Set<string>()
     const candidates: Point[] = []

@@ -29,6 +29,7 @@ const fightsOf = (c: { scenes: Record<string, { beats: unknown[] }> }) => {
       fight?: FightSpec
       [k: string]: unknown
     }[]) {
+      if (!b || typeof b !== "object") continue
       if (b.t === "fight" && b.fight) out.push(b.fight)
       for (const v of Object.values(b))
         if (Array.isArray(v)) walk(v)
@@ -53,13 +54,23 @@ describe("scripted fights", () => {
     }
   })
 
-  test("chapter 18: the inhabitants follow the hero", () => {
+  test("chapter 18: the groups leave by the open ways, alone only if freed", () => {
     for (const spec of fightsOf(ch18)) {
-      const rules = fightRules(spec)
-      expect(rules.scripts?.every((s) => s.steps[0].act.do === "follow")).toBe(
+      const none = fightRules(spec, () => 0)
+      expect(none.scripts?.length).toBe(6)
+      expect(none.scripts?.every((s) => s.steps[0].act.do === "leave")).toBe(
         true,
       )
-      expect(rules.scripts?.length).toBeGreaterThan(0)
+      const escort = (r: typeof none) =>
+        r.scripts?.filter(
+          (s) => s.steps[0].act.do === "leave" && s.steps[0].act.escort === 0,
+        ).length ?? 0
+      const freed = fightRules(spec, (k) =>
+        k === "questions_rouvertes" ? 3 : 0,
+      )
+      expect(escort(freed)).toBeLessThan(escort(none))
+      expect(spec.rules.lacunes?.stopOnDeposit).toBe(true)
+      expect(entryProblems(spec)).toEqual([])
     }
   })
 

@@ -125,6 +125,11 @@ export interface FighterSpec {
    * on hold. See `ScriptStep` in the engine.
    */
   script?: ScriptStep[]
+  /**
+   * Another script, played instead of `script` when the flag holds (true, or
+   * a count at least `atLeast`): a group that moves alone, an ally that chose.
+   */
+  scriptIf?: { flag: string; atLeast?: number; script: ScriptStep[] }
   /** Reforms after a few ticks when it falls (see `RecomposeRule`). */
   recompose?: Omit<RecomposeRule, "team" | "index">
   /** Changes to the team of that index (and its controller) mid-fight. */

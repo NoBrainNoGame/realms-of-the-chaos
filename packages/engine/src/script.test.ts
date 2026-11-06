@@ -219,3 +219,83 @@ describe("tiédeur", () => {
     expect(events.some((e) => e.type === "cooled")).toBe(true)
   })
 })
+
+describe("leaving the island", () => {
+  const clock = { period: 10, limit: 8 }
+  const leaving = (exits: { at: { x: number; y: number }; to?: number }[]) =>
+    fight(
+      {
+        clock,
+        neutral: [1],
+        noDefeat: [0],
+        scripts: [
+          { team: 1, index: 0, steps: [{ act: { do: "leave", exits } }] },
+        ],
+      },
+      [1],
+    )
+
+  test("a scripted fighter walks to an open exit and leaves", () => {
+    const c = leaving([{ at: { x: 7, y: 2 } }])
+    c.run()
+    const foe = c.fighters.find((f) => f.team === 1)
+    expect(foe && c.departed.has(foe.id)).toBe(true)
+  })
+
+  test("a closed exit is not used", () => {
+    const c = leaving([{ at: { x: 7, y: 2 }, to: -1 }])
+    c.run()
+    const foe = c.fighters.find((f) => f.team === 1)
+    expect(foe && c.departed.has(foe.id)).toBe(false)
+  })
+})
+
+describe("the Fêlure stops when a Cristal is given back", () => {
+  const grown = (deposit: boolean) => {
+    const c = new Combat({
+      seed: 3,
+      board: ground(),
+      teams: [
+        { controller: "human", fighters: ["brutus"] },
+        { controller: "ai", fighters: ["gorr"] },
+      ],
+      positions: [[{ x: 1, y: 1 }], [{ x: 7, y: 4 }]],
+      adventure: {
+        clock: { period: 10, limit: 12 },
+        neutral: [1],
+        noDefeat: [0],
+        lacunes: {
+          cells: [{ x: 4, y: 0 }],
+          every: 1,
+          spread: 1,
+          mendTeams: [],
+          stopOnDeposit: true,
+        },
+        crystals: {
+          crystals: [
+            {
+              id: "g",
+              at: { x: 1, y: 1 },
+              kind: "geode",
+              carriedBy: { team: 0, index: 0 },
+            },
+          ],
+          deposits: [{ x: 2, y: 1 }],
+        },
+      },
+    })
+    let done = !deposit
+    for (let i = 0; i < 60 && c.state !== "ended"; i++) {
+      c.run()
+      if (!c.activeFighter) continue
+      if (!done) done = c.crystal("deposit", { x: 2, y: 1 }).ok
+      else c.pass()
+    }
+    expect(done).toBe(true)
+    return c.adventure?.report.lacune.grown ?? 0
+  }
+
+  test("a Lacune that grows from its heart stops after a deposit", () => {
+    expect(grown(false)).toBeGreaterThan(grown(true))
+  })
+})
