@@ -137,9 +137,14 @@ const fightCoeur: FightSpec = {
     clock: { period: 12, limit: 3, winner: 0 },
     fixOnDeath: [1],
     announce: true,
+    // Réparation unlocks when Lyra reaches the seam.
+    regions: { couture: [{ x: 4, y: 3 }] },
+    lockedDivine: ["blessing"],
+    unlockOnReach: [
+      { divineId: "blessing", region: "couture", team: 0, preset: "lyra" },
+    ],
   },
   influences: ["earthquake", "timeWarp", "blessing"],
-  // SIMPLIFIED: Réparation is available from the start (no unlock on event).
   startEnergy: 2,
   defeat: [
     set("defaite"),
@@ -189,8 +194,26 @@ const fightCoeur: FightSpec = {
       who: "lyra",
       text: "Celui-là est vieux. Il a eu le temps de geler tout ce qu'il touche. Ne restez pas à côté de lui.",
     },
-    // CUT: "Première Intrication", "Lyra atteint la couture", "sous 60 %",
-    // "sous 50 %" and "Réparation utilisée" lines (no matching triggers).
+    {
+      when: "intrication",
+      who: "lyra",
+      text: "Là. Sur la même case, on ne fait plus tout à fait deux. Garde ça.",
+    },
+    {
+      when: "unlock:blessing",
+      who: "lyra",
+      text: "J'allume le feu ici. Ghom, si tu veux réparer, c'est maintenant, et ça se paiera ailleurs.",
+    },
+    {
+      when: "heal",
+      who: "lyra",
+      text: "Je me vide. Ça va. Ça doit aller encore un peu.",
+    },
+    {
+      when: "cast:blessing",
+      who: "lyra",
+      text: "De la vapeur, au loin. Voilà le prix de l'ordre qu'on vient de faire.",
+    },
     { when: "end", who: "lyra", text: "Le sol est chaud. Il est chaud !" },
   ],
 }

@@ -151,6 +151,16 @@ export interface AdventureRules {
    * fighter stood in them (per clock tick), who struck there, who came.
    */
   regions?: Record<string, Point[]>
+  /**
+   * Influences that unlock when a fighter (of `team`, optionally a given
+   * `preset`) first stands in a named region (see `regions`).
+   */
+  unlockOnReach?: {
+    divineId: string
+    region: string
+    team: number
+    preset?: string
+  }[]
 }
 
 /**
@@ -540,11 +550,32 @@ export class AdventureTracker {
     return this.report.zoneStates[id] ?? "active"
   }
 
+  /** A fighter stepped on a cell: it may unlock an Influence (`unlockOnReach`). */
+  private _reach(fighterId: string, to: Point) {
+    const list = this.rules.unlockOnReach
+    if (!list) return
+    const f = this._combat.getFighter(fighterId)
+    if (!f) return
+    for (const u of list) {
+      if (!this.locked.has(u.divineId) || f.team !== u.team) continue
+      if (u.preset && f.presetId !== u.preset) continue
+      if (
+        !this.rules.regions?.[u.region]?.some(
+          (c) => c.x === to.x && c.y === to.y,
+        )
+      )
+        continue
+      this._combat.unlockDivine(u.divineId)
+      this._combat.emitEvent({ type: "unlocked", divineId: u.divineId })
+    }
+  }
+
   /** Called for every event the combat emits. */
   observe(event: FightEvent) {
     const combat = this._combat
     this.trace.observe(event)
     this.script.observe(event)
+    if (event.type === "moved") this._reach(event.fighterId, event.to)
     switch (event.type) {
       case "moved": {
         const f = combat.getFighter(event.fighterId)

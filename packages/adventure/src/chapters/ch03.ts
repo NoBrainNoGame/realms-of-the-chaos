@@ -158,6 +158,15 @@ const fightNuit: FightSpec = {
       ],
     },
     fixOnDeath: [1],
+    // The wall of the granary (the map border): a Séisme there breaches it.
+    regions: {
+      mur: [
+        ...Array.from({ length: 9 }, (_, x) => ({ x, y: 0 })),
+        ...Array.from({ length: 9 }, (_, x) => ({ x, y: 8 })),
+        ...Array.from({ length: 7 }, (_, i) => ({ x: 0, y: i + 1 })),
+        ...Array.from({ length: 7 }, (_, i) => ({ x: 8, y: i + 1 })),
+      ],
+    },
     // The effilocheur's cold halo comes up at tour 3 (about time 30) and
     // follows it: whoever starts a turn within a cell of it takes the cold.
     clock: { period: 10 },
@@ -220,7 +229,16 @@ const fightNuit: FightSpec = {
       success: "Le Ghom n'a rien secoué sous les pieds de Brutus.",
       onSuccess: [add("confiance.brutus", 1)],
     },
-    // CUT: ◆ "Le mur reste entier" (no way to read a Séisme on a wall cell).
+    {
+      id: "mur-entier",
+      mark: "◆",
+      label: "Le mur reste entier",
+      check: (r) => r.result !== "defeat",
+      when: {
+        not: { castOn: { region: "mur", divine: "earthquake" } },
+      },
+      success: "Le mur du grenier tient encore.",
+    },
   ],
   lines: [
     {
@@ -238,8 +256,21 @@ const fightNuit: FightSpec = {
       who: "lyra",
       text: "Celui-là s'en va. Laisse-le partir. Ce qui s'en va n'a pas besoin d'être brisé.",
     },
-    // CUT: lines on a fixed fugitive, Brutus guarding an Assis, Distorsion on
-    // Brutus, wall breach and shield knockout (no matching triggers).
+    {
+      when: "fixed",
+      who: "brutus",
+      text: "Celui-là n'a pas voulu partir. Il fera un caillou de plus au grenier.",
+    },
+    {
+      when: "cast:earthquake",
+      who: "brutus",
+      text: "Doucement avec le sol. C'est le mien, et c'est celui du mur.",
+    },
+    {
+      when: "cast:timeWarp",
+      who: "brutus",
+      text: "Ne me ralentis pas, Ghom. Pas ici, pas maintenant.",
+    },
     {
       when: "end",
       who: "brutus",

@@ -329,6 +329,8 @@ export type FightEvent =
   | { type: "cooled"; cells: Point[] }
   /** Adventure fixOnDeath: a fallen fighter set into a rock. */
   | { type: "fixed"; fighterId: string; cell: Point }
+  /** Adventure unlockOnReach: an Influence became available. */
+  | { type: "unlocked"; divineId: string }
   | { type: "fleeing"; fighterId: string }
   | { type: "fled"; fighterId: string }
   | { type: "timeUp" }

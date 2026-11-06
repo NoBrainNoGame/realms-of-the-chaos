@@ -187,6 +187,9 @@ export interface FightLine {
     /** The first heal of the fight / the first zone lost. */
     | "heal"
     | "lost"
+    | `unlock:${string}`
+    /** The first Intrication of the fight. */
+    | "intrication"
     /** A fallen foe set into a rock (a fixed Lacunaire). */
     | "fixed"
   who: string

@@ -117,11 +117,11 @@ const lastFold: FightSpec = {
     {
       name: "Lacunaires instables",
       side: "enemies",
-      // SIMPLIFIED: the unstable Lacunaires should be born in the silent zones
-      // from turn 3; the engine cannot spawn, so two wait in the corners.
+      // Born in the zones that went silent, from turn 3: they come in at the
+      // end of the clock tick, on the zone's own cell.
       fighters: [
-        { preset: UNSTABLE, at: { x: 0, y: 0 } },
-        { preset: UNSTABLE, at: { x: 8, y: 8 } },
+        { preset: UNSTABLE, at: { x: 1, y: 1 }, arrives: { tick: 3 } },
+        { preset: UNSTABLE, at: { x: 4, y: 7 }, arrives: { tick: 4 } },
       ],
     },
   ],

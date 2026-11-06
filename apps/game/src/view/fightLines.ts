@@ -11,6 +11,7 @@ export class FightVoice {
   private _said = new Set<LineSpec>()
   private _casts = new Set<string>()
   private _healed = false
+  private _paired = false
   private _lost = false
 
   constructor(private readonly _lines: readonly LineSpec[]) {}
@@ -39,6 +40,12 @@ export class FightVoice {
           return this._take("lost")
         }
         return []
+      case "actionUsed":
+        if (!event.partnerId || this._paired) return []
+        this._paired = true
+        return this._take("intrication")
+      case "unlocked":
+        return this._take(`unlock:${event.divineId}`)
       case "fixed":
         return this._take("fixed")
       case "fleeing":

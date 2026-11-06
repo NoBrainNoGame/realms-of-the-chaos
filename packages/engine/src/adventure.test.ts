@@ -111,6 +111,24 @@ describe("adventure rules are opt-in", () => {
     expect(c.board.voids.has("7,4")).toBe(false)
   })
 
+  test("an Influence unlocks when the named fighter reaches the region", () => {
+    const c = fight({
+      lockedDivine: ["blessing"],
+      regions: { seam: [{ x: 2, y: 2 }] },
+      unlockOnReach: [
+        { divineId: "blessing", region: "seam", team: 0, preset: "lyra" },
+      ],
+    })
+    const lyra = c.getFighter("lyra-0-0")!
+    const brutus = c.getFighter("brutus-0-1")!
+    const to = { x: 2, y: 2 }
+    const from = { x: 1, y: 1 }
+    c.emitEvent({ type: "moved", fighterId: brutus.id, from, to })
+    expect(c.adventure?.locked.has("blessing")).toBe(true)
+    c.emitEvent({ type: "moved", fighterId: lyra.id, from, to })
+    expect(c.adventure?.locked.has("blessing")).toBe(false)
+  })
+
   test("a locked Influence is refused until unlocked", () => {
     const c = fight({ lockedDivine: ["blessing"] })
     expect(c.adventure?.locked.has("blessing")).toBe(true)
