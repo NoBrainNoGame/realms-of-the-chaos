@@ -1,5 +1,6 @@
 export * from "./carnet"
 export { CHAPTERS, chapterById, ERAS, nextChapter } from "./catalog"
+export { OUVERTES } from "./chapters/ch28"
 export { ERA2_FLAGS, ERA2_GROWTH } from "./chapters/era2"
 export { ERA3_GROWTH } from "./chapters/era3"
 export { ERA4_GROWTH } from "./chapters/era4"
