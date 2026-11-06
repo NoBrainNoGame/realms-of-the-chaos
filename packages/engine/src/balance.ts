@@ -15,14 +15,30 @@
  * the preset whose kit they use.
  */
 import { HP_PER_HEALTH } from "./combat"
-import { ACTIONS, CHARACTERS } from "./content"
+import { ACTIONS, CHARACTERS, resolveAction } from "./content"
 import { createRng } from "./random"
+import { isSpell, utilityWorth } from "./spells"
 import type {
   ActionDefinition,
   CharacterPreset,
   StatName,
   Stats,
 } from "./types"
+import { zoneCells } from "./zones"
+
+/**
+ * A kit: catalogue action ids, or full definitions (spells built by a
+ * player). Every balance function takes either.
+ */
+export type Kit = readonly (string | ActionDefinition)[]
+
+const defOf = (entry: string | ActionDefinition) =>
+  typeof entry === "string" ? ACTIONS[entry] : entry
+
+/** The kit of a preset: its actions, with their own definitions. */
+export function presetKit(preset: CharacterPreset): ActionDefinition[] {
+  return preset.actions.map((id) => resolveAction(preset, id))
+}
 
 /** Share of the damage in a fight that is physical (measured). */
 export const PHYSICAL_SHARE = 0.75
@@ -69,7 +85,7 @@ export function effectiveHp(stats: Stats) {
  * Toughness as it counts in a fight: health with diminishing returns, but
  * a steep penalty when the fighter is fragile.
  */
-export function toughness(stats: Stats, actions: readonly string[]) {
+export function toughness(stats: Stats, actions: Kit) {
   const hp = stats.health * HP_PER_HEALTH
   const exponent = isSupportKit(actions)
     ? SUPPORT_HEALTH_EXPONENT
@@ -80,7 +96,20 @@ export function toughness(stats: Stats, actions: readonly string[]) {
   return (hp ** exponent * effectiveHp(stats) * fragility) / hp
 }
 
-/** Value of one use of an action, given the user's attack stats. */
+/**
+ * A spell's area is worth this much more damage per extra cell it covers
+ * (square-rooted: enemies rarely fill a whole area).
+ */
+export const SPELL_AREA_GAIN = 0.25
+/** Utility effects of a spell (statuses, push, delay) count this much. */
+export const SPELL_UTILITY_WORTH = 1
+
+/**
+ * Value of one use of an action, given the user's attack stats. Only the
+ * damage and healing of catalogue actions count (their kits are calibrated
+ * by simulation); player spells also count their area and their other
+ * effects, which have no reference character to calibrate against.
+ */
 function actionOutput(action: ActionDefinition, stats: Stats) {
   let value = 0
   for (const effect of action.effects) {
@@ -92,6 +121,13 @@ function actionOutput(action: ActionDefinition, stats: Stats) {
       value += effect.power * (1 + stats.magicalAttack / 10) * HEAL_WORTH
     }
   }
+  if (isSpell(action)) {
+    const cells = action.area
+      ? zoneCells({ x: 0, y: 0 }, action.area).length
+      : 1
+    value *= 1 + SPELL_AREA_GAIN * (Math.sqrt(cells) - 1)
+    value += SPELL_UTILITY_WORTH * utilityWorth(action.effects)
+  }
   return value
 }
 
@@ -99,11 +135,11 @@ function actionOutput(action: ActionDefinition, stats: Stats) {
  * Output of a kit per unit of time at speed 1: each action weighted by how
  * often it can be used (cooldown), only the stat-dependent part counts.
  */
-export function kitOutput(actions: readonly string[], stats: Stats) {
+export function kitOutput(actions: Kit, stats: Stats) {
   let total = 0
   let weights = 0
-  for (const id of actions) {
-    const action = ACTIONS[id]
+  for (const entry of actions) {
+    const action = defOf(entry)
     const value = actionOutput(action, stats)
     if (value === 0) continue
     const weight = 1 / (1 + (action.cooldown ?? 0))
@@ -114,17 +150,17 @@ export function kitOutput(actions: readonly string[], stats: Stats) {
 }
 
 /** Whether a kit's signature action (its first one) helps allies. */
-export function isSupportKit(actions: readonly string[]) {
-  return ACTIONS[actions[0]].target === "ally"
+export function isSupportKit(actions: Kit) {
+  return defOf(actions[0]).target === "ally"
 }
 
 /** Whether a kit's signature action (its first one) is melee. */
-export function isMeleeKit(actions: readonly string[]) {
-  return ACTIONS[actions[0]].launch.max <= 1
+export function isMeleeKit(actions: Kit) {
+  return defOf(actions[0]).launch.max <= 1
 }
 
 /** Damage (or healing) per unit of time. */
-export function output(stats: Stats, actions: readonly string[]) {
+export function output(stats: Stats, actions: Kit) {
   const crit = 1 + critChance(stats.luck) * CRITICAL_BONUS
   const speedExponent = isMeleeKit(actions)
     ? MELEE_SPEED_EXPONENT
@@ -137,24 +173,20 @@ export function output(stats: Stats, actions: readonly string[]) {
 }
 
 /** Fighting strength of a character (Lanchester: toughness × output). */
-export function power(stats: Stats, actions: readonly string[]) {
+export function power(stats: Stats, actions: Kit) {
   return toughness(stats, actions) * output(stats, actions)
 }
 
 /** Power of a preset: every character of a kit must keep this power. */
 export function presetPower(preset: CharacterPreset) {
-  return power(preset.stats, preset.actions)
+  return power(preset.stats, presetKit(preset))
 }
 
 /**
  * Health that gives `stats` (all other stats unchanged) the wanted power.
  * Power strictly grows with health: solved by bisection.
  */
-export function healthFor(
-  stats: Stats,
-  actions: readonly string[],
-  target: number,
-) {
+export function healthFor(stats: Stats, actions: Kit, target: number) {
   const at = (health: number) => power({ ...stats, health }, actions)
   let low = 0.01
   let high = 1
@@ -227,7 +259,7 @@ export function generateCharacter(
       const value = Math.round(base.stats[name] * factor * 10) / 10
       stats[name] = Math.min(max, Math.max(min, value))
     }
-    stats.health = healthFor(stats, base.actions, target)
+    stats.health = healthFor(stats, presetKit(base), target)
     if (withinLimits(stats)) {
       return {
         ...base,

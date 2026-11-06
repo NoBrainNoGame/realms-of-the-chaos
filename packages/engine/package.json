@@ -9,6 +9,7 @@
   "scripts": {
     "test": "bun test",
     "typecheck": "tsc --noEmit -p .",
-    "balance": "bun scripts/balance.ts"
+    "balance": "bun scripts/balance.ts",
+    "spells:fit": "bun scripts/spells-fit.ts"
   }
 }

@@ -16,6 +16,7 @@ import {
   DIVINE_ACTIONS,
   MAX_ENERGY,
   MAX_FIGHTERS_PER_CELL,
+  resolveAction,
   STATUSES,
   TIME_WARP_AMOUNT,
 } from "./content"
@@ -214,11 +215,7 @@ export class Combat {
           actions: [
             ...preset.actions,
             ...COMMON_ACTIONS.filter((id) => !preset.actions.includes(id)),
-          ].map((id) => {
-            const action = ACTIONS[id]
-            if (!action) throw new Error(`Unknown action "${id}"`)
-            return action
-          }),
+          ].map((id) => resolveAction(preset, id)),
           controller: setup.controller,
           locomotion: preset.locomotion ?? "walker",
           hp: 0,
@@ -599,9 +596,11 @@ export class Combat {
     const partners = this.fightersAt(origin).filter(
       (o) => o !== fighter && !this.isEnemy(fighter, o),
     )
-    const combos = partners.map((partner) =>
-      comboAction(this.presetOf(fighter), this.presetOf(partner)),
-    )
+    // only the catalogue's signature actions have combined versions
+    const owner = this.presetOf(fighter)
+    const combos = ACTIONS[owner.actions[0]]
+      ? partners.map((partner) => comboAction(owner, this.presetOf(partner)))
+      : []
     // two identical partners give the same combo once
     const unique = combos.filter(
       (c, i) => combos.findIndex((o) => o.id === c.id) === i,

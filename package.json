@@ -16,7 +16,8 @@
     "check": "biome check && turbo run typecheck test",
     "format": "biome format --write",
     "balance": "bun packages/engine/scripts/balance.ts",
-    "lint": "biome check"
+    "lint": "biome check",
+    "spells:fit": "bun packages/engine/scripts/spells-fit.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.4",

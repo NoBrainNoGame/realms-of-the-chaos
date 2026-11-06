@@ -483,6 +483,19 @@ export const DIVINE_ACTIONS: Record<string, DivineActionDefinition> = {
   },
 }
 
+/**
+ * The one way to turn an action id of a preset into its definition: the
+ * preset's own definitions (player spells) first, then the catalogue.
+ */
+export function resolveAction(
+  preset: Pick<CharacterPreset, "actionDefs">,
+  id: string,
+): ActionDefinition {
+  const action = preset.actionDefs?.[id] ?? ACTIONS[id]
+  if (!action) throw new Error(`Unknown action "${id}"`)
+  return action
+}
+
 /** Actions every fighter has, after its own ones. */
 export const COMMON_ACTIONS = ["sprint"]
 
@@ -555,6 +568,7 @@ export function comboAction(
   partner: CharacterPreset,
 ): ActionDefinition {
   const base = ACTIONS[owner.actions[0]]
+  if (!base) throw new Error(`"${owner.id}" has no combined action`)
   const affinity = AFFINITIES[partner.affinity]
   const combo: ActionDefinition = {
     ...base,
@@ -598,8 +612,12 @@ export function comboAction(
       break
   }
 
+  // hand-made combos belong to the reference character's own signature
+  const ownerKit = owner.kit ?? owner.id
   const named =
-    NAMED_COMBOS[`${owner.kit ?? owner.id}:${partner.kit ?? partner.id}`]
+    CHARACTERS[ownerKit]?.actions[0] === base.id
+      ? NAMED_COMBOS[`${ownerKit}:${partner.kit ?? partner.id}`]
+      : undefined
   if (named) Object.assign(combo, named(base))
   return combo
 }

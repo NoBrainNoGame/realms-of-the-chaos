@@ -1,12 +1,12 @@
 import type * as booyah from "@ghom/booyah"
 import {
-  ACTIONS,
   AFFINITIES,
   CHARACTERS,
   type CharacterPreset,
   createRng,
   customPreset,
   HP_PER_HEALTH,
+  resolveAction,
 } from "@realms/engine"
 import { Container, Graphics, Sprite } from "pixi.js"
 import { settings } from "../settings"
@@ -459,7 +459,10 @@ export default class TeamPicker extends ViewChip<PickerEvents> {
     const actions = text(
       preset.actions
         .filter((a) => a !== "kick")
-        .map((a) => `• ${ACTIONS[a].name} — ${ACTIONS[a].description}`)
+        .map((a) => {
+          const action = resolveAction(preset, a)
+          return `• ${action.name} — ${action.description}`
+        })
         .join("\n"),
       12,
       COLORS.text,

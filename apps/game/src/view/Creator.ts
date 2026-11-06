@@ -1,6 +1,5 @@
 import type * as booyah from "@ghom/booyah"
 import {
-  ACTIONS,
   AFFINITIES,
   CHARACTERS,
   CUSTOM_STATS,
@@ -13,6 +12,7 @@ import {
   customRange,
   customStats,
   HP_PER_HEALTH,
+  resolveAction,
 } from "@realms/engine"
 import { Container, Graphics } from "pixi.js"
 import { generateName } from "../names"
@@ -321,7 +321,10 @@ export default class Creator extends ViewChip<CreatorEvents> {
     const actions = text(
       preset.actions
         .filter((a) => a !== "kick")
-        .map((a) => `• ${ACTIONS[a].name} — ${ACTIONS[a].description}`)
+        .map((a) => {
+          const action = resolveAction(preset, a)
+          return `• ${action.name} — ${action.description}`
+        })
         .join("\n"),
       12,
       COLORS.text,

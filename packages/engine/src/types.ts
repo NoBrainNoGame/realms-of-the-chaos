@@ -112,6 +112,11 @@ export interface CharacterPreset {
   actions: string[]
   /** Reference preset of a generated character (same kit and looks). */
   kit?: string
+  /**
+   * Definitions of the actions that are not in the shared catalogue (the
+   * spells built by a player), by id. Use `resolveAction` to read an id.
+   */
+  actionDefs?: Record<string, ActionDefinition>
 }
 
 // ─── Divine (player) actions ────────────────────────────────────────────────
