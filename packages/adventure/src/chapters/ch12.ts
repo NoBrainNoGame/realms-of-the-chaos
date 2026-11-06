@@ -264,7 +264,7 @@ function marree(ile: Ile, squalor: boolean, ombres: boolean): FightSpec {
     rules: {
       tide: { axis: "x", from: 10, dir: -1, every: 4, start: 4 },
       neutral: [1],
-      clock: { period: 1, limit: 16, winner: 0 },
+      clock: { period: 10, limit: 16, winner: 0 },
       doubles: [{ team: 2, pair: [4, 5] }],
       superposition: {
         cells: [

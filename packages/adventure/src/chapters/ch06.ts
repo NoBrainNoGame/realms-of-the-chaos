@@ -128,7 +128,7 @@ const lastFold: FightSpec = {
   rules: {
     // SIMPLIFIED: the Frange timeline (the "lentille" relaxing, the "pli" of
     // turn 1) is only a clock here; the zones are the three living places.
-    clock: { period: 1, limit: 6, winner: 0 },
+    clock: { period: 10, limit: 6, winner: 0 },
     zones: [
       zone("champ", 0, 0, 2, 2),
       zone("hameau", 6, 0, 8, 2),
@@ -305,7 +305,7 @@ function giantFight(nyx: NyxMode, vesce: VesceMode, fewer: boolean): FightSpec {
     board: BOARD,
     teams,
     rules: {
-      clock: { period: 1, limit: 8, winner: 0 },
+      clock: { period: 10, limit: 8, winner: 0 },
       regions: { coeur: [{ x: 5, y: 4 }] },
       silent: LACUNE,
       silentDamage: 3,

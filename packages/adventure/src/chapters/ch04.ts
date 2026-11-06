@@ -107,7 +107,7 @@ const mareeDuLent: FightSpec = {
     // carried back to the ground) does not exist in the engine. Three clock
     // ticks stand for the three high tides: the fight is held when the third
     // one is over, and the allies win.
-    clock: { period: 12, limit: 3, winner: 0 },
+    clock: { period: 10, limit: 3, winner: 0 },
     // The Lacunaires set into a rock when they fall, like in chapter 3.
     fixOnDeath: [1],
     // The one who flees dives back toward the abyss (the W cells).

@@ -134,7 +134,7 @@ const fightCoeur: FightSpec = {
     ],
     // SIMPLIFIED: "hold the seam 2 Frange turns" becomes a clock of 3 ticks
     // after which the allies win.
-    clock: { period: 12, limit: 3, winner: 0 },
+    clock: { period: 10, limit: 3, winner: 0 },
     fixOnDeath: [1],
     announce: true,
     // Réparation unlocks when Lyra reaches the seam.

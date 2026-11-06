@@ -59,7 +59,7 @@ function squales(interrupted: boolean): FightSpec {
     rules: {
       flee: { team: 1, below: 0.5, exits: [{ x: 3, y: 1 }] },
       // The interruption (Squalor at tick 3) stops the fight there.
-      clock: { period: 1, limit: interrupted ? 3 : 14, winner: 0 },
+      clock: { period: 10, limit: interrupted ? 3 : 14, winner: 0 },
     },
     influences: [],
     startEnergy: 0,
@@ -139,7 +139,7 @@ const faim: FightSpec = {
     // doc); the clock bounds it.
     endOn: { by: { team: 1, index: 0 }, target: 2, winner: 0 },
     flee: { team: 1, below: 0.25, exits: [{ x: 1, y: 7 }] },
-    clock: { period: 1, limit: 16, winner: 0 },
+    clock: { period: 10, limit: 16, winner: 0 },
   },
   influences: ["earthquake", "timeWarp", "blessing"],
   startEnergy: 4,

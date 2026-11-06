@@ -112,7 +112,7 @@ const reco1: FightSpec = {
   // between. The two marked cells of the south are the only ones the Séisme
   // may reshape (the traces are read from where the Influences were cast).
   rules: {
-    clock: { period: 1, limit: 10, winner: 0 },
+    clock: { period: 10, limit: 10, winner: 0 },
     energy: { cadence: { team: 0, every: 1 } },
     regions: {
       terrasse_ouest: [{ x: 1, y: 5 }],
@@ -197,7 +197,7 @@ function reco2(squalor: boolean): FightSpec {
     // The first Lacunaires come at tours 5 and 7.
     rules: {
       neutral: [1],
-      clock: { period: 1, limit: 10, winner: 0 },
+      clock: { period: 10, limit: 10, winner: 0 },
       energy: { stopAt: { team: 0, tick: 4 } },
       idleFray: { from: 4, idle: 3 },
       regions: { nord: NORD, bas: BAS, rivage: RIVAGE },

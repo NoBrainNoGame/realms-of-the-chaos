@@ -81,7 +81,7 @@ const maree: FightSpec = {
       pVoid: 0.4,
       decohereAt: 9,
     },
-    clock: { period: 1, limit: 12, winner: 0 },
+    clock: { period: 10, limit: 12, winner: 0 },
     announce: true,
   },
   influences: [],
