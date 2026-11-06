@@ -205,6 +205,8 @@ export interface FightLine {
     | `act:${string}`
     /** The first Cristal broken / the first Lacune (dead twin). */
     | "crystal"
+    /** The n-th Cristal broken in the fight. */
+    | `crystals:${number}`
     | "gap"
     /** The first Intrication of the fight. */
     | "intrication"

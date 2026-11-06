@@ -75,19 +75,21 @@ const BOARD_A = [
 function premierGel(ally: Ally): FightSpec {
   const college = [
     { x: 3, y: 0 },
-    { x: 3, y: 1 },
-    { x: 4, y: 2 },
-    { x: 3, y: 3 },
-    { x: 4, y: 5 },
+    { x: 3, y: 2 },
+    { x: 3, y: 4 },
     { x: 3, y: 6 },
+    { x: 1, y: 6 },
+    { x: 4, y: 5 },
   ].map((at) => ({ preset: COLLEGE, at }))
   const objectives: ObjectiveSpec[] = [
     {
       id: "ne-pas-reecrire",
       mark: "★",
-      label: "Ne pas réécrire : que personne du Collège ne tombe",
+      label:
+        "Ne pas réécrire : les six Cristaux se brisent, personne du Collège ne tombe",
       check: (r) =>
         r.result !== "defeat" &&
+        (r.crystals?.extracted.length ?? 0) === 6 &&
         r.fighters.filter((f) => f.team === 1).every((f) => f.hp > 0),
       success: "Les traces tiennent : la reconstitution est fidèle.",
       failure:
@@ -114,19 +116,30 @@ function premierGel(ally: Ally): FightSpec {
       {
         name: "La Marée",
         side: "enemies",
-        // Three waves: the first at the start, then ticks 3 and 6.
+        // Three waves: the first at the start, then at times 20 and 40.
         fighters: [1, 3, 5].map((y, wave) => ({
           preset: VAGUE,
           at: { x: 6, y },
-          ...(wave ? { arrives: { tick: wave * 3 } } : {}),
+          ...(wave ? { arrives: { tick: wave * 2 } } : {}),
         })),
       },
     ],
-    // SIMPLIFIED: the Collège is a neutral team that fights nobody; its six
-    // Cristaux and the slowing sea are not scripted (no Extraire in the engine).
+    // The Collège is a neutral team that fights nobody; its AI breaks the six
+    // Cristaux of the Gel one by one (raiders).
     rules: {
       neutral: [1],
-      clock: { period: 1, limit: 10, winner: 0 },
+      crystals: {
+        raiders: [1],
+        crystals: [
+          { id: "g1", at: { x: 2, y: 0 } },
+          { id: "g2", at: { x: 2, y: 2 } },
+          { id: "g3", at: { x: 2, y: 4 } },
+          { id: "g4", at: { x: 2, y: 6 } },
+          { id: "g5", at: { x: 1, y: 5 } },
+          { id: "g6", at: { x: 3, y: 5 } },
+        ],
+      },
+      clock: { period: 10, limit: 5, winner: 0 },
       announce: true,
     },
     influences: ["timeWarp"],
@@ -145,7 +158,7 @@ function premierGel(ally: Ally): FightSpec {
         text: "Tessa disait qu'une Marée, ça se fige. Elle n'a jamais dit combien ça coûtait. Plus vite !",
       },
       {
-        when: "tick:5",
+        when: "crystals:3",
         who: "lyra",
         text: "Ils ne délibèrent pas. Ils ont peur. Ils ont raison d'avoir peur.",
       },

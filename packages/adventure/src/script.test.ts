@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test"
+import { Board, Combat } from "@realms/engine"
 import { ch13 } from "./chapters/ch13"
+import { ch14 } from "./chapters/ch14"
 import { ch15 } from "./chapters/ch15"
 import { ch17 } from "./chapters/ch17"
 import { ch18 } from "./chapters/ch18"
@@ -234,5 +236,44 @@ describe("chapter 13: the grille", () => {
       expect(crystals?.crystals.filter((c) => c.twin)).toHaveLength(4)
       expect(flee?.own?.[0].below).toBe(0.3)
     }
+  })
+})
+
+/** The fight played to its end by the AI (the allies pass), as the game builds it. */
+function simulate(spec: FightSpec) {
+  const c = new Combat({
+    seed: 3,
+    board: Board.fromAscii(spec.board),
+    teams: spec.teams.map((t) => ({
+      name: t.name,
+      controller: t.side === "allies" ? "ai" : "ai",
+      fighters: t.fighters.map((f) =>
+        f.preset === "@hero" ? "eva" : f.preset,
+      ),
+    })),
+    positions: spec.teams.map((t) => t.fighters.map((f) => f.at)),
+    adventure: fightRules(spec),
+  })
+  spec.teams.forEach((t, i) => {
+    if (t.side !== "enemies") c.holding.add(i)
+  })
+  c.run()
+  return c
+}
+
+describe("chapter 14: the Collège breaks the six Cristaux", () => {
+  test("the neutral Collège extracts them all in the reconstitution", () => {
+    const spec = fightsOf(ch14).find((s) => s.id.startsWith("ch14-gel"))!
+    const c = simulate(spec)
+    console.log(
+      c.winnerTeam,
+      c.time,
+      JSON.stringify(c.adventure?.report.crystals),
+      c.fighters
+        .map((f) => `${f.id}@${f.position.x},${f.position.y} ${f.controller}`)
+        .join(" "),
+      c.holding,
+    )
+    expect(c.adventure?.report.crystals.extracted).toHaveLength(6)
   })
 })

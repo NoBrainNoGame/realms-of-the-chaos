@@ -13,6 +13,7 @@ export class FightVoice {
   private _healed = false
   private _acts = new Set<string>()
   private _crystal = false
+  private _broken = 0
   private _gap = false
   private _paired = false
   private _lost = false
@@ -58,9 +59,14 @@ export class FightVoice {
       case "unlocked":
         return this._take(`unlock:${event.divineId}`)
       case "crystalExtracted":
-        if (this._crystal) return []
-        this._crystal = true
-        return this._take("crystal")
+        this._broken++
+        return [
+          ...this._take(`crystals:${this._broken}`),
+          ...(this._crystal ? [] : this._take("crystal")),
+        ].map((l) => {
+          this._crystal = true
+          return l
+        })
       case "crystalDead":
         if (this._gap) return []
         this._gap = true
