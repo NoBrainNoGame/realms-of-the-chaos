@@ -1070,16 +1070,29 @@ export default class Hud extends ViewChip<HudEvents> {
     if (!debate || !rules || debate.hero?.id !== fighter.id) return from
     const options = debate.options(fighter)
     const playable = options.some((o) => o.playable)
+    const blocker = debate.blocker(fighter)
+    const reason =
+      blocker === "far"
+        ? "s'approcher"
+        : blocker === "turn"
+          ? "au prochain tour"
+          : blocker === "nothing"
+            ? "rien de prêt"
+            : `Certitude ${debate.certitude}`
     const main = button({
       width: 132,
       height: size,
-      label: `Argumenter\n(Certitude ${debate.certitude})`,
+      label: `Argumenter\n(${reason})`,
       onTap: () => this.emit("argue"),
       onOver: () =>
         this.showTooltip(
           playable
-            ? "Répondre à Merlin. Chaque argument recevable ébranle sa Certitude, une seule fois."
-            : "Aucun argument recevable pour l'instant (trop loin, ou rien de prêt).",
+            ? `Répondre à Merlin (Certitude ${debate.certitude}). Chaque argument recevable ébranle sa Certitude, une seule fois.`
+            : blocker === "far"
+              ? "Trop loin de Merlin : il faut s'en approcher (quatre cases) pour lui répondre."
+              : blocker === "turn"
+                ? "Vous avez déjà répondu à ce tour."
+                : "Aucun argument de prêt : certains attendent que Merlin ait fait son Relevé, d'autres une vérité encore à découvrir.",
           main.view.getGlobalPosition(),
           true,
         ),

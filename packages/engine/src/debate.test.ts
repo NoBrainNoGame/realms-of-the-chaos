@@ -108,4 +108,19 @@ describe("debate: Argumenter", () => {
     untilHero(c)
     expect(c.argue("autre").ok).toBe(true)
   })
+
+  test("`blocker` says why nothing can be argued (too far, nothing ready) and is null once one can", () => {
+    const far = duel({ ...base, range: 1 })
+    const hero = untilHero(far)!
+    expect(far.adventure!.debate!.blocker(hero)).toBe("far")
+    const near = duel({
+      ...base,
+      arguments: [{ id: "gorr", ok: false }],
+    })
+    const h2 = untilHero(near)!
+    expect(near.adventure!.debate!.blocker(h2)).toBe("nothing")
+    const ready = duel({ ...base, certitude: 3 })
+    const h3 = untilHero(ready)!
+    expect(ready.adventure!.debate!.blocker(h3)).toBeNull()
+  })
 })

@@ -256,6 +256,30 @@ export class DebateKit {
     })
   }
 
+  /**
+   * Why no argument can be played now (null when one can): the hero is too
+   * far from the speaker, has already said what he could this turn, or has
+   * nothing ready (an argument still unlocked by a Relevé, or not known yet).
+   */
+  blocker(fighter: Fighter): "far" | "turn" | "nothing" | null {
+    const options = this.options(fighter)
+    if (options.some((o) => o.playable)) return null
+    const speaker = this.speaker
+    if (
+      !speaker?.alive ||
+      fighter.id !== this._heroId ||
+      manhattan(fighter.position, speaker.position) > (this._rules.range ?? 4)
+    )
+      return "far"
+    if (
+      this._playedThisTurn >=
+      (this._rules.perTurn ?? 1) +
+        (this._rules.extraOnce && !this._extraUsed ? 1 : 0)
+    )
+      return "turn"
+    return "nothing"
+  }
+
   /** Play an argument: the Certitude falls by one. */
   argue(fighter: Fighter, id: string): string | null {
     const option = this.options(fighter).find((o) => o.id === id)
