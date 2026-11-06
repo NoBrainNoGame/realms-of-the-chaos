@@ -457,6 +457,10 @@ export class Combat {
   canEnter(fighter: Fighter, p: Point) {
     const occupants = this.fightersAt(p).filter((o) => o !== fighter)
     if (occupants.some((o) => this.isEnemy(fighter, o))) return false
+    if (this.adventure && occupants.length > 0) {
+      if (this.adventure.isSolitary(fighter)) return false
+      if (occupants.some((o) => this.adventure!.isSolitary(o))) return false
+    }
     return occupants.length < MAX_FIGHTERS_PER_CELL
   }
 
@@ -1642,6 +1646,7 @@ export class Combat {
     if (this.adventure?.rules.noDefeat?.includes(target.team)) {
       target.hp = Math.max(1, target.hp)
     }
+    if (this.adventure?.isSpared(target)) target.hp = Math.max(1, target.hp)
     // erosion: part of every wound can never be healed (fights always end)
     target.erosion += (amount - absorbed) * EROSION
     target.hp = Math.min(target.hp, this.maxHp(target))

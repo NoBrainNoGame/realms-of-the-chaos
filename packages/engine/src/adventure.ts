@@ -80,6 +80,10 @@ export interface AdventureRules {
   finale?: boolean
   /** Teams whose fighters can never drop below 1 HP (tutorial fights). */
   noDefeat?: number[]
+  /** Fighters no blow can disperse: they stop at 1 HP (and so break off). */
+  spared?: { team: number; index: number }[]
+  /** Fighters that never share a cell: no Intrication with them or by them. */
+  solitary?: { team: number; index: number }[]
   /** Fighters no weapon can hurt (a Golem too dense to be wounded). */
   immune?: { team: number; index: number }[]
   /**
@@ -133,6 +137,12 @@ export interface AdventureRules {
     attackIfBlocked?: boolean
     /** Also breaks off once it has dealt the last blow to this many fighters. */
     eaten?: number
+    /**
+     * Members that do not break off while one of their `with` (indexes in the
+     * team) is still on the island, and give up (are reported in `surrendered`
+     * and leave by the exits) at the start of the first turn they are alone.
+     */
+    alone?: { index: number; with: number[] }[]
   }
   /**
    * Exit cells for a team: a fighter of `team` standing on one when its next
@@ -392,6 +402,8 @@ export interface AdventureReport {
   fixed: string[]
   /** Fighters that were fleeing when they fell and set into a rock. */
   fixedFleeing: string[]
+  /** Fighters that gave up because they were left alone (`flee.alone`). */
+  surrendered: string[]
   /** Cells where fixed foes set into rocks. */
   fixedAt: Point[]
   /** Cells of the Echo that received each Intrication. */
@@ -461,6 +473,7 @@ export class AdventureTracker {
     fled: [],
     fixed: [],
     fixedFleeing: [],
+    surrendered: [],
     fixedAt: [],
     intricationAt: [],
     arrived: [],
@@ -1226,6 +1239,8 @@ export class AdventureTracker {
     const index = this._combat.fighters
       .filter((f) => f.team === flee.team)
       .indexOf(fighter)
+    const alone = flee.alone?.find((a) => a.index === index)
+    if (alone && this._stillWith(fighter, alone.with)) return
     const below = flee.own?.find((o) => o.index === index)?.below ?? flee.below
     if (fighter.hp / this._combat.maxHp(fighter) >= below) return
     this.fleeing.add(fighter.id)
@@ -1235,14 +1250,56 @@ export class AdventureTracker {
   /** A turn starts: a fighter that has eaten enough breaks off. */
   breakOff(fighter: Fighter) {
     const flee = this.rules.flee
-    if (flee?.eaten === undefined || fighter.team !== flee.team) return
+    if (!flee || fighter.team !== flee.team) return
     if (!fighter.alive || this.fleeing.has(fighter.id)) return
+    const alone = flee.alone?.find(
+      (a) =>
+        this._combat.fighters.filter((f) => f.team === flee.team)[a.index] ===
+        fighter,
+    )
+    if (alone && !this._stillWith(fighter, alone.with)) {
+      this.report.surrendered.push(fighter.id)
+      this.fleeing.add(fighter.id)
+      this._combat.emitEvent({ type: "fleeing", fighterId: fighter.id })
+      return
+    }
+    if (flee.eaten === undefined) return
     const eaten = Object.values(this.trace.report.finalBlows).filter(
       (b) => b.by === fighter.id,
     ).length
     if (eaten < flee.eaten) return
     this.fleeing.add(fighter.id)
     this._combat.emitEvent({ type: "fleeing", fighterId: fighter.id })
+  }
+
+  /** Whether one of the `with` members of the fighter's team is still there. */
+  private _stillWith(fighter: Fighter, withIdx: number[]) {
+    const team = this._combat.fighters.filter((f) => f.team === fighter.team)
+    return withIdx.some((i) => {
+      const o = team[i]
+      return o && o.alive && !this._combat.departed.has(o.id)
+    })
+  }
+
+  /** Whether a blow cannot disperse this fighter (`rules.spared`). */
+  isSpared(fighter: Fighter) {
+    return this._isListed(fighter, this.rules.spared)
+  }
+
+  /** Whether this fighter never shares a cell (`rules.solitary`). */
+  isSolitary(fighter: Fighter) {
+    return this._isListed(fighter, this.rules.solitary)
+  }
+
+  private _isListed(
+    fighter: Fighter,
+    list?: { team: number; index: number }[],
+  ) {
+    if (!list?.length) return false
+    const team = this._combat.fighters.filter((f) => f.team === fighter.team)
+    return list.some(
+      (l) => l.team === fighter.team && team[l.index] === fighter,
+    )
   }
 
   /** The fleeing fighter's turn: walk to the nearest exit, or leave. */

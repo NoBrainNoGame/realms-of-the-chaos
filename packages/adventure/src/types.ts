@@ -199,6 +199,17 @@ export interface FightLine {
     /** The first heal of the fight / the first zone lost. */
     | "heal"
     | "lost"
+    /**
+     * Speaker-bound triggers, by preset id: it breaks off / leaves, it is
+     * struck for the first time / first falls under half, it wades into water,
+     * two presets combine (`pair:merlin+vesce`).
+     */
+    | `fleeing:${string}`
+    | `fled:${string}`
+    | `hurt:${string}`
+    | `half:${string}`
+    | `wade:${string}`
+    | `pair:${string}+${string}`
     | `unlock:${string}`
     /** The first time any fighter uses this action. */
     | `act:${string}`
@@ -389,6 +400,8 @@ export interface FightReport {
   fixed: string[]
   /** Those of them that were fleeing when they fell. */
   fixedFleeing?: string[]
+  /** Those that gave up because they were left alone (`flee.alone`). */
+  surrendered?: string[]
   fixedAt?: { x: number; y: number }[]
   intricationAt?: { x: number; y: number }[]
   /** Ids of the fighters that entered mid-fight (waves, reinforcements). */

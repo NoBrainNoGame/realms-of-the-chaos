@@ -38,6 +38,22 @@ const vesce = {
   actions: ["blade", "leap", "kick"],
 }
 
+// Rocks that rise or fall on the seam (column 4) or next to it (3 and 5).
+const COLLISION = [
+  { x: 4, y: 2 },
+  { x: 3, y: 5 },
+  { x: 5, y: 6 },
+  { x: 4, y: 4 },
+  { x: 5, y: 1 },
+  { x: 3, y: 3 },
+  { x: 4, y: 7 },
+  { x: 5, y: 4 },
+  { x: 4, y: 0 },
+  { x: 3, y: 6 },
+  { x: 4, y: 8 },
+  { x: 5, y: 2 },
+]
+
 const jointure: FightSpec = {
   id: "ch5-la-jointure",
   title: "La jointure",
@@ -78,18 +94,32 @@ const jointure: FightSpec = {
     silent: Array.from({ length: 9 }, (_, y) => ({ x: 4, y })),
     silentDamage: 2,
     regions: { jointure: Array.from({ length: 9 }, (_, y) => ({ x: 4, y })) },
-    // SIMPLIFIED: one rule for the three of them. Nyx flees under 25 % (Bond
-    // toward the wall of the Dérive); Merlin "withdraws" and Vesce gives up by
-    // leaving the same way (the doc's three distinct behaviours, withdrawal
-    // for Merlin, conditional surrender for Vesce, do not exist).
+    // Three distinct endings. Nyx breaks off under 25 % (Bond toward the wall
+    // of the Dérive); Merlin cannot be dispersed here and withdraws under
+    // 30 % to the edge; Vesce keeps fighting while Nyx or Merlin is on the
+    // island and gives up at the start of her first turn alone.
     flee: {
       team: 1,
       below: 0.25,
       exits: [
         { x: 8, y: 1 },
         { x: 8, y: 7 },
+        { x: 8, y: 4 },
       ],
+      own: [{ index: 2, below: 0.3 }],
+      alone: [{ index: 1, with: [0, 2] }],
     },
+    spared: [{ team: 1, index: 2 }],
+    // Nyx shares a cell with nobody: no Intrication with her, none by her.
+    solitary: [{ team: 1, index: 0 }],
+    // The Collision: a timeline entity that shakes the seam and the columns
+    // next to it at every tick (the Séismes are drawn once, in order).
+    clock: { period: 8 },
+    scripted: COLLISION.map((at, i) => ({
+      tick: i + 1,
+      kind: "earthquake" as const,
+      at: [at],
+    })),
   },
   influences: ["earthquake", "timeWarp", "blessing"],
   startEnergy: 4,
@@ -111,8 +141,8 @@ const jointure: FightSpec = {
       id: "vesce-vivante",
       mark: "◆",
       label: "Vesce s'en va vivante",
-      // SIMPLIFIED: a surviving Vesce counts as surrendered (vesce_rendue);
-      // "fled with Nyx" (no scene) is not distinguished.
+      // Vesce only leaves by giving up (alone): vesce_rendue. In the defeat
+      // case the whole team goes (vesce_fuie, no scene).
       check: (r) =>
         r.fighters.some((f) => f.preset === "vesce" && (f.fled || f.hp > 0)),
       onSuccess: [set("vesce_rendue")],
@@ -158,14 +188,67 @@ const jointure: FightSpec = {
     { when: "start", who: "nyx", text: "Toujours." },
     { when: "start", who: "brutus", text: "Derrière moi. Tous." },
     {
-      when: "fleeing",
+      when: "tick:1",
+      who: "merlin",
+      text: "Le sol gronde : un rocher sur la couture. Notez l'heure.",
+    },
+    {
+      when: "pair:merlin+vesce",
+      who: "merlin",
+      text: "Tu vois, Nyx ? À deux, c'est plus efficace.",
+    },
+    {
+      when: "pair:merlin+vesce",
+      who: "nyx",
+      text: "À deux, c'est plus lourd.",
+    },
+    {
+      when: "hurt:nyx",
+      who: "nyx",
+      text: "… Ça. Je ne connaissais pas.",
+    },
+    {
+      when: "half:nyx",
       who: "nyx",
       text: "Vous êtes réels. Bon. C'est noté.",
     },
-    // CUT: Merlin+Vesce Intrication, "Quelqu'un frappe Nyx", Lyra healing
-    // before Merlin, Néréa in water, Vesce giving up: the game reports none of
-    // these events. The retreat and surrender lines are folded into the
-    // debrief scene (s4).
+    {
+      when: "heal",
+      who: "merlin",
+      text: "Quel rendement, pour un soin ? Vous avez mesuré la chaleur perdue ?",
+    },
+    { when: "heal", who: "lyra", text: "Toute ma vie." },
+    {
+      when: "wade:nerea",
+      who: "nerea",
+      text: "Vous avez une île sans lacs. Vous ne savez pas ce que vous manquez.",
+    },
+    {
+      when: "wade:nerea",
+      who: "vesce",
+      text: "On a des lacs ! Des petits ! Ils sont gelés, mais on en a !",
+    },
+    {
+      when: "fleeing:merlin",
+      who: "merlin",
+      text: "Je me retire. Ce n'est pas la même chose que se rendre, c'est plus scientifique.",
+    },
+    {
+      when: "fleeing:vesce",
+      who: "vesce",
+      text: "D'accord, d'accord, d'accord ! Je regarde, maintenant. Je fais que regarder.",
+    },
+    { when: "fled:nyx", who: "brutus", text: "Elle s'est enfuie." },
+    {
+      when: "fled:nyx",
+      who: "lyra",
+      text: "Elle est vivante. Ce n'est pas pareil.",
+    },
+    {
+      when: "end",
+      who: "merlin",
+      text: "Dernier grondement de la couture. Fin de la mesure.",
+    },
   ],
 }
 
@@ -495,9 +578,6 @@ export const ch05: Chapter = {
       setting: "La Lisière, le sol bouge",
       next: "s4",
       beats: [
-        // CUT: the Collision timeline entity (random rocks on the seam), the
-        // full Élan gauge of the enemy Ghom, Nyx refusing every Intrication
-        // and the hidden "ne pas toucher la jointure" objective.
         { t: "fight", fight: jointure },
         when(is("defaite"), [
           stage(
@@ -614,7 +694,7 @@ export const ch05: Chapter = {
             stage("Elle ne revient pas."),
           ]),
         ]),
-        // SIMPLIFIED: "Vesce fled with Nyx" is merged with "surrendered".
+        // "Vesce a fui avec Nyx" (vesce_fuie, défaite) : aucune scène.
       ],
     },
 

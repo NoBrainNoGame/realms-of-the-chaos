@@ -335,6 +335,35 @@ describe("adventure rules are opt-in", () => {
     expect(c.winnerTeam).toBe(0)
   })
 
+  test("a spared fighter stops at 1 HP and a solitary one never shares a cell", () => {
+    const c = fight({
+      spared: [{ team: 1, index: 0 }],
+      solitary: [{ team: 0, index: 0 }],
+      clock: { period: 10, limit: 40 },
+    })
+    c.run()
+    expect(c.getFighter("merlin-1-0")!.hp).toBeGreaterThan(0)
+    const lyra = c.getFighter("lyra-0-0")!
+    expect(c.canEnter(c.getFighter("brutus-0-1")!, lyra.position)).toBe(false)
+  })
+
+  test("a fighter left alone gives up and is reported surrendered", () => {
+    const c = fight({
+      noDefeat: [0],
+      clock: { period: 10, limit: 40 },
+      flee: {
+        team: 0,
+        below: 0.1,
+        exits: [{ x: 0, y: 0 }],
+        own: [{ index: 0, below: 2 }],
+        alone: [{ index: 1, with: [0] }],
+      },
+    })
+    c.run()
+    expect(c.departed.has("lyra-0-0")).toBe(true)
+    expect(c.adventure?.report.surrendered).toContain("brutus-0-1")
+  })
+
   test("an immune fighter takes no damage", () => {
     const c = fight({ immune: [{ team: 1, index: 0 }], noDefeat: [0] })
     const m = c.getFighter("merlin-1-0")!

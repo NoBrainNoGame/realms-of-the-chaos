@@ -330,7 +330,15 @@ export default class FightScene extends ViewChip<SceneEvents> {
     super()
     this._speed = _options.speed
     this.combat = new Combat(combatOptions(_options))
-    this._voice = new FightVoice(_options.lines ?? [])
+    this._voice = new FightVoice(_options.lines ?? [], {
+      fighter: (id) => {
+        const f = this.combat.getFighter(id)
+        return f
+          ? { preset: f.presetId, ratio: f.hp / this.combat.maxHp(f) }
+          : undefined
+      },
+      isWater: (cell) => this.combat.board.get(cell)?.terrain === "water",
+    })
     for (const team of _options.hold ?? []) this.combat.holding.add(team)
   }
 

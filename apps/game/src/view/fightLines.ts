@@ -7,7 +7,16 @@ import type { FightEvent } from "@realms/engine"
 
 export type LineSpec = Pick<FightLine, "when" | "who" | "text">
 
+/** What the voice may ask the fight, to name its speakers by preset. */
+export interface VoiceContext {
+  /** Preset of a fighter and its share of hit points left. */
+  fighter(id: string): { preset: string; ratio: number } | undefined
+  /** Whether the cell is water. */
+  isWater(cell: { x: number; y: number }): boolean
+}
+
 export class FightVoice {
+  private _half = new Set<string>()
   private _said = new Set<LineSpec>()
   private _casts = new Set<string>()
   private _healed = false
@@ -18,7 +27,14 @@ export class FightVoice {
   private _paired = false
   private _lost = false
 
-  constructor(private readonly _lines: readonly LineSpec[]) {}
+  constructor(
+    private readonly _lines: readonly LineSpec[],
+    private readonly _ctx?: VoiceContext,
+  ) {}
+
+  private _of(id: string) {
+    return this._ctx?.fighter(id)?.preset
+  }
 
   private _take(when: string): LineSpec[] {
     const out = this._lines.filter((l) => l.when === when && !this._said.has(l))
@@ -50,11 +66,35 @@ export class FightVoice {
           this._acts.add(event.baseActionId)
           out.push(...this._take(`act:${event.baseActionId}`))
         }
+        if (event.partnerId) {
+          const a = this._of(event.fighterId)
+          const b = this._of(event.partnerId)
+          if (a && b) {
+            out.push(...this._take(`pair:${a}+${b}`))
+            out.push(...this._take(`pair:${b}+${a}`))
+          }
+        }
         if (event.partnerId && !this._paired) {
           this._paired = true
           out.push(...this._take("intrication"))
         }
         return out
+      }
+      case "damaged": {
+        const who = this._ctx?.fighter(event.fighterId)
+        if (!who) return []
+        const out = this._take(`hurt:${who.preset}`)
+        if (who.ratio < 0.5 && !this._half.has(who.preset)) {
+          this._half.add(who.preset)
+          out.push(...this._take(`half:${who.preset}`))
+        }
+        return out
+      }
+      case "moved": {
+        const preset = this._of(event.fighterId)
+        return preset && this._ctx?.isWater(event.to)
+          ? this._take(`wade:${preset}`)
+          : []
       }
       case "unlocked":
         return this._take(`unlock:${event.divineId}`)
@@ -79,10 +119,20 @@ export class FightVoice {
         return this._take("carried")
       case "frozen":
         return event.cell ? this._take("iced") : []
-      case "fleeing":
-        return this._take("fleeing")
-      case "fled":
-        return this._take("fled")
+      case "fleeing": {
+        const preset = this._of(event.fighterId)
+        return [
+          ...this._take("fleeing"),
+          ...(preset ? this._take(`fleeing:${preset}`) : []),
+        ]
+      }
+      case "fled": {
+        const preset = this._of(event.fighterId)
+        return [
+          ...this._take("fled"),
+          ...(preset ? this._take(`fled:${preset}`) : []),
+        ]
+      }
       case "healed":
         if (this._healed) return []
         this._healed = true
