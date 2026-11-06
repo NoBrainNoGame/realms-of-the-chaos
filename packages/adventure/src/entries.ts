@@ -53,6 +53,19 @@ export function resolveFight(
         return undefined
       }
     }
+    const n = /^([^!=<>]+)(>=|<=|>|<)(-?\d+(?:\.\d+)?)$/.exec(cond)
+    if (n) {
+      const v = value(n[1])
+      const w = Number(n[3])
+      if (typeof v !== "number") return false
+      return n[2] === ">="
+        ? v >= w
+        : n[2] === "<="
+          ? v <= w
+          : n[2] === ">"
+            ? v > w
+            : v < w
+    }
     const m = /^([^!=]+)(!?=)(.*)$/.exec(cond)
     if (m) return (value(m[1]) === m[3]) === (m[2] === "=")
     if (cond.startsWith("!")) return value(cond.slice(1)) !== true

@@ -82,6 +82,7 @@ export const FLAGS: Record<string, FlagSpec> = {
   lyra_chaleur: bool,
   lyra_echec: bool,
   sans_reparation: bool,
+  ghom_elan_5: bool,
   demeure_scellee: bool,
   borne_lue: bool,
   feu_tenu: bool,

@@ -192,6 +192,11 @@ export interface AdventureRules {
   endOn?: EndOnRule
   /** A second way to win, by standing on cells (see `ReachRule`). */
   reach?: ReachRule
+  /**
+   * A fighter that gives of itself: the member `index` of `team` starting a
+   * turn on `cells` spends `pct` of its maximum hit points (Lyra on the seam).
+   */
+  sacrifice?: { team: number; index: number; cells: Point[]; pct: number }
   /** Cells nobody walks on fray into Lacunes (see `IdleFrayRule`). */
   idleFray?: IdleFrayRule
   /** The Élan at a perfect cadence, or stopped for good (see `EnergyRules`). */
@@ -419,6 +424,8 @@ export interface AdventureReport {
   /** Cells a crystal bridge made walkable. */
   bridged: Point[]
   gel: GelReport
+  /** The lowest share of its hit points each wounded fighter fell to. */
+  lowest: Record<string, number>
   /** Final blows, strikes, cells stood on, regions held. */
   trace: TraceReport
   /** Scripted turns, scripted earthquakes, recompositions, tepid cells. */
@@ -479,6 +486,7 @@ export class AdventureTracker {
     },
     bridged: [],
     gel: { frozen: [], iced: [], thawed: [] },
+    lowest: {},
     trace: emptyTrace(),
     script: emptyScriptReport(),
     debate: emptyDebateReport(),
@@ -511,6 +519,7 @@ export class AdventureTracker {
     ids: [string, string]
     done: boolean
   }[] = []
+  private _reachHeld = 0
   private _halos: { rule: HaloRule; id: string; up: boolean }[] = []
 
   constructor(
@@ -923,8 +932,10 @@ export class AdventureTracker {
     const cells = this._tide?.tick(this.report.ticks) ?? []
     for (const c of cells) this._uncertain.add(keyOf(c))
     const reach = this.rules.reach
-    if (reach && this._combat.state !== "ended" && reached(this._combat, reach))
-      this._combat.finish(reach.team)
+    if (reach && this._combat.state !== "ended") {
+      this._reachHeld = reached(this._combat, reach) ? this._reachHeld + 1 : 0
+      if (this._reachHeld >= (reach.ticks ?? 1)) this._combat.finish(reach.team)
+    }
     if (this._fix?.tick() && this._combat.state !== "ended")
       this._combat.finish(this.rules.fixation?.winner ?? null)
     const end = this.rules.endOn
@@ -1163,8 +1174,20 @@ export class AdventureTracker {
     const cold =
       this.silent.has(keyOf(fighter.position)) || this._inHalo(fighter)
     return (
-      (cold ? (this.rules.silentDamage ?? 2) : 0) + this.script.drain(fighter)
+      (cold ? (this.rules.silentDamage ?? 2) : 0) +
+      this.script.drain(fighter) +
+      this._gift(fighter)
     )
+  }
+
+  /** Hit points a fighter gives away by starting its turn on a gift cell. */
+  private _gift(fighter: Fighter): number {
+    const rule = this.rules.sacrifice
+    if (!rule || fighter.team !== rule.team) return 0
+    const members = this._combat.fighters.filter((f) => f.team === rule.team)
+    if (members[rule.index] !== fighter) return 0
+    if (!rule.cells.some((c) => equals(c, fighter.position))) return 0
+    return Math.ceil(this._combat.maxHp(fighter) * rule.pct)
   }
 
   private _inHalo(fighter: Fighter) {
@@ -1180,6 +1203,11 @@ export class AdventureTracker {
 
   /** A fighter was hurt: it may break off. */
   wounded(fighter: Fighter) {
+    const ratio = fighter.hp / this._combat.maxHp(fighter)
+    this.report.lowest[fighter.id] = Math.min(
+      this.report.lowest[fighter.id] ?? 1,
+      ratio,
+    )
     const flee = this.rules.flee
     if (!flee || fighter.team !== flee.team || !fighter.alive) return
     if (this.fleeing.has(fighter.id)) return

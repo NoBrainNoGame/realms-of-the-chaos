@@ -121,10 +121,9 @@ const fightCoeur: FightSpec = {
     },
   ],
   rules: {
-    // SIMPLIFIED: the Lacune core is 5 silent cells whatever `zones_bords_froids`
-    // (the doc gives 9 when it is <= 1). Silent cells hurt whoever starts a turn
-    // there: it stands for both the cold of the Lacune and the heat Lyra gives
-    // (the "10 % of max HP per turn" spend is not an engine effect).
+    // The Lacune core: 5 silent cells (the butte and its neighbours); 9 when
+    // the borders were kept badly (`zones_bords_froids` <= 1, see `rulesIf`).
+    // Silent cells hurt whoever starts a turn there (the cold of the Lacune).
     silent: [
       { x: 4, y: 2 },
       { x: 3, y: 3 },
@@ -132,9 +131,12 @@ const fightCoeur: FightSpec = {
       { x: 5, y: 3 },
       { x: 4, y: 4 },
     ],
-    // SIMPLIFIED: "hold the seam 2 Frange turns" becomes a clock of 3 ticks
-    // after which the allies win.
-    clock: { period: 10, limit: 3, winner: 0 },
+    // Lyra holds the seam: two Frange turns in a row (three when the borders
+    // were lost), giving 10 % of her maximum health at each of her turns.
+    // The clock only ticks; the 12 ticks are a safety net.
+    clock: { period: 10, limit: 12, winner: null },
+    reach: { team: 0, index: 1, cells: [{ x: 4, y: 3 }], ticks: 2 },
+    sacrifice: { team: 0, index: 1, cells: [{ x: 4, y: 3 }], pct: 0.1 },
     fixOnDeath: [1],
     announce: true,
     // Réparation unlocks when Lyra reaches the seam.
@@ -144,6 +146,15 @@ const fightCoeur: FightSpec = {
       { divineId: "blessing", region: "couture", team: 0, preset: "lyra" },
     ],
   },
+  rulesIf: [
+    {
+      needs: "zones_bords_froids<=1",
+      rules: {
+        silent: [2, 3, 4].flatMap((y) => [3, 4, 5].map((x) => ({ x, y }))),
+        reach: { team: 0, index: 1, cells: [{ x: 4, y: 3 }], ticks: 3 },
+      },
+    },
+  ],
   influences: ["earthquake", "timeWarp", "blessing"],
   startEnergy: 2,
   defeat: [
@@ -157,10 +168,11 @@ const fightCoeur: FightSpec = {
       id: "lyra-au-dessus",
       mark: "★",
       label: "Lyra ne doit pas tomber sous 50 % de ses PV",
-      // SIMPLIFIED: only read at the end of the fight (no "at any time").
+      // At any time: the lowest share Lyra fell to, not only her last one.
       check: (r) => {
         const lyra = r.fighters.find((f) => f.preset === "lyra")
-        return !!lyra && lyra.hp / lyraMax >= 0.5
+        if (!lyra || lyra.hp <= 0) return false
+        return (r.lowest?.[lyra.id] ?? 1) >= 0.5
       },
       success: "Lyra a gardé de quoi donner au sol.",
       failure: "Lyra est arrivée trop vide.",
@@ -175,6 +187,13 @@ const fightCoeur: FightSpec = {
       onSuccess: [add("confiance.lyra", 1)],
     },
     {
+      id: "elan-pour-reparer",
+      mark: "◆",
+      label: "Garder cinq Élan pour la Réparation",
+      check: (r) => (r.energy ?? 0) >= 5,
+      onSuccess: [set("ghom_elan_5")],
+    },
+    {
       id: "sans-reparation",
       mark: "◆",
       label: "Finir la couture sans la Réparation du Ghom",
@@ -184,6 +203,11 @@ const fightCoeur: FightSpec = {
     },
   ],
   lines: [
+    {
+      when: "start",
+      who: "lyra",
+      text: "On ne part pas sur la même case, mais retiens : sur la même case, deux Échos ne font plus tout à fait deux. L'Intrication, c'est ça.",
+    },
     {
       when: "start",
       who: "lyra",
@@ -464,8 +488,6 @@ export const ch02: Chapter = {
       kind: "combat",
       setting: "Le bois de la Baie grise",
       beats: [
-        // CUT: reminder line when hero and Lyra do not start on the same cell
-        // (they start apart on purpose; the start line of the fight covers it).
         { t: "fight", fight: fightCoeur },
         when(is("defaite"), [
           stage(
@@ -553,20 +575,25 @@ export const ch02: Chapter = {
             ],
             isnt("lyra_echec"),
           ),
-          // SIMPLIFIED: offered whatever the Élan (no flag on the Ghom's energy).
-          opt("ghom", "Le Ghom répare.", [
-            fx(add("lacunes.recousues", 1), add("confiance.lyra", 1)),
-            stage(
-              "L'air se tend au-dessus du bois. Un flux de chaleur converge vers le cœur de la Lacune, depuis tout le bois à la fois, et le flou s'éteint d'un coup. Puis, tout autour, de la vapeur monte : du lac au sud, des mares, de la rosée des feuilles. Le bois fume comme un cheval après la course.",
-            ),
-            say("lyra", "Ton Ghom a payé."),
-            stage("Elle montre la vapeur."),
-            say(
-              "lyra",
-              "Regarde : c'est la facture. On ne crée pas d'ordre ici sans jeter du désordre là. Même lui. Surtout lui, peut-être.",
-            ),
-            fx(unlock("influence:repair")),
-          ]),
+          // Offered when the Ghom ended the fight with five Élan.
+          opt(
+            "ghom",
+            "Le Ghom répare.",
+            [
+              fx(add("lacunes.recousues", 1), add("confiance.lyra", 1)),
+              stage(
+                "L'air se tend au-dessus du bois. Un flux de chaleur converge vers le cœur de la Lacune, depuis tout le bois à la fois, et le flou s'éteint d'un coup. Puis, tout autour, de la vapeur monte : du lac au sud, des mares, de la rosée des feuilles. Le bois fume comme un cheval après la course.",
+              ),
+              say("lyra", "Ton Ghom a payé."),
+              stage("Elle montre la vapeur."),
+              say(
+                "lyra",
+                "Regarde : c'est la facture. On ne crée pas d'ordre ici sans jeter du désordre là. Même lui. Surtout lui, peut-être.",
+              ),
+              fx(unlock("influence:repair")),
+            ],
+            is("ghom_elan_5"),
+          ),
         ]),
         // Note: the Réparation creates order here and pays in disorder elsewhere
         // (second principle): never a miracle.

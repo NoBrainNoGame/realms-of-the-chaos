@@ -6,8 +6,8 @@ import { Combat } from "./combat"
 const ground = () =>
   Board.fromAscii(["........", "........", "........", "........", "........"])
 
-function fight(rules: AdventureRules | undefined, seed = 1) {
-  return new Combat({
+function fight(rules: AdventureRules | undefined, seed = 1, hold?: number[]) {
+  const c = new Combat({
     seed,
     board: ground(),
     teams: [
@@ -23,6 +23,8 @@ function fight(rules: AdventureRules | undefined, seed = 1) {
     ],
     adventure: rules,
   })
+  for (const t of hold ?? []) c.holding.add(t)
+  return c
 }
 
 describe("adventure rules are opt-in", () => {
@@ -339,5 +341,39 @@ describe("adventure rules are opt-in", () => {
     const hp = m.hp
     c.run()
     expect(m.hp).toBe(hp)
+  })
+})
+
+describe("holding a spot and giving of oneself", () => {
+  test("reach with ticks needs the member to stay on the cells", () => {
+    const stay = fight(
+      {
+        clock: { period: 10, limit: 30, winner: null },
+        reach: { team: 0, index: 1, cells: [{ x: 1, y: 2 }], ticks: 2 },
+        noDefeat: [0, 1],
+      },
+      1,
+      [0],
+    )
+    stay.run()
+    expect(stay.winnerTeam).toBe(0)
+    const wrong = fight({
+      clock: { period: 10, limit: 3, winner: null },
+      reach: { team: 0, index: 0, cells: [{ x: 1, y: 2 }], ticks: 2 },
+      noDefeat: [0, 1],
+    })
+    wrong.run()
+    expect(wrong.winnerTeam).toBeNull()
+  })
+
+  test("a sacrifice cell costs a share of the maximum hit points", () => {
+    const c = fight({
+      clock: { period: 10, limit: 30, winner: 0 },
+      sacrifice: { team: 0, index: 1, cells: [{ x: 1, y: 2 }], pct: 0.1 },
+      noDefeat: [0, 1],
+    })
+    c.run()
+    const rep = c.adventure?.report
+    expect(rep?.lowest["brutus-0-1"] ?? 1).toBeLessThan(1)
   })
 })

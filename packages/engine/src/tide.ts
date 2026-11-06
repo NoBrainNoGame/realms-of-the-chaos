@@ -20,6 +20,10 @@ export interface ReachRule {
   team: number
   cells: Point[]
   count?: number
+  /** Only this member (index in the team's line-up) counts. */
+  index?: number
+  /** It must hold for this many clock ticks in a row (default: at once). */
+  ticks?: number
 }
 
 export class TideKit {
@@ -54,10 +58,11 @@ export class TideKit {
 
 /** Whether the reach rule is met right now. */
 export function reached(combat: Combat, rule: ReachRule): boolean {
-  const on = combat.fighters.filter(
-    (f) =>
+  const members = combat.fighters.filter((f) => f.team === rule.team)
+  const on = members.filter(
+    (f, i) =>
       f.alive &&
-      f.team === rule.team &&
+      (rule.index === undefined || i === rule.index) &&
       rule.cells.some((c) => equals(c, f.position)),
   )
   return on.length >= (rule.count ?? 1)

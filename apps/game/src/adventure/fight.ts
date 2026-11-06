@@ -148,6 +148,8 @@ export function reportOf(spec: FightSpec, combat: Combat): FightReport {
     crystals: tracker && structuredClone(tracker.crystals),
     bridged: tracker && structuredClone(tracker.bridged),
     gel: tracker && structuredClone(tracker.gel),
+    lowest: tracker && { ...tracker.lowest },
+    energy: combat.teams[mine]?.energy ?? 0,
     trace: tracker && structuredClone(tracker.trace),
     script: tracker && structuredClone(tracker.script),
     debate: tracker && structuredClone(tracker.debate),

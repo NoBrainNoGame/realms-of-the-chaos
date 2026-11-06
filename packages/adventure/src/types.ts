@@ -427,6 +427,10 @@ export interface FightReport {
   }
   /** Cells a crystal bridge made walkable. */
   bridged?: { x: number; y: number }[]
+  /** The lowest share of its hit points each wounded fighter fell to (by id). */
+  lowest?: Record<string, number>
+  /** The Ghom's Élan when the fight ended. */
+  energy?: number
   /** Final blows, strikes, regions held (see `trace.ts` conditions). */
   trace?: TraceReport
   /** Scripted turns and earthquakes, fighters that reformed, tepid cells. */
