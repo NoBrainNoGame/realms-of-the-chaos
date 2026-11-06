@@ -1,18 +1,21 @@
 import type * as booyah from "@ghom/booyah"
 import { CHAPTERS, ERAS } from "@realms/adventure"
 import { Container } from "pixi.js"
-import { resumable, unlockedChapters } from "../adventure/progress"
+import { continuation, unlockedChapters } from "../adventure/progress"
 import { settings } from "../settings"
-import { adventureSave, customCharacters } from "../storage"
+import { adventureSave } from "../storage"
 import Backdrop from "./Backdrop"
 import { COLORS } from "./theme"
 import { Menu, type MenuItem, panel, text } from "./ui"
 import ViewChip from "./ViewChip"
 
 export type ChroniclesChoice =
+  /** Resume the run, or start the next open chapter. */
   | { kind: "resume" }
+  /** A new game (the hero is created first). */
+  | { kind: "new" }
+  /** A past chapter replayed in a sandbox: the run is not touched. */
   | { kind: "chapter"; id: string }
-  | { kind: "hero" }
   | { kind: "back" }
 
 interface ChroniclesEvents extends booyah.BaseCompositeEvents {
@@ -95,35 +98,35 @@ export default class Chronicles extends ViewChip<ChroniclesEvents> {
     y += sub.height + 16
 
     const items: MenuItem[] = []
-    const run = resumable(save)
-    if (run) {
-      const c = CHAPTERS.find((c) => c.id === run.chapter)
+    const next = continuation(save)
+    if (next) {
+      const id = next.kind === "run" ? next.run.chapter : next.id
+      const c = CHAPTERS.find((c) => c.id === id)
       items.push({
         id: "resume",
-        label: `Reprendre : ${c?.number === 0 ? "Prologue" : `Chapitre ${c?.number}`} · ${c?.title}`,
+        label: `${next.kind === "run" ? "Reprendre" : "Continuer"} : ${c?.number === 0 ? "Prologue" : `Chapitre ${c?.number}`} · ${c?.title}`,
       })
     }
+    items.push({
+      id: "new",
+      label: "Nouvelle partie",
+      hint: save.body ? "efface la partie" : undefined,
+    })
     for (const id of era.chapters) {
       const c = CHAPTERS.find((c) => c.id === id)
       if (!c) continue
-      const unlocked = open.includes(id)
+      const done = save.completed.includes(id)
       items.push({
         id: `chapter:${id}`,
         label: `${c.number === 0 ? "Prologue" : `Chapitre ${c.number}`} · ${c.title}`,
-        hint: unlocked
-          ? save.completed.includes(id)
-            ? "terminé"
-            : undefined
-          : "verrouillé",
-        enabled: unlocked,
+        hint: done
+          ? "rejouer, sans effet sur la partie"
+          : open.includes(id)
+            ? "en cours"
+            : "verrouillé",
+        enabled: done,
       })
     }
-    const hero = save.hero
-    const heroNote =
-      hero && customCharacters().some((c) => c.name === hero)
-        ? hero
-        : "le héros par défaut"
-    items.push({ id: "hero", label: `Héros : ${heroNote}` })
     items.push({ id: "back", label: "Retour" })
 
     this._menu = new Menu(items, {
@@ -134,7 +137,7 @@ export default class Chronicles extends ViewChip<ChroniclesEvents> {
         if (id === "resume") this.emit("choose", { kind: "resume" })
         else if (id.startsWith("chapter:"))
           this.emit("choose", { kind: "chapter", id: id.slice(8) })
-        else if (id === "hero") this.emit("choose", { kind: "hero" })
+        else if (id === "new") this.emit("choose", { kind: "new" })
         else this.emit("choose", { kind: "back" })
       },
     })

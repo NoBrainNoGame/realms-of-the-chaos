@@ -7,12 +7,14 @@ import {
   adventureSave,
   clearStorage,
   scarCount,
+  takeCongratulation,
   vacuumDecayWipe,
 } from "../storage"
 import { mount, tick } from "../test/harness"
 import { playLocally } from "../test/play"
+import type AppearanceEditor from "./AppearanceEditor"
 import type Chronicles from "./Chronicles"
-import FightScene from "./FightScene"
+import type FightScene from "./FightScene"
 import Game from "./Game"
 import type StoryScene from "./StoryScene"
 import type TitleScreen from "./TitleScreen"
@@ -56,7 +58,8 @@ describe("Chroniques", () => {
     expect(g.screen.type).toBe("chronicles")
     const sel = g.current as Chronicles
     const ids = sel.menu.items.map((i) => i.id)
-    expect(ids).toContain(`chapter:${CHAPTERS[0].id}`)
+    expect(ids).toContain("new")
+    expect(ids).not.toContain("resume")
     const locked = sel.menu.items.find(
       (i) => i.id === `chapter:${CHAPTERS[1].id}`,
     )
@@ -68,10 +71,11 @@ describe("Chroniques", () => {
     const g = game("mode=chronicles")
     expect(g.screen.type).toBe("chronicles")
     const sel = g.current as Chronicles
-    sel.menu.select(
-      sel.menu.items.findIndex((i) => i.id === "chapter:prologue"),
-    )
+    sel.menu.select(sel.menu.items.findIndex((i) => i.id === "new"))
+    expect(g.screen.type).toBe("hero")
+    ;(g.current as AppearanceEditor).validate()
     expect(g.screen.type).toBe("story")
+    expect(adventureSave().body).not.toBeNull()
     const story = g.current as StoryScene
     expect(story.run.chapter).toBe("prologue")
     story.advance()
@@ -84,7 +88,7 @@ describe("Chroniques", () => {
     playLocally(scene)
     expect(scene.combat.state).toBe("ended")
     const won = scene.combat.winnerTeam === 0
-    const id = won ? "continue" : "retry"
+    const id = won ? "continue" : "defeat"
     ;(scene as any).emit("endAction", id)
     if (won) {
       expect(g.screen.type).toBe("story")
@@ -94,7 +98,7 @@ describe("Chroniques", () => {
       next.advance()
       expect(next.debriefing).toBe(false)
     } else {
-      expect(g.screen.type).toBe("fight")
+      expect(g.screen.type).toBe("story")
     }
   })
 
@@ -123,7 +127,7 @@ describe("Chroniques", () => {
     playLocally(scene)
     ;(scene as any).emit(
       "endAction",
-      scene.combat.winnerTeam === 0 ? "continue" : "leave",
+      scene.combat.winnerTeam === 0 ? "continue" : "defeat",
     )
     expect(g.screen.type).toBe("story")
     expect(unlockedChapters().length).toBeGreaterThanOrEqual(1)
@@ -142,19 +146,15 @@ describe("the save", () => {
     expect(adventureSave().completed).toEqual([])
   })
 
-  test("vacuum decay inside an adventure fight wipes nothing and leaves no scar", () => {
+  test("vacuum decay inside an adventure fight wipes the save and scars", () => {
     const g = game("chapter=prologue")
     const scene = launch(g)
-    const pc = adventureSave().run!.pc
     const scars = scarCount()
     ;(scene as any).emit("vacuumDecay")
     tick(g, 100)
-    expect(g.screen.type).toBe("vacillation")
-    expect(scarCount()).toBe(scars)
-    expect(adventureSave().run?.pc).toBe(pc)
-    expect(g.current).not.toBeInstanceOf(FightScene)
-    // the story takes the fight back
-    ;(g.current as any).menu.select(0)
-    expect(g.screen.type).toBe("fight")
+    expect(g.screen.type).toBe("collapse")
+    expect(scarCount()).toBe(scars + 1)
+    expect(adventureSave().run).toBeNull()
+    expect(takeCongratulation()).toBeNull()
   })
 })

@@ -117,7 +117,7 @@ describe("runner", () => {
     expect(run.flags.ecoute).toBe(2)
   })
 
-  test("fight result: defeat retries, victory scores objectives", () => {
+  test("fight result: defeat goes on, victory scores objectives", () => {
     const base = {
       ticks: 0,
       divineUsed: {},
@@ -139,7 +139,8 @@ describe("runner", () => {
       intrications: 0,
     })
     expect(lost.run.retries).toBe(1)
-    expect(frame(lost.run).kind).toBe("fight")
+    expect(lost.debrief.every((d) => !d.ok)).toBe(true)
+    expect(frame(lost.run).kind).not.toBe("fight")
     const won = finishFight(run, {
       ...base,
       result: "victory",

@@ -8,6 +8,8 @@ import type { FightEvent, Fighter } from "./types"
  * their fights are exactly what they were.
  */
 export interface AdventureRules {
+  /** The final scene (ch. 28): a vacuum decay there is the La Bascule ending. */
+  finale?: boolean
   /** Teams whose fighters can never drop below 1 HP (tutorial fights). */
   noDefeat?: number[]
   /**

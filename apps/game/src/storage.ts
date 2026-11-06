@@ -6,8 +6,8 @@
 import type { Carry, Run } from "@realms/adventure"
 import {
   type CustomCharacter,
+  type CustomLook,
   checkCustom,
-  forbiddenAction,
 } from "@realms/engine"
 import { ENDING_BASCULE, isSecretEnding } from "./endings"
 
@@ -30,8 +30,6 @@ export const SAVE_PREFIX = "realms.save."
 export const SAVE_KEYS = {
   arcade: `${SAVE_PREFIX}arcade.best`,
   custom: `${SAVE_PREFIX}custom`,
-  /** Forbidden actions the player owns (see `grantForbidden`). */
-  unlocks: `${SAVE_PREFIX}unlocks`,
   /** The Adventure's progress (see `adventureSave`): a vacuum decay wipes it. */
   adventure: `${SAVE_PREFIX}adventure`,
 } as const
@@ -56,7 +54,6 @@ const LEGACY_KEYS: Record<string, string> = {
 
 const ARCADE_KEY = SAVE_KEYS.arcade
 const CUSTOM_KEY = SAVE_KEYS.custom
-const UNLOCKS_KEY = SAVE_KEYS.unlocks
 export const MAX_CUSTOMS = 12
 
 let migrated = false
@@ -160,18 +157,21 @@ export const isCustomId = (id: string) => id.startsWith("custom:")
 
 /** The Adventure's save: part of the save, so a vacuum decay wipes it. */
 export interface AdventureSave {
-  /** Name of the saved character that plays the hero (none: the default one). */
-  hero: string | null
+  /** The body chosen at the start (null until the hero is created). */
+  body: CustomLook | null
+  /** Spells given for tests (`?grant=`), on top of the ones the story teaches. */
+  granted: string[]
   /** Per chapter id: the state the chapter starts from (unlocked chapters). */
   starts: Record<string, Carry>
   /** Chapters finished at least once. */
   completed: string[]
-  /** The chapter in progress, if any (« Reprendre »). */
+  /** The single run in progress (auto-saved, choices are final). */
   run: Run | null
 }
 
 export const emptyAdventureSave = (): AdventureSave => ({
-  hero: null,
+  body: null,
+  granted: [],
   starts: {},
   completed: [],
   run: null,
@@ -187,31 +187,20 @@ export function writeAdventureSave(save: AdventureSave) {
   write(SAVE_KEYS.adventure, save)
 }
 
-// ─── Forbidden actions ──────────────────────────────────────────────────────
+// ─── The hero's forbidden spell ─────────────────────────────────────────────
 
-/** Forbidden actions the player owns (ids of FORBIDDEN_ACTIONS). */
-export function forbiddenUnlocked(): string[] {
-  const raw = read<unknown>(UNLOCKS_KEY)
-  if (!Array.isArray(raw)) return []
-  return raw.filter(
-    (id): id is string => typeof id === "string" && !!forbiddenAction(id),
-  )
-}
-
-export function hasForbidden(id: string): boolean {
-  return forbiddenUnlocked().includes(id)
-}
-
-/** Gives the player a forbidden action (the Adventure, or `?grant=`). */
-export function grantForbidden(id: string) {
-  if (!forbiddenAction(id)) throw new Error(`Unknown forbidden action "${id}"`)
-  const owned = forbiddenUnlocked()
-  if (!owned.includes(id)) write(UNLOCKS_KEY, [...owned, id])
+/** Gives the Adventure hero a spell (dev: `?grant=vacuumDecay`). Never the Atelier. */
+export function grantHeroSpell(id: string) {
+  const save = adventureSave()
+  if (!save.granted.includes(id)) {
+    save.granted.push(id)
+    writeAdventureSave(save)
+  }
 }
 
 /** What the engine may accept in this save's characters. */
 export function allowance() {
-  return { forbidden: forbiddenUnlocked().length > 0 }
+  return { forbidden: false }
 }
 
 // ─── Secret endings ─────────────────────────────────────────────────────────

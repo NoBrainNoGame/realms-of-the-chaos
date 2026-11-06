@@ -15,7 +15,7 @@ import {
 } from "@realms/adventure"
 import { CHARACTERS } from "@realms/engine"
 import { Container } from "pixi.js"
-import { heroName } from "../adventure/fight"
+import { HERO_NAME } from "../adventure/hero"
 import { completeChapter, saveRun } from "../adventure/progress"
 import { settings } from "../settings"
 import Backdrop from "./Backdrop"
@@ -48,7 +48,7 @@ const VOICE: Record<string, number> = {
 
 /** Display name of a speaker id. */
 export function speakerName(who: string): string {
-  if (who === "heros") return heroName()
+  if (who === "heros") return HERO_NAME
   const preset = Object.hasOwn(CHARACTERS, who) ? CHARACTERS[who] : null
   return preset?.name ?? who.charAt(0).toUpperCase() + who.slice(1)
 }
@@ -57,6 +57,8 @@ export interface StoryOptions {
   run: Run
   /** The fight that was waiting just ended. */
   report?: FightReport
+  /** A replay of a past chapter: nothing is saved. */
+  sandbox?: boolean
 }
 
 /**
@@ -102,7 +104,7 @@ export default class StoryScene extends ViewChip<StoryEvents> {
       const out = finishFight(this._run, this._options.report)
       this._run = out.run
       this._debrief = out.debrief
-      saveRun(this._run)
+      this._save()
     }
     this._render()
     this._subscribe(window, "keydown", (e: KeyboardEvent) => this._key(e))
@@ -121,7 +123,7 @@ export default class StoryScene extends ViewChip<StoryEvents> {
       const f = frame(this._run)
       if (f.kind === "line" || f.kind === "hint") {
         this._run = next(this._run)
-        saveRun(this._run)
+        this._save()
       } else return
     }
     this._render()
@@ -130,8 +132,12 @@ export default class StoryScene extends ViewChip<StoryEvents> {
   /** A gesture: an option or a topic. */
   pick(id: string) {
     this._run = choose(this._run, id)
-    saveRun(this._run)
+    this._save()
     this._render()
+  }
+
+  private _save() {
+    if (!this._options.sandbox) saveRun(this._run)
   }
 
   private _key(e: KeyboardEvent) {
@@ -279,12 +285,6 @@ export default class StoryScene extends ViewChip<StoryEvents> {
         addText(f.fight.goal, 16, COLORS.text)
         for (const o of f.fight.objectives)
           if (o.mark === "★") addText(`★ ${o.label}`, 15, 0xffe066)
-        if (this._run.retries > 0)
-          addText(
-            `Tentatives manquées : ${this._run.retries}`,
-            13,
-            COLORS.muted,
-          )
         addMenu(
           [
             { id: "fight", label: "Lancer le combat" },
@@ -308,7 +308,7 @@ export default class StoryScene extends ViewChip<StoryEvents> {
   ) {
     if (!this._finished) {
       this._finished = true
-      this._nextId = completeChapter(this._run)
+      this._nextId = this._options.sandbox ? null : completeChapter(this._run)
     }
     addText("Fin du chapitre", 20, 0xffe066, { fontWeight: "700" })
     const items: MenuItem[] = []

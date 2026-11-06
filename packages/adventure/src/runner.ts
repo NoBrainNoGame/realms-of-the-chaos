@@ -284,7 +284,7 @@ export function choose(run: Run, optionId: string): Run {
   return settle(r)
 }
 
-/** The fight is over: objectives are scored, the story goes on (or retries). */
+/** The fight is over: objectives are scored, the story goes on (a defeat goes on too). */
 export function finishFight(
   run: Run,
   report: FightReport,
@@ -292,13 +292,16 @@ export function finishFight(
   const r = copy(run)
   const op = opsOf(r)[r.pc]
   if (op.op !== "fight") throw new Error("No fight is waiting")
-  if (report.result === "defeat") {
+  // A defeat is not a retry: the story goes on with the consequences
+  // (every objective failed, then the fight's own defeat effects).
+  const lost = report.result === "defeat"
+  if (lost) {
     r.retries++
-    return { run: r, debrief: [] }
+    applyEffects(r, op.fight.defeat ?? [])
   }
   const debrief: ObjectiveResult[] = []
   for (const o of op.fight.objectives) {
-    const out = o.check(report)
+    const out = lost ? { ok: false, n: 0 } : o.check(report)
     const ok = typeof out === "boolean" ? out : out.ok
     const n = typeof out === "boolean" ? 1 : out.n
     applyEffects(r, ok ? (o.onSuccess ?? []) : (o.onFailure ?? []), n)
@@ -310,7 +313,6 @@ export function finishFight(
       text: ok ? o.success : o.failure,
     })
   }
-  r.retries = 0
   r.pc++
   return { run: settle(r), debrief }
 }

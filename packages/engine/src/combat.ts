@@ -77,6 +77,9 @@ export type Command =
       target: Point | null
     }
 
+const isVacuumDecay = (action: ActionDefinition) =>
+  action.effects.some((e) => e.type === "vacuumDecay")
+
 export interface CombatOptions {
   teams: TeamSetup[]
   board?: Board
@@ -85,8 +88,8 @@ export interface CombatOptions {
   positions?: Point[][]
   /**
    * Opt-in rules of the Adventure. A fight with this option is an Adventure
-   * fight: a vacuum decay in it does not wipe the save (the game checks
-   * `Combat.adventure`).
+   * fight: only there can a vacuum decay be cast (the game wipes the save
+   * unless the fight is the final scene, `finale`).
    */
   adventure?: AdventureRules
 }
@@ -629,7 +632,11 @@ export class Combat {
     const unique = combos.filter(
       (c, i) => combos.findIndex((o) => o.id === c.id) === i,
     )
-    return [...fighter.actions, ...unique]
+    // the forbidden spell exists only in the Adventure
+    const own = this.adventure
+      ? fighter.actions
+      : fighter.actions.filter((a) => !isVacuumDecay(a))
+    return [...own, ...unique]
   }
 
   isOnCooldown(fighter: Fighter, action: ActionDefinition) {
@@ -1195,6 +1202,8 @@ export class Combat {
   ): string | null {
     const action = this.actionsOf(fighter).find((a) => a.id === actionId)
     if (!action) return "Action inconnue"
+    if (isVacuumDecay(action) && !this.adventure)
+      return "Sort interdit hors de l'Aventure"
     if (this.isOnCooldown(fighter, action)) return "Action en recharge"
     if (!this.getLaunchCells(fighter, action).some((p) => equals(p, target)))
       return "Cible hors de portée"

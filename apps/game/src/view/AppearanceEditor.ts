@@ -132,6 +132,7 @@ export default class AppearanceEditor extends ViewChip<AppearanceEvents> {
   private _animation = 0
   private _puppet: Puppet | null = null
   private _clock = 0
+  private readonly _rows: typeof LOOK_ROWS
 
   /**
    * @param initial the look to modify (the default of the kit otherwise)
@@ -141,8 +142,13 @@ export default class AppearanceEditor extends ViewChip<AppearanceEvents> {
     initial: CustomLook | undefined,
     private readonly _kit: string,
     seed = Math.floor(Math.random() * 1e6),
+    /** Only these parts can be changed (the Adventure hero's body). */
+    private readonly _only?: LookPart[],
   ) {
     super()
+    this._rows = _only
+      ? LOOK_ROWS.filter((r) => _only.includes(r.key))
+      : LOOK_ROWS
     this._look = { ...(initial ?? defaultLook(_kit)) }
     this._seed = seed
   }
@@ -167,12 +173,12 @@ export default class AppearanceEditor extends ViewChip<AppearanceEvents> {
   }
 
   get keys(): LookPart[] {
-    return LOOK_ROWS.map((row) => row.key)
+    return this._rows.map((row) => row.key)
   }
 
   /** The option picked for a part, as shown ("Courts" or "3 / 12"). */
   valueOf(key: LookPart): string {
-    const row = LOOK_ROWS.find((r) => r.key === key)
+    const row = this._rows.find((r) => r.key === key)
     const index = this._look[key]
     return row?.names?.[index] ?? `${index + 1} / ${LOOK_PARTS[key]}`
   }
@@ -188,7 +194,13 @@ export default class AppearanceEditor extends ViewChip<AppearanceEvents> {
   /** Every part drawn at random. */
   randomize() {
     this._seed++
-    this._look = randomLook(this._seed)
+    const next = randomLook(this._seed)
+    this._look = this._only
+      ? {
+          ...this._look,
+          ...Object.fromEntries(this._only.map((k) => [k, next[k]])),
+        }
+      : next
     this._dirty = true
   }
 
@@ -380,8 +392,8 @@ export default class AppearanceEditor extends ViewChip<AppearanceEvents> {
     const right = panel(594, 520)
     right.position.set(346, top)
     this._box.addChild(right)
-    const half = Math.ceil(LOOK_ROWS.length / 2)
-    LOOK_ROWS.forEach((row, i) => {
+    const half = Math.ceil(this._rows.length / 2)
+    this._rows.forEach((row, i) => {
       const col = Math.floor(i / half)
       const x = 362 + col * 292
       const y = top + 16 + (i % half) * 52
@@ -390,12 +402,14 @@ export default class AppearanceEditor extends ViewChip<AppearanceEvents> {
 
     // bottom
     const bottom = top + 540
-    const buttons: [string, string, () => void, number][] = [
+    type Row = [string, string, () => void, number]
+    const buttonsAll: Row[] = [
       ["look:random", "Aléatoire", () => this.randomize(), 150],
       ["look:colors", "Couleurs aléatoires", () => this.randomizeColors(), 200],
       ["look:kit", "Apparence du modèle", () => this.useKitArt(), 200],
-    ]
+    ].filter(([id]) => !this._only || id === "look:random") as Row[]
     let bx = 0
+    const buttons = buttonsAll
     for (const [id, label, onTap, width] of buttons) {
       const b = button({ width, height: 40, label, onTap })
       b.view.label = id

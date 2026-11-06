@@ -46,7 +46,7 @@ describe("vacuum decay", () => {
     ).toBe(false)
   })
 
-  test("using it ends the fight with no winner and emits the event", () => {
+  test("outside the Adventure the engine refuses it", () => {
     const check = checkCustom(character(), { forbidden: true })
     if (!check.ok) throw new Error(check.reason)
     const combat = new Combat({
@@ -57,6 +57,30 @@ describe("vacuum decay", () => {
         { controller: "ai", fighters: ["gorr"] },
       ],
       positions: [[{ x: 1, y: 1 }], [{ x: 7, y: 7 }]],
+    })
+    const caster = combat.fighters[0]
+    for (const f of combat.fighters) f.nextActionAt = 500
+    caster.nextActionAt = 0
+    combat.run()
+    expect(combat.actionsOf(caster).map((a) => a.id)).not.toContain(
+      "vacuumDecay",
+    )
+    expect(combat.useAction("vacuumDecay", caster.position).ok).toBe(false)
+    expect(combat.state).not.toBe("ended")
+  })
+
+  test("in an Adventure fight it ends the fight with no winner and emits the event", () => {
+    const check = checkCustom(character(), { forbidden: true })
+    if (!check.ok) throw new Error(check.reason)
+    const combat = new Combat({
+      seed: 1,
+      board: new Board(9, 9),
+      teams: [
+        { controller: "human", fighters: [check.preset] },
+        { controller: "ai", fighters: ["gorr"] },
+      ],
+      positions: [[{ x: 1, y: 1 }], [{ x: 7, y: 7 }]],
+      adventure: {},
     })
     const caster = combat.fighters[0]
     for (const f of combat.fighters) f.nextActionAt = 500

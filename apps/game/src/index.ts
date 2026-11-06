@@ -4,7 +4,7 @@ import { ENDING_BASCULE, ENDING_GRATUITE } from "./endings"
 import { params } from "./params"
 import {
   congratulateNext,
-  grantForbidden,
+  grantHeroSpell,
   markEnding,
   scarCount,
   secondEndingAvailable,
@@ -24,7 +24,7 @@ else if (params.ending === ENDING_GRATUITE && secondEndingAvailable()) {
 
 // the scars of past vacuum decays drift the colours (before anything draws)
 applyScars(scarCount())
-for (const id of params.grant) grantForbidden(id)
+for (const id of params.grant) grantHeroSpell(id)
 
 // crisp pixel art everywhere
 TextureStyle.defaultOptions.scaleMode = "nearest"

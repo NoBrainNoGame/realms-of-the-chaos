@@ -14,9 +14,9 @@ import { isSecretEnding } from "./endings"
  *                            `?seed=`, 1 by default) x 4 facings, with their portrait
  * - `?anim=swim`             with the gallery: loops a single animation
  *                            (idle, walk, melee, shoot, cast, roar, hit, swim)
- * - `?grant=vacuumDecay`    dev: gives a forbidden spell to the save (the
- *                            Adventure will, one day); offered in the Workshop.
- *                            To try its wipe and the scars it leaves.
+ * - `?grant=vacuumDecay`    dev: gives a forbidden spell to the Adventure
+ *                            hero (it exists nowhere else). Cast in any
+ *                            Adventure fight, it wipes the save and scars.
  * - `?ending=bascule`      dev: simulates the Adventure reaching its first
  *                            secret ending (the real wipe, one more scar,
  *                            the ending recorded), then the congratulation.
@@ -59,7 +59,7 @@ export interface Params {
   speed: number
   playerTeam: string[]
   enemyTeam: string[]
-  /** Forbidden actions to give to the save (dev). */
+  /** Forbidden actions to give to the Adventure hero (dev). */
   grant: string[]
   /** Dev: a secret ending to simulate (see `?ending=`). */
   ending: string | null

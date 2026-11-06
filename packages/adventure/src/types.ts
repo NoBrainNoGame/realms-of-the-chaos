@@ -145,6 +145,8 @@ export interface FightSpec {
   lines: FightLine[]
   /** What the player is told the fight is about. */
   goal: string
+  /** Consequences of losing: the story goes on, there is no retry. */
+  defeat?: Effect[]
   /** Fixed seed (the tutorial); the run's seed is used otherwise. */
   seed?: number
 }

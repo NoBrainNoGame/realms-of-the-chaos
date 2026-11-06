@@ -12,14 +12,13 @@ import { ENDING_BASCULE, ENDING_GRATUITE } from "../endings"
 import { parseParams } from "../params"
 import { resetSettings, updateSettings } from "../settings"
 import {
+  adventureSave,
   arcadeBest,
   clearStorage,
   congratulateNext,
   customCharacters,
   endingsSeen,
-  forbiddenUnlocked,
-  grantForbidden,
-  hasForbidden,
+  grantHeroSpell,
   markEnding,
   SAVE_KEYS,
   SAVE_PREFIX,
@@ -32,8 +31,9 @@ import {
 } from "../storage"
 import { mount, tick } from "../test/harness"
 import { tickUntil } from "../test/play"
-import Creator, { FORBIDDEN_WARNING } from "./Creator"
-import FightScene, { classicFight } from "./FightScene"
+import Creator from "./Creator"
+import type FightScene from "./FightScene"
+import { classicFight } from "./FightScene"
 import Game from "./Game"
 import { resolveFighters } from "./looks"
 import { hslToRgb, rgbToHsl, scarTint } from "./scarTint"
@@ -61,25 +61,16 @@ beforeEach(() => {
 })
 
 describe("the save", () => {
-  test("forbidden spells are unlocked by grant, and listed", () => {
-    expect(hasForbidden("vacuumDecay")).toBe(false)
-    grantForbidden("vacuumDecay")
-    grantForbidden("vacuumDecay")
-    expect(forbiddenUnlocked()).toEqual(["vacuumDecay"])
-    expect(() => grantForbidden("kick")).toThrow()
-  })
-
-  test("a character with the spell is kept only while it is owned", () => {
+  test("the hero gets the spell by grant, once; a character never holds it", () => {
+    grantHeroSpell("vacuumDecay")
+    grantHeroSpell("vacuumDecay")
+    expect(adventureSave().granted).toEqual(["vacuumDecay"])
     saveCustom(caster())
     expect(customCharacters()).toEqual([])
-    grantForbidden("vacuumDecay")
-    saveCustom(caster())
-    expect(customCharacters().map((c) => c.name)).toEqual(["Aube"])
   })
 
   test("the wipe erases every save key, keeps settings and scars", () => {
-    grantForbidden("vacuumDecay")
-    saveCustom(caster())
+    grantHeroSpell("vacuumDecay")
     submitArcadeScore({ score: 300, waves: 3, team: ["eva"], date: "x" })
     // a future key under the prefix is wiped too
     localStorage.setItem(`${SAVE_PREFIX}adventure.chapter`, "7")
@@ -90,7 +81,7 @@ describe("the save", () => {
     expect(vacuumDecayWipe()).toBe(1)
     expect(arcadeBest()).toBeNull()
     expect(customCharacters()).toEqual([])
-    expect(forbiddenUnlocked()).toEqual([])
+    expect(adventureSave().granted).toEqual([])
     for (const key of Object.values(SAVE_KEYS))
       expect(localStorage.getItem(key)).toBeNull()
     expect(localStorage.getItem(`${SAVE_PREFIX}adventure.chapter`)).toBeNull()
@@ -108,9 +99,8 @@ describe("the save", () => {
 })
 
 describe("using it in a game", () => {
-  test("a skirmish ends in a collapse: save wiped, a scar, then the title", () => {
-    grantForbidden("vacuumDecay")
-    saveCustom(caster())
+  test("a skirmish refuses it: nothing is wiped, no scar", () => {
+    saveCustom({ ...caster(), spells: SPELLS.slice(0, 2) })
     submitArcadeScore({ score: 300, waves: 3, team: ["eva"], date: "x" })
     const game = mount(new Game(parseParams(new URLSearchParams(""))))
     game.show({
@@ -128,23 +118,13 @@ describe("using it in a game", () => {
     scene.startFight()
     tickUntil(scene, () => internals._inputReady)
     const me = scene.combat.activeFighter!
-    expect(me.name).toBe("Aube")
-    internals._command({
-      type: "useAction",
-      fighterId: me.id,
-      actionId: "vacuumDecay",
-      target: me.position,
-    })
-    expect(scene.combat.collapsed).toBe(true)
-    for (let t = 0; t < 20_000 && game.screen.type === "fight"; t += 50)
-      game.tick({ timeSinceLastTick: 50 })
-    expect(game.screen.type).toBe("collapse")
-    expect(arcadeBest()).toBeNull()
-    expect(customCharacters()).toEqual([])
-    expect(scarCount()).toBe(1)
-    expect(game.current).not.toBeInstanceOf(FightScene)
-    ;(game.current as any).menu.select(0)
-    expect(game.screen.type).toBe("title")
+    expect(scene.combat.actionsOf(me).map((a) => a.id)).not.toContain(
+      "vacuumDecay",
+    )
+    expect(scene.combat.useAction("vacuumDecay", me.position).ok).toBe(false)
+    expect(scene.combat.collapsed).toBe(false)
+    expect(arcadeBest()).not.toBeNull()
+    expect(scarCount()).toBe(0)
   })
 })
 
@@ -155,27 +135,15 @@ describe("the workshop", () => {
     return labels(creator.container)
   }
 
-  test("offers the forbidden spell only once it is owned", () => {
+  test("never offers the forbidden spell, even when the hero owns it", () => {
     expect(PICKABLE_ACTIONS).not.toContain("vacuumDecay")
-    const before = mount(new Creator(undefined, 3))
-    expect(chooserLabels(before)).not.toContain("creator:pick:vacuumDecay")
-    expect(before.pickAction("vacuumDecay")).toBe(false)
-
-    grantForbidden("vacuumDecay")
+    grantHeroSpell("vacuumDecay")
     const creator = mount(new Creator(undefined, 3))
-    const found = chooserLabels(creator)
-    expect(found).toContain("creator:pick:vacuumDecay")
-    expect(found).toContain("creator:warning:vacuumDecay")
-    expect(FORBIDDEN_WARNING).toBe(
-      "Interdit. Hors de l'Aventure, il efface tout.",
-    )
-    expect(creator.pickAction("vacuumDecay")).toBe(true)
-    expect(creator.spells).toContain("vacuumDecay")
+    expect(chooserLabels(creator)).not.toContain("creator:pick:vacuumDecay")
+    expect(creator.pickAction("vacuumDecay")).toBe(false)
     expect(FORBIDDEN_ACTIONS.vacuumDecay.name).toBe("Vacuum decay")
   })
-})
 
-describe("scars on the colours", () => {
   test("no scar leaves every colour alone", () => {
     for (const c of [0x15121f, 0x4dabf7, 0xffffff, 0x5e9a3c])
       expect(scarTint(c, 0)).toBe(c)
@@ -252,14 +220,13 @@ describe("secret endings", () => {
   const start = () => mount(new Game(parseParams(new URLSearchParams(""))))
 
   test("an ending wipe records it, keeps settings, scars and endings", () => {
-    grantForbidden("vacuumDecay")
-    saveCustom(caster())
+    grantHeroSpell("vacuumDecay")
     updateSettings({ textSize: 1.3 })
     expect(secondEndingAvailable()).toBe(false)
 
     expect(vacuumDecayWipe({ ending: ENDING_BASCULE })).toBe(1)
     expect(customCharacters()).toEqual([])
-    expect(forbiddenUnlocked()).toEqual([])
+    expect(adventureSave().granted).toEqual([])
     expect(localStorage.getItem("realms.settings")).toContain("1.3")
     expect(endingsSeen()).toEqual([ENDING_BASCULE])
     expect(secondEndingAvailable()).toBe(true)

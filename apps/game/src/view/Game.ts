@@ -1,19 +1,23 @@
 import type * as booyah from "@ghom/booyah"
-import type { FightReport, FightSpec } from "@realms/adventure"
+import type { FightReport, FightSpec, Run } from "@realms/adventure"
+import type { CustomLook } from "@realms/engine"
 import {
   allyTeam,
   fightOptions,
   reportOf,
   startEnergy,
 } from "../adventure/fight"
-import { beginChapter, chooseHero, resumable } from "../adventure/progress"
+import { HERO_PARTS, STARTING_LOOK } from "../adventure/hero"
+import {
+  beginChapter,
+  continuation,
+  newGame,
+  resumable,
+} from "../adventure/progress"
 import { SECRET_ENDINGS } from "../endings"
 import type { Params } from "../params"
-import {
-  customCharacters,
-  takeCongratulation,
-  vacuumDecayWipe,
-} from "../storage"
+import { takeCongratulation, vacuumDecayWipe } from "../storage"
+import AppearanceEditor from "./AppearanceEditor"
 import ArcadeRun from "./ArcadeRun"
 import Chronicles from "./Chronicles"
 import Creator from "./Creator"
@@ -36,17 +40,22 @@ export type Screen =
       type: "fight"
       options: SceneOptions
       picked?: PickerResult
-      /** A fight of the Adventure: a vacuum decay there never wipes the save. */
-      adventure?: { spec: FightSpec; seed: number }
+      /** A fight of the Adventure: a vacuum decay there wipes the save. */
+      adventure?: { spec: FightSpec; seed: number; sandbox?: Run }
     }
   /** « Chroniques »: the chapter selector. */
   | { type: "chronicles" }
   /** The story player, on the saved run (`start`: opens that chapter first). */
-  | { type: "story"; start?: string; report?: FightReport }
+  | {
+      type: "story"
+      start?: string
+      report?: FightReport
+      /** A past chapter replayed: the run lives here, not in the save. */
+      sandbox?: Run | true
+    }
   /** Which saved Écho plays the hero. */
   | { type: "hero" }
   /** A vacuum decay inside an Adventure fight: the story absorbs it. */
-  | { type: "vacillation"; spec: FightSpec; seed: number }
   | { type: "arcade"; team: string[] }
   | { type: "gallery" }
   | { type: "tutorial" }
@@ -203,18 +212,20 @@ export default class Game extends ViewChip {
   }
 
   /** The fight screen of an Adventure fight node. */
-  private _adventureFight(spec: FightSpec): Screen {
+  private _adventureFight(spec: FightSpec, run: Run, sandbox?: Run): Screen {
     const seed = randomSeed()
-    const options = fightOptions(spec, seed, this._params.speed, (combat) =>
-      combat.winnerTeam === allyTeam(spec) ||
-      (combat.winnerTeam === null && combat.adventure?.report.timeUp)
-        ? [{ id: "continue", label: "Continuer l'histoire" }]
-        : [
-            { id: "retry", label: "Réessayer" },
-            { id: "leave", label: "Revenir à l'histoire" },
-          ],
+    const options = fightOptions(
+      spec,
+      seed,
+      this._params.speed,
+      run,
+      (combat) =>
+        combat.winnerTeam === allyTeam(spec) ||
+        (combat.winnerTeam === null && combat.adventure?.report.timeUp)
+          ? [{ id: "continue", label: "Continuer l'histoire" }]
+          : [{ id: "defeat", label: "Poursuivre" }],
     )
-    return { type: "fight", options, adventure: { spec, seed } }
+    return { type: "fight", options, adventure: { spec, seed, sandbox } }
   }
 
   private _build(screen: Screen): booyah.Chip {
@@ -258,29 +269,26 @@ export default class Game extends ViewChip {
         const adventure = screen.adventure
         if (adventure) startEnergy(adventure.spec, scene.combat)
         this._subscribeOnce(scene, "quit", () =>
-          this.show(adventure ? { type: "story" } : { type: "title" }),
+          this.show(
+            adventure
+              ? { type: "story", sandbox: adventure.sandbox }
+              : { type: "title" },
+          ),
         )
         this._subscribeOnce(scene, "vacuumDecay", () => {
-          // In the Adventure the spell is only a threat: nothing is wiped,
-          // the story takes the fight back. Elsewhere the save collapses.
-          if (adventure)
-            this._deferred = {
-              type: "vacillation",
-              spec: adventure.spec,
-              seed: adventure.seed,
-            }
-          else this._collapsing = true
+          // Anywhere in the Adventure (but the last scene) the forbidden
+          // spell wipes the whole save: no retry, no congratulation.
+          this._collapsing = true
         })
         this._subscribeOnce(scene, "endAction", (id: string) => {
           if (adventure) {
-            if (id === "continue")
+            if (id === "continue" || id === "defeat")
               this.show({
                 type: "story",
                 report: reportOf(adventure.spec, scene.combat),
+                sandbox: adventure.sandbox,
               })
-            else if (id === "retry")
-              this.show(this._adventureFight(adventure.spec))
-            else this.show({ type: "story" })
+            else this.show({ type: "story", sandbox: adventure.sandbox })
             return
           }
           const picked = screen.picked
@@ -307,66 +315,61 @@ export default class Game extends ViewChip {
         const chronicles = new Chronicles()
         this._subscribeOnce(chronicles, "choose", (choice) => {
           if (choice.kind === "back") this.show({ type: "title" })
-          else if (choice.kind === "hero") this.show({ type: "hero" })
-          else if (choice.kind === "resume") this.show({ type: "story" })
-          else this.show({ type: "story", start: choice.id })
+          else if (choice.kind === "new") this.show({ type: "hero" })
+          else if (choice.kind === "resume") {
+            const next = continuation()
+            if (!next) this.show({ type: "hero" })
+            else if (next.kind === "run") this.show({ type: "story" })
+            else this.show({ type: "story", start: next.id })
+          } else this.show({ type: "story", start: choice.id, sandbox: true })
         })
         return chronicles
       }
 
       case "story": {
-        if (screen.start) beginChapter(screen.start)
-        const run = resumable()
+        const replay = screen.sandbox !== undefined
+        let run: Run | null
+        if (screen.sandbox && screen.sandbox !== true) run = screen.sandbox
+        else if (screen.start)
+          run = beginChapter(screen.start, undefined, replay)
+        else run = resumable()
         if (!run) return this._build({ type: "chronicles" })
-        const story = new StoryScene({ run, report: screen.report })
+        const story = new StoryScene({
+          run,
+          report: screen.report,
+          sandbox: replay,
+        })
         this._subscribeOnce(story, "back", () =>
           this.show({ type: "chronicles" }),
         )
         this._subscribeOnce(story, "chapter", (id: string) =>
-          this.show({ type: "story", start: id }),
+          this.show(
+            replay
+              ? { type: "story", start: id, sandbox: true }
+              : { type: "story", start: id },
+          ),
         )
-        this._subscribeOnce(story, "fight", (spec: FightSpec) =>
-          this.show(this._adventureFight(spec)),
+        this._subscribeOnce(story, "fight", (spec: FightSpec, r: Run) =>
+          this.show(this._adventureFight(spec, r, replay ? r : undefined)),
         )
         return story
       }
 
       case "hero": {
-        const names = customCharacters().map((c) => c.name)
-        const message = new MessageScreen({
-          title: "Le héros",
-          lines: [
-            "Qui êtes-vous dans les Chroniques ?",
-            "Un Écho de l'Atelier, ou le héros par défaut.",
-          ],
-          choices: [
-            { id: "default", label: "Le héros par défaut" },
-            ...names.map((name) => ({ id: `echo:${name}`, label: name })),
-            { id: "back", label: "Retour" },
-          ],
-        })
-        this._subscribeOnce(message, "choose", (id: string) => {
-          if (id === "default") chooseHero(null)
-          else if (id.startsWith("echo:")) chooseHero(id.slice(5))
-          this.show({ type: "chronicles" })
-        })
-        return message
-      }
-
-      case "vacillation": {
-        const message = new MessageScreen({
-          title: "Le vide a vacillé",
-          color: 0xe7f5ff,
-          lines: [
-            "Le sort a tenu un instant, puis le monde s'est reformé autour de vous.",
-            "Dans les Chroniques, le vide n'efface rien : le combat reprend.",
-          ],
-          choices: [{ id: "again", label: "Reprendre le combat" }],
-        })
-        this._subscribeOnce(message, "choose", () =>
-          this.show(this._adventureFight(screen.spec)),
+        const editor = new AppearanceEditor(
+          STARTING_LOOK,
+          "brutus",
+          undefined,
+          HERO_PARTS,
         )
-        return message
+        this._subscribeOnce(editor, "done", (look: CustomLook | null) => {
+          newGame(look ?? STARTING_LOOK)
+          this.show({ type: "story", start: "prologue" })
+        })
+        this._subscribeOnce(editor, "cancel", () =>
+          this.show({ type: "chronicles" }),
+        )
+        return editor
       }
 
       case "arcade": {

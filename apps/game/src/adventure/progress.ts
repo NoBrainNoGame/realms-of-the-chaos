@@ -11,9 +11,11 @@ import {
   START_CARRY,
   startChapter,
 } from "@realms/adventure"
+import type { CustomLook } from "@realms/engine"
 import {
   type AdventureSave,
   adventureSave,
+  emptyAdventureSave,
   vacuumDecayWipe,
   writeAdventureSave,
 } from "../storage"
@@ -42,13 +44,20 @@ function seedOf() {
 }
 
 /** Starts a chapter from the state it opens with, and saves it. */
-export function beginChapter(chapterId: string, seed = seedOf()): Run {
+export function beginChapter(
+  chapterId: string,
+  seed = seedOf(),
+  /** A replay of a past chapter: the run in progress is left alone. */
+  sandbox = false,
+): Run {
   const save = adventureSave()
   const carry: Carry = save.starts[chapterId] ?? START_CARRY
   const run = startChapter(chapterId, carry, seed)
-  save.starts[chapterId] = structuredClone(carry)
-  save.run = run
-  writeAdventureSave(save)
+  if (!sandbox) {
+    save.starts[chapterId] = structuredClone(carry)
+    save.run = run
+    writeAdventureSave(save)
+  }
   return run
 }
 
@@ -77,11 +86,26 @@ export function completeChapter(run: Run): string | null {
   return next?.id ?? null
 }
 
-/** Which saved character plays the hero (null: the default one). */
-export function chooseHero(name: string | null) {
-  const save: AdventureSave = adventureSave()
-  save.hero = name
+/** A new game: the body is chosen, everything else starts over. */
+export function newGame(body: CustomLook): AdventureSave {
+  const save: AdventureSave = {
+    ...emptyAdventureSave(),
+    body,
+    granted: adventureSave().granted,
+  }
   writeAdventureSave(save)
+  return save
+}
+
+/** Where « Reprendre » leads: the run in progress, or the next open chapter. */
+export function continuation(
+  save = adventureSave(),
+): { kind: "run"; run: Run } | { kind: "chapter"; id: string } | null {
+  const run = resumable(save)
+  if (run) return { kind: "run", run }
+  if (!save.body) return null
+  const open = unlockedChapters(save).find((id) => !save.completed.includes(id))
+  return open ? { kind: "chapter", id: open } : null
 }
 
 /**

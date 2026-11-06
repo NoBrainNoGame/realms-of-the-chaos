@@ -1,5 +1,5 @@
 /** Adventure fights: a chapter's FightSpec to scene options, and back to a report. */
-import type { FightReport, FightSpec } from "@realms/adventure"
+import type { Carry, FightReport, FightSpec } from "@realms/adventure"
 import {
   CHARACTERS,
   type CharacterPreset,
@@ -7,41 +7,10 @@ import {
   DIVINE_ACTIONS,
   type Fighter,
 } from "@realms/engine"
-import { adventureSave, customById, customId } from "../storage"
+import { adventureSave } from "../storage"
 import type { SceneOptions } from "../view/FightScene"
 import { registerLook, resolveFighters } from "../view/looks"
-
-/** The hero when the player has not chosen an Écho of the Atelier. */
-export const DEFAULT_HERO: CharacterPreset = {
-  id: "heros",
-  name: "Le héros",
-  title: "Écho",
-  affinity: "strength",
-  stats: {
-    health: 8,
-    speed: 5,
-    physicalAttack: 5,
-    physicalDefense: 4,
-    magicalAttack: 3,
-    magicalDefense: 4,
-    luck: 5,
-  },
-  actions: ["sprint", "kick"],
-}
-
-/** Id of the saved Écho that plays the hero, if it still exists. */
-export function heroCustomId(): string | null {
-  const name = adventureSave().hero
-  if (!name) return null
-  const id = customId(name)
-  return customById(id) ? id : null
-}
-
-/** Name shown for the hero. */
-export function heroName(): string {
-  const id = heroCustomId()
-  return id ? (customById(id)?.name ?? DEFAULT_HERO.name) : DEFAULT_HERO.name
-}
+import { HERO_ID, heroLook, heroPreset } from "./hero"
 
 /** The reference art an Adventure-only preset is drawn with. */
 const KIT_OF_AFFINITY: Record<string, string> = {
@@ -59,15 +28,17 @@ function artOf(preset: CharacterPreset): string {
   return KIT_OF_AFFINITY[preset.affinity] ?? "squalor"
 }
 
-function fighterOf(preset: string | CharacterPreset): string | CharacterPreset {
+function fighterOf(
+  preset: string | CharacterPreset,
+  hero: Pick<Carry, "items" | "unlocks">,
+): string | CharacterPreset {
   if (typeof preset !== "string") {
     registerLook(preset.id, artOf(preset))
     return preset
   }
   if (preset === "@hero") {
-    const id = heroCustomId()
-    if (id) return resolveFighters([id])[0] ?? fighterOf(DEFAULT_HERO)
-    return fighterOf(DEFAULT_HERO)
+    registerLook(HERO_ID, "brutus", heroLook(adventureSave().body, hero))
+    return heroPreset(hero)
   }
   return resolveFighters([preset])[0] ?? preset
 }
@@ -77,6 +48,7 @@ export function fightOptions(
   spec: FightSpec,
   seed: number,
   speed: number,
+  hero: Pick<Carry, "items" | "unlocks">,
   endActions: SceneOptions["endActions"],
 ): SceneOptions {
   const known = new Set(spec.influences)
@@ -90,7 +62,7 @@ export function fightOptions(
     teams: spec.teams.map((t) => ({
       name: t.name,
       controller: t.side === "allies" ? "local" : "ai",
-      fighters: t.fighters.map((f) => fighterOf(f.preset)),
+      fighters: t.fighters.map((f) => fighterOf(f.preset, hero)),
       hp: t.fighters.map((f) => f.hp),
     })),
     hold: spec.teams.flatMap((t, i) => (t.side === "neutral" ? [i] : [])),
