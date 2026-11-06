@@ -297,29 +297,27 @@ export default class Creator extends ViewChip<CreatorEvents> {
 
     // left: the kit (box coordinates)
     const top = 56
-    const kitPanel = panel(300, 440)
-    kitPanel.position.set(0, top)
     const prev = this._small("‹", () => this.changeKit(-1), "creator:prev")
     prev.view.position.set(12, top + 70)
     const next = this._small("›", () => this.changeKit(1), "creator:next")
     next.view.position.set(300 - 12 - 36, top + 70)
     const shadow = new Graphics()
-      .ellipse(150, top + 124, 34, 12)
+      .ellipse(150, top + 170, 30, 10)
       .fill({ color: 0x000000, alpha: 0.35 })
-    this._puppet.scale.set(2.4)
-    this._puppet.position.set(150, top + 124)
+    this._puppet.scale.set(1.8)
+    this._puppet.position.set(150, top + 170)
     const kitName = text(`Actions de ${preset.name}`, 16, COLORS.text, {
       fontWeight: "700",
     })
     kitName.anchor.set(0.5, 0)
-    kitName.position.set(150, top + 138)
+    kitName.position.set(150, top + 184)
     const kitTitle = text(
       `${preset.title} · ${AFFINITIES[preset.affinity].name}`,
       11,
-      COLORS.muted,
+      COLORS.text,
     )
     kitTitle.anchor.set(0.5, 0)
-    kitTitle.position.set(150, top + 160)
+    kitTitle.position.set(150, top + 206)
     const actions = text(
       preset.actions
         .filter((a) => a !== "kick")
@@ -329,7 +327,10 @@ export default class Creator extends ViewChip<CreatorEvents> {
       COLORS.text,
       { lineHeight: 16, wordWrap: true, wordWrapWidth: 276 },
     )
-    actions.position.set(12, top + 186)
+    actions.position.set(12, top + 232)
+    // the card ends with its content
+    const kitPanel = panel(300, actions.y + actions.height + 14 - top)
+    kitPanel.position.set(0, top)
     this._box.addChild(
       kitPanel,
       shadow,
@@ -342,44 +343,46 @@ export default class Creator extends ViewChip<CreatorEvents> {
     )
 
     // middle: name and stats
-    const x = 324
+    const x = 332
+    const midPanel = panel(372, 440)
+    midPanel.position.set(316, top)
+    this._box.addChild(midPanel)
     const nameLabel = text("Nom", 12, COLORS.muted)
-    nameLabel.position.set(x, 62)
+    nameLabel.position.set(x, 68)
     const nameText = text(this._name, 24, 0xffe066, { fontWeight: "700" })
-    nameText.position.set(x, 80)
+    nameText.position.set(x, 86)
     const reroll = button({
-      width: 150,
+      width: 120,
       height: 36,
       label: "Autre nom",
-      hotkey: "N",
       onTap: () => this.rerollName(),
     })
     reroll.view.label = "creator:name"
-    reroll.view.position.set(x + 250, 82)
+    reroll.view.position.set(x + 220, 88)
     this._box.addChild(nameLabel, nameText, reroll.view)
 
     CUSTOM_STATS.forEach((stat, i) => {
-      const y = 140 + i * 44
+      const y = 144 + i * 44
       const label = text(STAT_LABELS[stat], 14, COLORS.text)
       label.position.set(x, y + 8)
       const value = text(String(this._stats[stat]), 16, 0xffe066, {
         fontWeight: "700",
       })
       value.anchor.set(0.5, 0)
-      value.position.set(x + 270, y + 7)
+      value.position.set(x + 240, y + 7)
       const minus = this._small(
         "−",
         () => this.step(stat, -1),
         `creator:${stat}:-`,
       )
-      minus.view.position.set(x + 200, y)
+      minus.view.position.set(x + 170, y)
       minus.setState({ enabled: this.canStep(stat, -1) })
       const plus = this._small(
         "+",
         () => this.step(stat, 1),
         `creator:${stat}:+`,
       )
-      plus.view.position.set(x + 304, y)
+      plus.view.position.set(x + 274, y)
       plus.setState({ enabled: this.canStep(stat, 1) })
       this._box.addChild(label, value, minus.view, plus.view)
     })
@@ -390,48 +393,51 @@ export default class Creator extends ViewChip<CreatorEvents> {
       COLORS.text,
       { fontWeight: "700" },
     )
-    health.position.set(x, 140 + CUSTOM_STATS.length * 44 + 8)
+    health.position.set(x, 144 + CUSTOM_STATS.length * 44 + 8)
     const note = text(
       "Plus une qualité monte, plus la santé baisse : votre Écho reste aussi fort que celui dont il reprend les actions.",
       11,
-      COLORS.muted,
+      COLORS.text,
       { wordWrap: true, wordWrapWidth: 340, lineHeight: 15 },
     )
     note.position.set(x, health.y + 28)
     this._box.addChild(health, note)
 
     // right: saved characters
-    const rx = 700
+    const rx = 716
+    const savedPanel = panel(224, 440)
+    savedPanel.position.set(704, top)
+    this._box.addChild(savedPanel)
     const savedTitle = text("Vos Échos", 16, COLORS.text, { fontWeight: "700" })
-    savedTitle.position.set(rx, 62)
+    savedTitle.position.set(rx, 68)
     this._box.addChild(savedTitle)
     const saved = customCharacters()
     if (!saved.length) {
-      const none = text("Aucun pour l'instant.", 12, COLORS.muted)
-      none.position.set(rx, 90)
+      const none = text("Aucun pour l'instant.", 12, COLORS.text)
+      none.position.set(rx, 96)
       this._box.addChild(none)
     }
     saved.forEach((c, i) => {
       const b = button({
-        width: 240,
+        width: 200,
         height: 28,
         label: `${c.name} (${CHARACTERS[c.kit].name})`,
         onTap: () => this.edit(c.name),
       })
       b.view.label = `creator:saved:${c.name}`
       b.setState({ selected: c.name === this._editing })
-      b.view.position.set(rx, 88 + i * 32)
+      b.view.position.set(rx, 96 + i * 32)
       this._box.addChild(b.view)
     })
     if (this._editing) {
       const fresh = button({
-        width: 240,
+        width: 200,
         height: 28,
         label: "+ Nouveau",
         onTap: () => this.startNew(),
       })
       fresh.view.label = "creator:new"
-      fresh.view.position.set(rx, 88 + saved.length * 32 + 6)
+      fresh.view.position.set(rx, 96 + saved.length * 32 + 6)
       this._box.addChild(fresh.view)
     }
 
