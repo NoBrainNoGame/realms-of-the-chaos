@@ -134,9 +134,10 @@ const faim: FightSpec = {
     },
   ],
   rules: {
-    // SIMPLIFIED: the fight does not end on "Squalor kills a Lacunaire" (the
-    // objective reads the final blow instead). Squalor flees
-    // under a quarter of his hit points (as in the doc); the clock bounds it.
+    // The fight ends, as a narrative victory, the moment Squalor kills a
+    // Lacunaire. Squalor flees under a quarter of his hit points (as in the
+    // doc); the clock bounds it.
+    endOn: { by: { team: 1, index: 0 }, target: 2, winner: 0 },
     flee: { team: 1, below: 0.25, exits: [{ x: 1, y: 7 }] },
     clock: { period: 1, limit: 16, winner: 0 },
   },
@@ -172,8 +173,19 @@ const faim: FightSpec = {
       success: "Le Ghom s'est tenu tranquille.",
       onSuccess: [add("confiance")],
     },
-    // CUT: "Le repas intact" (pushing a weakened Lacunaire toward Squalor
-    // without killing it).
+    {
+      id: "repas-intact",
+      mark: "◆",
+      label: "Le repas intact",
+      // Squalor ate, and no Lacunaire fell to the team: the one he took was
+      // left weakened and pushed to him, not finished.
+      when: [
+        { finalBlowBy: { by: "squalor", target: { team: 2 } } },
+        { not: { finalBlowBy: { by: { team: 0 }, target: { team: 2 } } } },
+      ],
+      success:
+        "Le Lacunaire est arrivé à la table de Squalor sans une entaille de plus.",
+    },
   ],
   lines: [
     {

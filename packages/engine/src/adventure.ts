@@ -26,7 +26,14 @@ import {
   type ScriptRule,
   type WarmthRules,
 } from "./script"
-import { type ReachRule, reached, TideKit, type TideRule } from "./tide"
+import {
+  type EndOnRule,
+  endedBy,
+  type ReachRule,
+  reached,
+  TideKit,
+  type TideRule,
+} from "./tide"
 import { emptyTrace, TraceKit, type TraceReport } from "./trace"
 import type { FightEvent, Fighter, RefusalReason } from "./types"
 
@@ -57,7 +64,7 @@ export type {
   ScriptStep,
   WarmthRules,
 } from "./script"
-export type { ReachRule, TideRule } from "./tide"
+export type { EndOnRule, ReachRule, TideRule } from "./tide"
 /**
  * Opt-in combat rules of the Adventure ("Chroniques"). Every field is off by
  * default: skirmish, duel, arcade and the balance tests never set them, so
@@ -176,6 +183,8 @@ export interface AdventureRules {
   glass?: Point[]
   /** A column of uncertain cells that advances (see `TideRule`). */
   tide?: TideRule
+  /** The fight ends when someone deals a given last blow (see `EndOnRule`). */
+  endOn?: EndOnRule
   /** A second way to win, by standing on cells (see `ReachRule`). */
   reach?: ReachRule
   /** Cells nobody walks on fray into Lacunes (see `IdleFrayRule`). */
@@ -909,6 +918,13 @@ export class AdventureTracker {
     const reach = this.rules.reach
     if (reach && this._combat.state !== "ended" && reached(this._combat, reach))
       this._combat.finish(reach.team)
+    const end = this.rules.endOn
+    if (
+      end &&
+      this._combat.state !== "ended" &&
+      endedBy(this._combat, this.trace.report.finalBlows, end)
+    )
+      this._combat.finish(end.winner ?? null)
   }
 
   private _chill() {

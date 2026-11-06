@@ -62,3 +62,27 @@ export function reached(combat: Combat, rule: ReachRule): boolean {
   )
   return on.length >= (rule.count ?? 1)
 }
+
+/** The fight ends as soon as `by` deals the last blow to a fighter of `target`. */
+export interface EndOnRule {
+  by: { team: number; index: number }
+  target: number
+  /** The team declared the winner (none by default). */
+  winner?: number | null
+}
+
+/** Whether a fighter of the rule's target team fell to the rule's killer. */
+export function endedBy(
+  combat: Combat,
+  blows: Record<string, { by: string | null }>,
+  rule: EndOnRule,
+): boolean {
+  const killer = combat.fighters.filter((f) => f.team === rule.by.team)[
+    rule.by.index
+  ]
+  if (!killer) return false
+  return Object.entries(blows).some(
+    ([id, b]) =>
+      b.by === killer.id && combat.getFighter(id)?.team === rule.target,
+  )
+}

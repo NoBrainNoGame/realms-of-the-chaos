@@ -41,6 +41,18 @@ describe("Front de Marée and reach", () => {
     expect(c.winnerTeam).toBe(0)
   })
 
+  test("endOn ends the fight, with the declared winner, on the given last blow", () => {
+    const c = fight({
+      clock: { period: 1, limit: 60, winner: null },
+      endOn: { by: { team: 0, index: 0 }, target: 1, winner: 1 },
+    })
+    c.run()
+    const merlinFell = !c.fighters[1].alive
+    // the winner is the declared one (team 1), not the natural one
+    if (merlinFell) expect(c.winnerTeam).toBe(1)
+    expect(merlinFell || c.winnerTeam !== 1).toBe(true)
+  })
+
   test("a settled cell near the centre is uncertain again when left alone", () => {
     const c = fight({
       clock: { period: 1, limit: 3, winner: 0 },
