@@ -30,6 +30,9 @@ import { at, flat, hero, TIEDEUR, UNSTABLE, walk } from "./era5kit"
 
 const BOARD = flat(9).map((r, y) => (y === 4 ? "....w...." : r))
 
+/** The bubble: an edge cell far from the wells and the footprints. */
+const BULLE = { x: 0, y: 0 }
+
 const objectives: ObjectiveSpec[] = [
   {
     id: "carnet-intact",
@@ -63,9 +66,14 @@ const objectives: ObjectiveSpec[] = [
     id: "la-bulle",
     mark: "◆",
     label: "Laisser la bulle se former",
-    // SIMPLIFIED: the bubble is read as both disruptive Influences used.
-    check: (r) =>
-      (r.divineUsed.earthquake ?? 0) > 0 && (r.divineUsed.timeWarp ?? 0) > 0,
+    // The bubble is a pocket on the edge that is neither warmed nor worn
+    // away (no marker): an Écho that starts a turn there and does nothing
+    // (no blow, no Influence on it) is looking at it.
+    when: [
+      { turnsOn: { region: "bulle", who: { team: 0 }, turns: 1 } },
+      { nothingOn: { region: "bulle", of: "strike" } },
+      { nothingOn: { region: "bulle", of: "cast" } },
+    ],
     onSuccess: [set("vacuum_decay"), unlock("spell:vacuum-decay")],
   },
 ]
@@ -110,7 +118,9 @@ const fight: FightSpec = {
       hot: [3, 4, 5].flatMap((x) => [3, 4, 5].map((y) => ({ x, y }))),
       startTicks: 4,
       loss: 1,
+      exempt: [BULLE],
     },
+    regions: { bulle: [BULLE] },
     crystals: {
       crystals: [
         {

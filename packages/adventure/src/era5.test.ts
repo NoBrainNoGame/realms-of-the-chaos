@@ -142,6 +142,50 @@ describe("era V chapters", () => {
   })
 })
 
+describe("chapter 26: the bubble", () => {
+  const bubble = (turns: number, struck: boolean) => {
+    const rep = {
+      ...report(2),
+      fighters: [{ id: "h", preset: "lyra", team: 0, hp: 5, fled: false }],
+      trace: {
+        finalBlows: {},
+        strikes: struck
+          ? [
+              {
+                target: "x",
+                targetTeam: 1,
+                by: "hero",
+                byTeam: 0,
+                actionId: "punch",
+                cell: { x: 0, y: 0 },
+                amount: 1,
+                tick: 8,
+              },
+            ]
+          : [],
+        turns: {},
+        visited: {},
+        casts: [],
+        regions: {
+          bulle: {
+            teams: { 0: turns },
+            streak: { 0: turns },
+            fighters: { h: turns },
+            turns: { h: turns },
+            visitors: turns ? ["h"] : [],
+          },
+        },
+      },
+    }
+    return play("26", 2, "win", {}, undefined, () => rep).run
+  }
+  test("standing once on the quiet pocket gives vacuum_decay", () => {
+    expect(bubble(1, false).flags.vacuum_decay).toBe(true)
+    expect(bubble(0, false).flags.vacuum_decay ?? false).toBe(false)
+    expect(bubble(1, true).flags.vacuum_decay ?? false).toBe(false)
+  })
+})
+
 describe("chapter 25: the Double", () => {
   test("sparing the Double sets double_epargne through the report", () => {
     const spared = play("25", 2, "win", {}, undefined, () => ({

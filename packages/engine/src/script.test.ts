@@ -198,6 +198,16 @@ describe("tiédeur", () => {
     expect(warm.adventure?.report.script.warmth.lost).toBe(0)
   })
 
+  test("exempt cells are never tepid", () => {
+    const pocket = fight({
+      clock: { period: 10, limit: 6 },
+      noDefeat: [0, 1],
+      warmth: { hot: [], loss: 1, exempt: all },
+    })
+    pocket.run()
+    expect(pocket.adventure?.report.script.warmth.lost).toBe(0)
+  })
+
   test("acting from a tepid cell heats it", () => {
     const c = fight({
       clock: { period: 10, limit: 6 },

@@ -100,6 +100,8 @@ export interface WarmthRules {
   loss?: number
   /** The teams it hurts (default: the first). */
   teams?: number[]
+  /** Cells the tepidness never reaches (a pocket where the air stays exact). */
+  exempt?: Point[]
 }
 
 export interface ScriptReport {
@@ -471,6 +473,7 @@ export class ScriptKit {
     const rule = this._rules.warmth
     if (!rule || !(rule.teams ?? [0]).includes(fighter.team)) return 0
     if (this.isHot(fighter.position)) return 0
+    if (rule.exempt?.some((p) => keyOf(p) === keyOf(fighter.position))) return 0
     const loss = rule.loss ?? 1
     this.report.warmth.lost += loss
     return loss

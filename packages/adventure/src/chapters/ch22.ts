@@ -79,11 +79,10 @@ const ancrages: FightSpec = {
         { preset: BRUTUS4, autonomy: WILL.brutus, at: { x: 2, y: 7 } },
         { preset: LYRA4, autonomy: WILL.lyra, at: { x: 3, y: 6 } },
         { preset: "gorr", at: { x: 6, y: 6 }, autonomy: WILL.gorr },
-        // SIMPLIFIED: the two Guetteurs of Nyx IV defend the anchor of Sel as
-        // allies (the engine has one allied team); they take no orders in the
-        // doc, here the player moves them.
-        { preset: GUETTEUR, at: { x: 7, y: 6 } },
-        { preset: GUETTEUR, at: { x: 8, y: 6 } },
+        // The two Guetteurs of Nyx IV defend the anchor of Sel on their own:
+        // they take no orders.
+        { preset: GUETTEUR, at: { x: 7, y: 6 }, autonomy: WILL.alone },
+        { preset: GUETTEUR, at: { x: 8, y: 6 }, autonomy: WILL.alone },
       ],
     },
     {
@@ -92,8 +91,9 @@ const ancrages: FightSpec = {
       fighters: [
         // The two Dédoublés are one body in two places (a double). Some cells
         // of the bowl are uncertain until measured (see the rules).
-        // SIMPLIFIED: the unstable ones are ordinary enemies. The giant, due
-        // on turn 4, starts at the centre.
+        // SIMPLIFIED: the four unstable ones are single bodies: a second
+        // displayed position for each would put eight more fighters on a
+        // bowl of ten by nine, so only the two Dédoublés have two positions.
         { preset: UNSTABLE, at: { x: 3, y: 3 } },
         { preset: UNSTABLE, at: { x: 6, y: 3 } },
         { preset: UNSTABLE, at: { x: 3, y: 5 } },
@@ -114,7 +114,10 @@ const ancrages: FightSpec = {
           },
           at: { x: 5, y: 5 },
         },
-        { preset: GIANT, at: { x: 4, y: 4 } },
+        // The giant (turn 4) is one body in two places, by the anchor of the
+        // well (45 %) and the anchor of Sel (55 %): the first blow decides.
+        { preset: GIANT, at: { x: 3, y: 0 }, arrives: { tick: 4 } },
+        { preset: GIANT, at: { x: 9, y: 7 }, arrives: { tick: 4 } },
       ],
     },
     {
@@ -131,7 +134,10 @@ const ancrages: FightSpec = {
     silent: CUVETTE_X,
     silentDamage: 1,
     neutral: [2],
-    doubles: [{ team: 1, pair: [4, 5] }],
+    doubles: [
+      { team: 1, pair: [4, 5] },
+      { team: 1, pair: [6, 7], found: 0.55 },
+    ],
     superposition: {
       cells: [
         { x: 2, y: 2 },

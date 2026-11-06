@@ -129,6 +129,41 @@ describe("adventure rules are opt-in", () => {
     expect(c.adventure?.locked.has("blessing")).toBe(false)
   })
 
+  test("pushing fighters wear a zone down faster", () => {
+    const zoneAfterOneTick = (zonePush?: AdventureRules["zonePush"]) => {
+      const c = new Combat({
+        seed: 3,
+        board: ground(),
+        teams: [
+          { controller: "human", fighters: ["lyra"] },
+          { controller: "ai", fighters: ["merlin"] },
+        ],
+        positions: [[{ x: 0, y: 0 }], [{ x: 7, y: 4 }]],
+        adventure: {
+          clock: { period: 30, limit: 1 },
+          zones: [
+            {
+              id: "z",
+              cells: Array.from({ length: 40 }, (_, i) => ({
+                x: i % 8,
+                y: Math.floor(i / 8),
+              })),
+            },
+          ],
+          zonePush,
+        },
+      })
+      for (let i = 0; i < 200 && c.state !== "ended"; i++) {
+        c.advance()
+        if (c.state === "awaitingInput") c.pass()
+      }
+      return c.adventure?.zoneState("z")
+    }
+    expect(zoneAfterOneTick()).toBe("silent")
+    expect(zoneAfterOneTick({ team: 1, step: 2 })).toBe("lost")
+    expect(zoneAfterOneTick({ team: 1, indexes: [3], step: 2 })).toBe("silent")
+  })
+
   test("a locked Influence is refused until unlocked", () => {
     const c = fight({ lockedDivine: ["blessing"] })
     expect(c.adventure?.locked.has("blessing")).toBe(true)
@@ -144,6 +179,39 @@ describe("adventure rules are opt-in", () => {
     expect(events.some((e) => e.type === "fled")).toBe(true)
     expect(c.adventure?.report.fled).toContain("merlin-1-0")
     expect(c.winnerTeam).toBe(0)
+  })
+
+  test("a fleer only strikes when an adversary blocks its way", () => {
+    const strikes = (attackIfBlocked: boolean) => {
+      const c = new Combat({
+        seed: 2,
+        board: Board.fromAscii(["########", "........", "########"]),
+        teams: [
+          { name: "a", controller: "ai", fighters: ["brutus"] },
+          { name: "b", controller: "ai", fighters: ["merlin"] },
+        ],
+        positions: [[{ x: 3, y: 1 }], [{ x: 4, y: 1 }]],
+        adventure: {
+          flee: {
+            team: 1,
+            below: 0.99,
+            exits: [{ x: 0, y: 1 }],
+            attackIfBlocked,
+          },
+          clock: { period: 10, limit: 3, winner: 0 },
+          noDefeat: [0, 1],
+        },
+      })
+      const m = c.getFighter("merlin-1-0")!
+      m.hp = Math.max(1, m.hp - 1)
+      c.adventure?.wounded(m)
+      const events = c.run()
+      return events.filter(
+        (e) => e.type === "actionUsed" && e.fighterId === m.id,
+      ).length
+    }
+    expect(strikes(false)).toBe(0)
+    expect(strikes(true)).toBeGreaterThan(0)
   })
 
   test("an arrival is offstage until its tick, then enters and fights", () => {

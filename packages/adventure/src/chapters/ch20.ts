@@ -36,17 +36,17 @@ import {
 
 // ─── Combat : Le Lac muet ───────────────────────────────────────────────────
 
-// SIMPLIFIED: the doc draws deep water (w) around the islet; deep water stops
-// the walkers of the team, and the islet must be reachable for the ★, so the
-// whole lake is shallow here. The centre is Lacune (x), the islet a 1.
+// Deep water (w) rings the centre: walkers cannot cross it, so the hero
+// carries a spare crystal (a bridge over the deep ring, span 2). The centre
+// is Lacune (x), the islet a 1.
 const { board: LAKE, silent: LAKE_X } = lacuneBoard([
   "..1....1...",
   ".1..~~~..1.",
-  "..~~~~~~~..",
-  ".~~~xxx~~~.",
-  ".~~~x1x~~~.",
-  ".~~~xxx~~~.",
-  "..~~~~~~~..",
+  "..~~www~~..",
+  ".~wwxxxww~.",
+  ".~wwx1xww~.",
+  ".~wwxxxww~.",
+  "..~~www~~..",
   ".1..~~~..1.",
   "...........",
 ])
@@ -71,6 +71,15 @@ const LAKE_ZONES = rowRanges.flatMap(([y0, y1], r) =>
     })),
   })),
 )
+
+/** Néréa's cell (5,4) and the four cells next to it. */
+const NEREA_AREA = [
+  { x: 5, y: 4 },
+  { x: 4, y: 4 },
+  { x: 6, y: 4 },
+  { x: 5, y: 3 },
+  { x: 5, y: 5 },
+]
 
 const nereaOf = (r: FightReport) =>
   r.fighters.find((f) => f.preset === NEREA4.id)
@@ -114,8 +123,21 @@ const lacMuet: FightSpec = {
   ],
   rules: {
     // The effilochage: nine zones, kept alive by the team (a zone nobody acts
-    // in goes silent, then lost). The rule "effilocheurs speed the gauge up"
-    // is CUT: the engine counts any act in a zone.
+    // in goes silent, then lost). The four effilocheurs never count as work
+    // and wear the zone they end a turn in down by half a tick.
+    zonePush: { team: 1, indexes: [0, 1, 2, 3], step: 0.5 },
+    regions: { nerea: NEREA_AREA },
+    crystals: {
+      crystals: [
+        {
+          id: "pont",
+          at: { x: 5, y: 0 },
+          kind: "geode",
+          carriedBy: { team: 0, index: 0 },
+        },
+      ],
+      bridge: { span: 2 },
+    },
     silent: LAKE_X,
     silentDamage: 2,
     zones: LAKE_ZONES,
@@ -137,12 +159,9 @@ const lacMuet: FightSpec = {
       id: "retrouver-nerea",
       mark: "★",
       label: "Retrouver Néréa IV avant que l'îlot ne devienne gris",
-      // SIMPLIFIED: "an ally on or next to her cell" is read as the lake
-      // staying alive around her (her zone not lost) and her not dispersed.
-      check: (r) =>
-        r.result !== "defeat" &&
-        (nereaOf(r)?.hp ?? 1) > 0 &&
-        r.zoneStates.z11 !== "lost",
+      // an ally stood on her cell or next to it, and she was not dispersed
+      when: { visited: { region: "nerea", who: { team: 0 } } },
+      check: (r) => r.result !== "defeat" && (nereaOf(r)?.hp ?? 1) > 0,
       success: "Tu es venu par les zones vivantes. Néréa IV rejoint l'équipe.",
       failure:
         "L'îlot est devenu gris. Un plongeur emporte Néréa IV vers le fond.",

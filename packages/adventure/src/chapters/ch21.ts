@@ -226,10 +226,11 @@ function rupture(l: Id): FightSpec {
     rules: {
       silent: LIP_X,
       silentDamage: 1,
-      // SIMPLIFIED: "he only attacks if blocked" is replaced by a flight: the
-      // leaver always walks to the last row and goes. Held back (clock runs
-      // out first, or he is brought down), he is "retenu".
+      // The leaver walks to the last row and goes; he only strikes when an
+      // adversary stands on his way. Held back (clock runs out first, or he
+      // is brought down), he is "retenu".
       flee: {
+        attackIfBlocked: true,
         team: 1,
         below: 1.01,
         exits: [

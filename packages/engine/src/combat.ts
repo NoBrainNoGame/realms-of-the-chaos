@@ -869,10 +869,12 @@ export class Combat {
     if (this.holding.has(fighter.team) && !scripted) return this._pass(fighter)
     if (this.adventure?.fleeing.has(fighter.id)) {
       this.adventure.playFlee(fighter)
-      if (this._activeFighter === fighter && this._state === "running") {
-        this._pass(fighter)
+      if (!this.adventure.fleeBlocked) {
+        if (this._activeFighter === fighter && this._state === "running") {
+          this._pass(fighter)
+        }
+        return
       }
-      return
     }
     const plan = scripted ? this.adventure?.script.command(fighter) : null
     const raid = this.adventure?.crystals

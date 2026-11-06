@@ -91,6 +91,12 @@ export interface AdventureRules {
   }[]
   /** Teams whose actions keep the zones alive (default: team 0). */
   zoneTeams?: number[]
+  /**
+   * Fighters (the ones at `indexes` of `team`, all if none) that wear a zone
+   * down: each turn started in a zone adds `step` (default 0.5) idle ticks
+   * to it. They never count as work.
+   */
+  zonePush?: { team: number; indexes?: number[]; step?: number }
   /** Cells that are silent for the whole fight (a seam, a joint). */
   silent?: Point[]
   /** Energy damage taken when a turn starts on a silent cell (default 2). */
@@ -99,7 +105,13 @@ export interface AdventureRules {
    * A fighter of `team` under `below` of its hit points breaks off and walks
    * to the nearest exit; reaching it, it leaves and is spared.
    */
-  flee?: { team: number; below: number; exits: Point[] }
+  flee?: {
+    team: number
+    below: number
+    exits: Point[]
+    /** Blocked by an adjacent enemy, the fleeing fighter fights its way out. */
+    attackIfBlocked?: boolean
+  }
   /** A fighter of these teams "fixes" into a rock (+1 height) instead of dying. */
   fixOnDeath?: number[]
   /** Waves, reinforcements, allies entering mid-fight. */
@@ -375,6 +387,8 @@ export class AdventureTracker {
   readonly rules: AdventureRules
   readonly silent = new Set<string>()
   readonly fleeing = new Set<string>()
+  /** The last fleeing turn found its way shut by an adjacent enemy. */
+  fleeBlocked = false
   readonly locked: Set<string>
   readonly report: AdventureReport = {
     ticks: 0,
@@ -435,6 +449,7 @@ export class AdventureTracker {
   private _influenced = new Set<string>()
   private _idle = new Map<string, number>()
   private _worked = new Set<string>()
+  private _pushed = new Map<string, number>()
   private _nextTick: number
   private _arrivals: { rule: ArrivalRule; id: string; done: boolean }[] = []
   private _switches: { rule: SwitchRule; id: string; done: boolean }[] = []
@@ -841,6 +856,22 @@ export class AdventureTracker {
     }
   }
 
+  private _push(fighter: Fighter) {
+    const rule = this.rules.zonePush
+    if (!rule || fighter.team !== rule.team) return
+    if (rule.indexes) {
+      const members = this._combat.fighters.filter((f) => f.team === rule.team)
+      if (!rule.indexes.includes(members.indexOf(fighter))) return
+    }
+    for (const zone of this.rules.zones ?? []) {
+      if (!zone.cells.some((c) => equals(c, fighter.position))) continue
+      this._pushed.set(
+        zone.id,
+        (this._pushed.get(zone.id) ?? 0) + (rule.step ?? 0.5),
+      )
+    }
+  }
+
   private _work(fighter: Fighter, at: Point) {
     const teams = this.rules.zoneTeams ?? [0]
     if (!teams.includes(fighter.team)) return
@@ -950,10 +981,10 @@ export class AdventureTracker {
       if (before === "lost") continue
       const idle = this._worked.has(zone.id)
         ? 0
-        : (this._idle.get(zone.id) ?? 0) + 1
+        : (this._idle.get(zone.id) ?? 0) + 1 + (this._pushed.get(zone.id) ?? 0)
       this._idle.set(zone.id, idle)
       const next: ZoneState =
-        idle === 0 ? "active" : idle === 1 ? "silent" : "lost"
+        idle === 0 ? "active" : idle < 2 ? "silent" : "lost"
       if (next === before) continue
       this.report.zoneStates[zone.id] = next
       for (const c of zone.cells) {
@@ -977,6 +1008,7 @@ export class AdventureTracker {
       })
     }
     this._worked.clear()
+    this._pushed.clear()
   }
 
   /** A frozen fighter lets its turn go by. */
@@ -987,6 +1019,7 @@ export class AdventureTracker {
   /** A turn begins: a silent cell drains energy. */
   turnStart(fighter: Fighter): number {
     this.debate?.turnStart(fighter)
+    this._push(fighter)
     const cold =
       this.silent.has(keyOf(fighter.position)) || this._inHalo(fighter)
     return (
@@ -1017,6 +1050,7 @@ export class AdventureTracker {
 
   /** The fleeing fighter's turn: walk to the nearest exit, or leave. */
   playFlee(fighter: Fighter): boolean {
+    this.fleeBlocked = false
     if (!this.fleeing.has(fighter.id)) return false
     const flee = this.rules.flee
     if (!flee) return false
@@ -1041,6 +1075,22 @@ export class AdventureTracker {
       ...flee.exits.map((e) => manhattan(fighter.position, e)),
     )
     if (best && bestScore < here) combat.walk(fighter, best)
+    else if (flee.attackIfBlocked) {
+      const neutral = this.rules.neutral ?? []
+      this.fleeBlocked = [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ].some(([dx, dy]) =>
+        combat
+          .fightersAt({
+            x: fighter.position.x + dx,
+            y: fighter.position.y + dy,
+          })
+          .some((o) => combat.isEnemy(fighter, o) && !neutral.includes(o.team)),
+      )
+    }
     return false
   }
 
