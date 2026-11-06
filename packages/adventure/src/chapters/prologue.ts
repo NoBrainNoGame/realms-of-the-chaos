@@ -134,8 +134,19 @@ const prairie: FightSpec = {
       who: "heros",
       text: "Trois endroits. Je ne peux pas être partout, mais je peux passer partout.",
     },
-    // CUT: the pedagogical steps 3a-3d (coût du sol, Course, timeline, premier
-    // coup) are interface tips played by the game; only the narration remains.
+    // The pedagogical steps, each on the gesture that teaches it: 3a wading
+    // (the cost of the ground, shallow water, deep water), 3b the Course,
+    // 3c the timeline (tick 1, below), 3d the first action.
+    {
+      when: "wade:custom:@hero",
+      who: "heros",
+      text: "L'eau froide jusqu'aux chevilles. Plus loin, elle est noire : je n'y vais pas.",
+    },
+    {
+      when: "act:sprint",
+      who: "heros",
+      text: "Je cours. Je ne savais pas que je savais courir.",
+    },
     {
       when: "tick:1",
       who: "heros",
@@ -147,7 +158,7 @@ const prairie: FightSpec = {
       text: "Quelque chose arrive du bord. Je n'arrive pas à dire ce que c'est. Lui non plus, je crois.",
     },
     {
-      // SIMPLIFIED: `zone:<id>` is read as "this zone turned silent".
+      // `zone:<id>` fires when that zone turns silent.
       when: "zone:mare",
       who: "heros",
       text: "Ici, il ne se passe plus rien. Personne n'y marche, rien n'y pousse, rien n'y chauffe. Et le sol a l'air... moins sûr d'être là.",
@@ -161,6 +172,11 @@ const prairie: FightSpec = {
       when: "zone:rochers",
       who: "heros",
       text: "Ici, il ne se passe plus rien. Personne n'y marche, rien n'y pousse, rien n'y chauffe. Et le sol a l'air... moins sûr d'être là.",
+    },
+    {
+      when: "act:kick",
+      who: "heros",
+      text: "Mon pied le touche, et il cesse d'hésiter. Il a une forme, maintenant.",
     },
     {
       when: "end",
@@ -340,8 +356,9 @@ export const prologue: Chapter = {
         narr(
           "Il y a quelqu'un dans l'eau. Il fait ce que je fais. C'est donc moi.",
         ),
-        // CUT: the character creator (Atelier: silhouette, peau, visage) is run
-        // by the game on the reflection; the scene only offers gestures.
+        // The Atelier (silhouette, peau, visage) is the game's "hero" screen,
+        // the body editor opened just before the prologue; this reflection
+        // scene plays its three gestures in the story.
         choice("reflet", [
           opt("silhouette", "Bouger un bras", [
             narr(
