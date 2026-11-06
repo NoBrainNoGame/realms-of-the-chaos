@@ -89,6 +89,7 @@ describe("URL parameters", () => {
       playerTeam: DEFAULT_PLAYER_TEAM,
       enemyTeam: DEFAULT_ENEMY_TEAM,
       grant: [],
+      ending: null,
     })
   })
 

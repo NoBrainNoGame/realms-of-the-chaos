@@ -8,20 +8,26 @@ import {
   scarredCharacters,
 } from "@realms/engine"
 import type { Container } from "pixi.js"
+import { ENDING_BASCULE, ENDING_GRATUITE } from "../endings"
 import { parseParams } from "../params"
 import { resetSettings, updateSettings } from "../settings"
 import {
   arcadeBest,
   clearStorage,
+  congratulateNext,
   customCharacters,
+  endingsSeen,
   forbiddenUnlocked,
   grantForbidden,
   hasForbidden,
+  markEnding,
   SAVE_KEYS,
   SAVE_PREFIX,
   saveCustom,
   scarCount,
+  secondEndingAvailable,
   submitArcadeScore,
+  takeCongratulation,
   vacuumDecayWipe,
 } from "../storage"
 import { mount, tick } from "../test/harness"
@@ -239,5 +245,62 @@ describe("scars on the characters", () => {
       scarredCharacters(1)[changed].stats,
     )
     expect(picker._roster[changed].stats).not.toEqual(CHARACTERS[changed].stats)
+  })
+})
+
+describe("secret endings", () => {
+  const start = () => mount(new Game(parseParams(new URLSearchParams(""))))
+
+  test("an ending wipe records it, keeps settings, scars and endings", () => {
+    grantForbidden("vacuumDecay")
+    saveCustom(caster())
+    updateSettings({ textSize: 1.3 })
+    expect(secondEndingAvailable()).toBe(false)
+
+    expect(vacuumDecayWipe({ ending: ENDING_BASCULE })).toBe(1)
+    expect(customCharacters()).toEqual([])
+    expect(forbiddenUnlocked()).toEqual([])
+    expect(localStorage.getItem("realms.settings")).toContain("1.3")
+    expect(endingsSeen()).toEqual([ENDING_BASCULE])
+    expect(secondEndingAvailable()).toBe(true)
+
+    // a later wipe keeps what was reached
+    vacuumDecayWipe()
+    expect(endingsSeen()).toEqual([ENDING_BASCULE])
+    expect(scarCount()).toBe(2)
+    expect(() => markEnding("nope")).toThrow()
+  })
+
+  test("the next start congratulates once, then the flag is gone", () => {
+    vacuumDecayWipe({ ending: ENDING_BASCULE })
+    const game = start()
+    expect(game.screen).toEqual({ type: "congrats", ending: ENDING_BASCULE })
+    expect(takeCongratulation()).toBeNull()
+    ;(game.current as any).menu.select(0)
+    expect(game.screen.type).toBe("title")
+    expect(start().screen.type).toBe("title")
+    expect(endingsSeen()).toEqual([ENDING_BASCULE])
+  })
+
+  test("a normal wipe congratulates nothing", () => {
+    vacuumDecayWipe()
+    expect(endingsSeen()).toEqual([])
+    expect(start().screen.type).toBe("title")
+  })
+
+  test("the second ending needs the first, and is congratulated too", () => {
+    markEnding(ENDING_GRATUITE)
+    congratulateNext(ENDING_GRATUITE)
+    expect(start().screen).toEqual({
+      type: "congrats",
+      ending: ENDING_GRATUITE,
+    })
+  })
+
+  test("?ending= is read only for a known ending", () => {
+    expect(parseParams(new URLSearchParams("ending=bascule")).ending).toBe(
+      "bascule",
+    )
+    expect(parseParams(new URLSearchParams("ending=x")).ending).toBeNull()
   })
 })

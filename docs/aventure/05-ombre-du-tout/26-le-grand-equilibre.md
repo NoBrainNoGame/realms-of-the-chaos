@@ -293,7 +293,7 @@ Si Nyx rejoint ici, elle sera présente au chapitre 28 comme alliée (voir ce ch
 | Carnet abîmé | `carnet_intact = faux` | Les 3 dernières questions **répondues** (dans l'ordre des ids) apparaissent comme pages perdues ; dans le calcul des fins, la richesse du Carnet compte **3 de moins**. Les drapeaux `carnet.Qxx` ne changent pas : on se souvient des réponses, on ne les a plus écrites. |
 | ◆ Garder la chaleur | `confiance +1` | — |
 | ◆ Réparation pendant le combat | `confiance.lyra +1` | — |
-| ◇ La bulle | `vacuum_decay` | Le héros possède le sort interdit **Vacuum decay**. Au ch. 28, il rend possible la menace du dernier geste (voir ch. 28) ; hors de l'Aventure, il efface la sauvegarde. |
+| ◇ La bulle | `vacuum_decay` | Le héros possède le sort interdit **Vacuum decay**. Au ch. 28, il rend possible la menace du dernier geste, qui lance le sort : fin secrète **La Bascule** (voir ch. 28) ; hors de l'Aventure, il efface aussi la sauvegarde. |
 | Nyx rejoint | `confiance.nyx +1` ou `+2` selon le choix | Nyx présente au ch. 28 même sans `paix_des_lacunes`. |
 | Q09 (Squalor) | `carnet.Q09 = repondue` | Richesse du Carnet. |
 | Q02 (Lyra) | `carnet.Q02 = repondue` | Richesse du Carnet. |

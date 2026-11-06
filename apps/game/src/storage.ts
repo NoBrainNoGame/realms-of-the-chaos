@@ -8,6 +8,7 @@ import {
   checkCustom,
   forbiddenAction,
 } from "@realms/engine"
+import { ENDING_BASCULE, isSecretEnding } from "./endings"
 
 export interface ArcadeBest {
   score: number
@@ -34,6 +35,15 @@ export const SAVE_KEYS = {
 
 /** Survives every wipe: how many vacuum decays this browser has seen. */
 export const SCARS_KEY = "realms.scars"
+
+/**
+ * Survives every wipe: the secret endings reached (ids of `endings.ts`),
+ * which tell the player's next Adventure what the first one taught.
+ */
+export const ENDINGS_KEY = "realms.endings"
+
+/** Survives every wipe: the ending to congratulate at the next start. */
+export const CONGRATULATE_KEY = "realms.congratulate"
 
 /** Keys from before the save had a prefix, moved on first use. */
 const LEGACY_KEYS: Record<string, string> = {
@@ -170,6 +180,47 @@ export function allowance() {
   return { forbidden: forbiddenUnlocked().length > 0 }
 }
 
+// ─── Secret endings ─────────────────────────────────────────────────────────
+
+/** The secret endings this browser has reached, in order. */
+export function endingsSeen(): string[] {
+  const raw = read<unknown>(ENDINGS_KEY)
+  if (!Array.isArray(raw)) return []
+  return raw.filter((id): id is string => typeof id === "string")
+}
+
+/** Records an ending for good (no wipe erases it). */
+export function markEnding(id: string) {
+  if (!isSecretEnding(id)) throw new Error(`Unknown ending "${id}"`)
+  const seen = endingsSeen()
+  if (!seen.includes(id)) write(ENDINGS_KEY, [...seen, id])
+}
+
+/**
+ * The second secret ending exists only for a player who reached the first:
+ * what the Ghom's failed attempt showed (it wants the universe as it is)
+ * opens the negotiation. For the future Adventure engine.
+ */
+export function secondEndingAvailable(): boolean {
+  return endingsSeen().includes(ENDING_BASCULE)
+}
+
+/** Asks the next start to congratulate this ending (once). */
+export function congratulateNext(id: string) {
+  if (isSecretEnding(id)) write(CONGRATULATE_KEY, id)
+}
+
+/** The ending to congratulate now, if any; the flag is cleared. */
+export function takeCongratulation(): string | null {
+  const id = read<unknown>(CONGRATULATE_KEY)
+  try {
+    globalThis.localStorage?.removeItem(CONGRATULATE_KEY)
+  } catch {
+    // storage blocked: nothing to clear
+  }
+  return typeof id === "string" && isSecretEnding(id) ? id : null
+}
+
 // ─── Scars and the wipe ─────────────────────────────────────────────────────
 
 /** How many times a vacuum decay wiped the save (0 when never). */
@@ -181,9 +232,14 @@ export function scarCount(): number {
 /**
  * The vacuum decay used outside the Adventure: erases the whole save (every
  * key under SAVE_PREFIX, and the keys from before it) and leaves one more
- * scar. Settings and the scars themselves are kept. Returns the new scars.
+ * scar. Settings, the scars and the endings reached are kept. Returns the
+ * new scars.
+ *
+ * With `ending` (the Adventure reaching a secret ending through the spell),
+ * the ending is recorded and the next start congratulates it. A wipe
+ * without it (skirmish, arcade) congratulates nothing.
  */
-export function vacuumDecayWipe(): number {
+export function vacuumDecayWipe(reason: { ending?: string } = {}): number {
   migrate()
   try {
     const storage = globalThis.localStorage
@@ -201,6 +257,10 @@ export function vacuumDecayWipe(): number {
   }
   const scars = scarCount() + 1
   write(SCARS_KEY, scars)
+  if (reason.ending !== undefined) {
+    markEnding(reason.ending)
+    congratulateNext(reason.ending)
+  }
   return scars
 }
 
@@ -213,6 +273,8 @@ export function clearStorage() {
       if (
         key.startsWith(SAVE_PREFIX) ||
         key === SCARS_KEY ||
+        key === ENDINGS_KEY ||
+        key === CONGRATULATE_KEY ||
         key in LEGACY_KEYS
       )
         storage.removeItem(key)

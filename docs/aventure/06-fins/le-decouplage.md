@@ -15,26 +15,13 @@
 - au chapitre 28, le héros a fait **le dernier geste** (« Ghom. Tu peux partir. Nous continuerons. ») ;
 - le Ghom a employé l'Influence **Se retirer**.
 
-**Variante de la menace.** Si le héros possède le sort interdit **Vacuum decay** (obtenu, caché, au ch. 26), le dernier geste peut être une **menace** plutôt qu'une demande (`decouplage.menace`). Les conditions sont les mêmes : le sort n'ouvre rien tout seul. Il ne change que la manière dont le Ghom se retire : par prudence, parce qu'une poche de vide d'une autre sorte, si elle existe, le défait lui aussi.
+**Le sort interdit n'est pas une variante.** Si le héros possède **Vacuum decay** (obtenu, caché, au ch. 26), il peut le brandir au dernier geste, mais c'est un **autre geste** (la menace) et une **autre fin** : [`La Bascule`](la-bascule.md). Le Ghom ne se retire jamais devant la menace : il n'a pas peur de ce qui défait « sa place », il **s'y oppose**. Le Découplage ne s'obtient que par le vrai geste, une demande.
 
 Le jeu ne prévient jamais de l'existence de cette fin. Aucun texte ne s'adresse au joueur : seul le héros parle, au Ghom, comme à une présence du monde.
 
 Variantes principales : `ghom_dechu.issue`, `combat_final_libre`, `derniere_reponse` (`ne_sait_pas`, `liens` ou `silence`), `double_epargne`, `paix_des_lacunes`.
 
 ## Scènes finales
-
-### 0. Ce qu'il a cru *(seulement si `decouplage.menace`)*
-
-*Il n'y a pas de bulle. Le héros n'a rien lancé. Le sort est resté dans sa main, ou ailleurs, comme une chose qu'on porte sans la montrer. C'est le Ghom qui a pesé.*
-
-**Merlin** *(si présent)* — « Il a raisonné comme il faut. Si le vide peut changer, si une poche de l'autre sorte peut grandir à la vitesse de la lumière, on ne négocie pas avec elle : on s'écarte avant qu'elle arrive. *(Un temps.)* Je n'ai aucune idée si c'est vrai. Il a préféré ne pas vérifier. »
-
-**Gorr** — « Gorr pas lancer. Gorr pas jamais lancer. » *(Il pose le Carnet sur la pierre, à plat, comme pour le garder dedans.)*
-
-**Les branches** — « *Dans une autre branche, il a gardé sa place et a perdu l'Archipel entier. Dans celle-ci, il a lâché sa place, et l'Archipel est resté.* »
-
-*Si le héros garde le sort : il ne l'utilisera plus de toute l'Aventure. Hors de l'Aventure, il pèse autrement : voir [`../bible.md`](../bible.md), « Vacuum decay ».*
-
 
 ### 1. Se retirer
 

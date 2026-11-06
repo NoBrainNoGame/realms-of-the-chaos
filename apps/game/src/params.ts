@@ -1,4 +1,5 @@
 import { CHARACTERS, FORBIDDEN_ACTIONS } from "@realms/engine"
+import { isSecretEnding } from "./endings"
 
 /**
  * URL parameters:
@@ -14,6 +15,12 @@ import { CHARACTERS, FORBIDDEN_ACTIONS } from "@realms/engine"
  * - `?grant=vacuumDecay`    dev: gives a forbidden spell to the save (the
  *                            Adventure will, one day); offered in the Workshop.
  *                            To try its wipe and the scars it leaves.
+ * - `?ending=bascule`      dev: simulates the Adventure reaching its first
+ *                            secret ending (the real wipe, one more scar,
+ *                            the ending recorded), then the congratulation.
+ *                            `?ending=gratuite` records the second one (only
+ *                            once the first is seen), without a wipe. It
+ *                            applies on every load of the URL.
  * - `?mode=skirmish`         opens a screen directly: title, skirmish, local,
  *                            arcade, gallery, fight, tutorial or settings
  *
@@ -45,6 +52,8 @@ export interface Params {
   enemyTeam: string[]
   /** Forbidden actions to give to the save (dev). */
   grant: string[]
+  /** Dev: a secret ending to simulate (see `?ending=`). */
+  ending: string | null
 }
 
 export const SPEEDS = [0.25, 0.5, 1, 2, 4]
@@ -89,6 +98,9 @@ export function parseParams(search: URLSearchParams): Params {
       .split(",")
       .map((id) => id.trim())
       .filter((id) => Object.hasOwn(FORBIDDEN_ACTIONS, id)),
+    ending: isSecretEnding(search.get("ending") ?? "")
+      ? search.get("ending")
+      : null,
   }
 }
 

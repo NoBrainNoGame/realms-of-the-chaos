@@ -49,7 +49,10 @@ Ce qui suit est le résumé du lore. Le détail et les statuts (Établi, Hypoth�
 | **Les Influences** | Ce qu'un Ghom fait au monde : la Distorsion (le temps), le Séisme (la matière), la Réparation (l'ordre, payé en chaleur). |
 | **Le Puits** | Un amas très dense où le temps propre ralentit. Le héros y dort entre les ères. |
 | **Les Archives** | Les traces lisibles du passé : la lumière tardive, les strates des abysses, les défauts des cristaux. |
-| **Vacuum decay** | Sort interdit, caché au ch. 26. Hypothèse physique : notre vide serait un faux vide (métastable), et une poche de vide « vrai » grandirait à presque la vitesse de la lumière en réécrivant les constantes. Jamais mesuré : le jeu le donne comme une hypothèse. Dans l'Aventure, il ne se lance pas ; il sert de **menace** au dernier geste du ch. 28 (voir Le Découplage). Hors de l'Aventure, il efface la sauvegarde et laisse des **cicatrices** (couleurs légèrement décalées, quelques points de statistiques déplacés sans changer l'équilibre). |
+| **Vacuum decay** | Sort interdit, caché au ch. 26. Hypothèse physique : notre vide serait un faux vide (métastable), et une poche de vide « vrai » grandirait à presque la vitesse de la lumière en réécrivant les constantes. Jamais mesuré : le jeu le donne comme une hypothèse. Dans l'Aventure, il n'est lancé qu'**une fois**, par la menace du dernier geste du ch. 28 : c'est **La Bascule**, qui efface la vraie sauvegarde. Hors de l'Aventure, il efface aussi la sauvegarde et laisse des **cicatrices** (couleurs légèrement décalées, quelques points de statistiques déplacés sans changer l'équilibre). |
+| **La Bascule** | Première fin secrète (`bascule`) : le sort est lancé, le Ghom tente de contenir la bulle en réimposant l'ancien vide et y échoue. Révèle sa volonté : **garder l'univers tel qu'il est**. Efface la sauvegarde, redémarre, félicite (`la-bascule.md`). |
+| **La Gratuité** | Seconde fin secrète (`gratuite`), accessible seulement après la Bascule : une négociation par gestes avec le Ghom, qui dit ce qu'il croit de l'existence de l'univers : aucune raison hors de lui, et lui-même n'est qu'un motif du même champ (hypothèse, sans preuve). **Réponse canonique du jeu, mais présentée comme ce que le Ghom croit** (`la-gratuite.md`). |
+| **`bascule_vue`** | Drapeau méta (clé `realms.endings`) : la Bascule a été atteinte. Survit à tous les effacements. Ouvre le geste de la négociation. |
 | **Ordre et Chaos** | Les deux philosophies, *tout figer* contre *tout ouvrir*. La vie existe **entre** les deux. |
 
 ### Les Ghoms
@@ -59,6 +62,7 @@ Ce qui suit est le résumé du lore. Le détail et les statuts (Établi, Hypoth�
   - les **Immobilistes** : le Ghom est un dieu immobile, hors du temps ;
   - les **Lumineux** : le Ghom est un mouvement perpétuel à la vitesse de la lumière, d'où naît l'énergie.
 - Les savants remarquent qu'à la vitesse de la lumière, aucun temps ne s'écoule. Les deux écoles pourraient donc avoir raison à la fois, et le récit **ne tranche jamais**.
+- **Ce que le Ghom croit de lui-même** (seulement dans la fin secrète *La Gratuité*, et donné comme hypothèse) : il n'est pas un auteur ni un dieu, mais un motif du même champ que le reste, qui persiste parce que le vide qui le porte persiste. Sa « volonté » est de **garder l'univers tel qu'il est** (la Bascule le montre), et non de le contrôler. Cette lecture n'invalide ni les Immobilistes ni les Lumineux.
 - Le Ghom du héros est **le Ghom**. Celui d'en face est **le Ghom du Chaos**, puis **le Ghom déchu** (arc E).
 
 ### Les noms se transmettent

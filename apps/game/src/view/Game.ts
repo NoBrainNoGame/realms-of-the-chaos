@@ -1,6 +1,7 @@
 import type * as booyah from "@ghom/booyah"
+import { SECRET_ENDINGS } from "../endings"
 import type { Params } from "../params"
-import { vacuumDecayWipe } from "../storage"
+import { takeCongratulation, vacuumDecayWipe } from "../storage"
 import ArcadeRun from "./ArcadeRun"
 import Creator from "./Creator"
 import FightScene, { classicFight, type SceneOptions } from "./FightScene"
@@ -23,6 +24,8 @@ export type Screen =
   | { type: "tutorial" }
   | { type: "settings" }
   | { type: "creator"; edit?: string }
+  /** First start after a secret ending (shown once). */
+  | { type: "congrats"; ending: string }
   /** After a vacuum decay wiped the save. */
   | { type: "collapse" }
 
@@ -129,7 +132,9 @@ export default class Game extends ViewChip {
   }
 
   protected _onActivate() {
-    this.show(this._screen)
+    // a secret ending was reached: the restart congratulates it, once
+    const ending = takeCongratulation()
+    this.show(ending ? { type: "congrats", ending } : this._screen)
   }
 
   protected _onTick() {
@@ -229,6 +234,20 @@ export default class Game extends ViewChip {
           this.show({ type: "arcade", team: screen.team }),
         )
         return run
+      }
+
+      case "congrats": {
+        const ending = SECRET_ENDINGS[screen.ending]
+        const message = new MessageScreen({
+          title: ending.title,
+          color: 0xffe066,
+          lines: ending.lines,
+          choices: [{ id: "title", label: "Écran titre" }],
+        })
+        this._subscribeOnce(message, "choose", () =>
+          this.show({ type: "title" }),
+        )
+        return message
       }
 
       case "collapse": {

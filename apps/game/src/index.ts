@@ -1,10 +1,26 @@
 import * as booyah from "@ghom/booyah"
 import { Application, TextureStyle } from "pixi.js"
+import { ENDING_BASCULE, ENDING_GRATUITE } from "./endings"
 import { params } from "./params"
-import { grantForbidden, scarCount } from "./storage"
+import {
+  congratulateNext,
+  grantForbidden,
+  markEnding,
+  scarCount,
+  secondEndingAvailable,
+  vacuumDecayWipe,
+} from "./storage"
 import Game from "./view/Game"
 import { Quality } from "./view/quality"
 import { applyScars, COLORS, FONT } from "./view/theme"
+
+// dev: the Adventure reaching a secret ending (it does not exist yet)
+if (params.ending === ENDING_BASCULE)
+  vacuumDecayWipe({ ending: ENDING_BASCULE })
+else if (params.ending === ENDING_GRATUITE && secondEndingAvailable()) {
+  markEnding(ENDING_GRATUITE)
+  congratulateNext(ENDING_GRATUITE)
+}
 
 // the scars of past vacuum decays drift the colours (before anything draws)
 applyScars(scarCount())

@@ -3,7 +3,7 @@
 > *Dans une autre branche, l'histoire finirait autrement. Dans chacune, elle finirait.*
 > — Les branches
 
-Ce dossier contient **le calcul des fins** (ce fichier) et **les cinq fins rédigées** :
+Ce dossier contient **le calcul des fins** (ce fichier) et **les sept fins rédigées** :
 
 | Fin | Nature | Fichier |
 | --- | --- | --- |
@@ -12,8 +12,10 @@ Ce dossier contient **le calcul des fins** (ce fichier) et **les cinq fins rédi
 | **L'Intrication** | La vraie fin : un réseau ouvert, au bord du chaos. | [`l-intrication.md`](l-intrication.md) |
 | **Le Découplage** | La fin secrète : le Ghom se retire, l'Archipel continue. | [`le-decouplage.md`](le-decouplage.md) |
 | **La Dispersion** | La fin amère : le héros se disperse, un autre termine. | [`la-dispersion.md`](la-dispersion.md) |
+| **La Bascule** | **Première fin secrète** : le sort est lancé, le Ghom tente de contenir la bulle et échoue ; le jeu efface la sauvegarde et redémarre. | [`la-bascule.md`](la-bascule.md) |
+| **La Gratuité** | **Seconde fin secrète** (après la Bascule) : on négocie avec le Ghom, qui dit ce qu'il croit de l'existence de l'univers. | [`la-gratuite.md`](la-gratuite.md) |
 
-Règle commune : **dans aucune fin le jeu ne répond à Q28.** La question reste écrite dans le Carnet, ouverte ou barrée. Les fins disent ce que devient l'Archipel, pas pourquoi il existe.
+Règle commune : **aucune fin ne répond à Q28 de façon démontrée.** La question reste écrite dans le Carnet, ouverte ou barrée. Les fins disent ce que devient l'Archipel, pas pourquoi il existe. **Seule exception : La Gratuité**, qui rapporte ce que le Ghom *croit* (une hypothèse, sans preuve) et **annote** Q28 sans la clore.
 
 ---
 
@@ -69,21 +71,32 @@ Les conditions sont testées **dans cet ordre** ; la première vraie l'emporte.
 1. LA DISPERSION   si heros_disperse
                    ou confiance ≤ -6
 
-2. LE DÉCOUPLAGE   si nom = aucun
+2. LA BASCULE      si le héros a fait le geste de la menace
+                   (avec vacuum_decay ; mêmes conditions de parcours
+                   que le Découplage : nom = aucun et ouvertes_gardees)
+
+   LA GRATUITÉ     si le héros a fait le geste de la négociation
+                   (avec bascule_vue ; mêmes conditions de parcours)
+                   et réussi les quatre gestes
+
+   (La Bascule et La Gratuité ne se recoupent jamais ni avec le Découplage :
+   ce sont trois gestes différents du même dernier geste.)
+
+3. LE DÉCOUPLAGE   si nom = aucun
                    et ouvertes_gardees
                    et le héros a fait le dernier geste
                    et le Ghom a employé « Se retirer »
 
-3. L'INTRICATION   si couplage_ghom_dechu
+4. L'INTRICATION   si couplage_ghom_dechu
                    et confiance ≥ 5
                    et carnet_riche
                    et nom_donne
                    et habitees_majoritaires
 
-4. LE CRISTAL      si S_ordre > S_chaos
-5. L'ÉQUILIBRE     si S_chaos > S_ordre
+5. LE CRISTAL      si S_ordre > S_chaos
+6. L'ÉQUILIBRE     si S_chaos > S_ordre
 
-6. Égalité         derniere_lacune = elargie            → L'ÉQUILIBRE
+7. Égalité         derniere_lacune = elargie            → L'ÉQUILIBRE
                    derniere_lacune = recousue           → LE CRISTAL
                    derniere_lacune = habitee            → LE CRISTAL si confiance ≥ 0,
                                                           sinon L'ÉQUILIBRE
@@ -100,10 +113,11 @@ fin.monde = ouvert     si couplage_ghom_dechu et habitees_majoritaires et confia
 ### Pourquoi cet ordre
 
 1. **La Dispersion d'abord**, parce qu'elle est physique avant d'être morale : un héros trop usé qui tombe se disperse, et dans le Tissu déchiré, un héros que personne ne tient (Confiance ≤ −6) perd son état (Q20 : *on n'a d'état que dans ses relations*). Ce qui arrive au monde ensuite n'efface pas ce qui lui est arrivé.
-2. **Le Découplage ensuite**, parce qu'il ne dépend que de deux fidélités tenues toute l'aventure (ne pas prendre de nom, ne pas prendre de fausse réponse) et d'un acte : demander, puis que le Ghom accepte. S'il est proposé et accepté, rien d'autre ne compte : l'Archipel n'a plus de Ghom pour lui donner une direction.
-3. **L'Intrication**, qui demande le plus de conditions : c'est la fin qu'on construit.
-4. **Le Cristal et l'Équilibre** sont les pentes naturelles : sans liens assez nombreux, l'Archipel tombe d'un côté ou de l'autre.
-5. **L'égalité** se départage par le dernier acte (le Cœur). Si le Cœur a été habité sans que l'Intrication soit possible, le monde se rabat sur ce qu'on lui a appris : l'entretien, si les Échos font encore confiance au Ghom ; la dissolution, sinon.
+2. **Les deux fins secrètes à geste propre ensuite** (La Bascule, La Gratuité) : elles sont **mutuellement exclusives avec le Découplage** parce que chacune est un geste différent du dernier geste (menacer, savoir, demander). Elles gardent **les mêmes conditions de parcours** que lui (sans nom, aucune question ouverte fausse, pas de Dispersion) : on ne crée pas de chemin plus facile vers une fin cachée, et aucune fidélité n'est contournée ni par le sort ni par ce que le joueur a appris. Leur **seul ajout** est une condition d'objet (`vacuum_decay`) ou de méta-savoir (`bascule_vue`).
+3. **Le Découplage ensuite**, parce qu'il ne dépend que de deux fidélités tenues toute l'aventure (ne pas prendre de nom, ne pas prendre de fausse réponse) et d'un acte : demander, puis que le Ghom accepte. S'il est proposé et accepté, rien d'autre ne compte : l'Archipel n'a plus de Ghom pour lui donner une direction.
+4. **L'Intrication**, qui demande le plus de conditions : c'est la fin qu'on construit.
+5. **Le Cristal et l'Équilibre** sont les pentes naturelles : sans liens assez nombreux, l'Archipel tombe d'un côté ou de l'autre.
+6. **L'égalité** se départage par le dernier acte (le Cœur). Si le Cœur a été habité sans que l'Intrication soit possible, le monde se rabat sur ce qu'on lui a appris : l'entretien, si les Échos font encore confiance au Ghom ; la dissolution, sinon.
 
 ## 4. Cas limites
 
@@ -111,7 +125,9 @@ fin.monde = ouvert     si couplage_ghom_dechu et habitees_majoritaires et confia
 | --- | --- | --- |
 | Toutes les conditions de l'Intrication, mais `nom = aucun` | Pas d'Intrication. Si `ouvertes_gardees`, le vrai geste (« Tu peux partir ») figure parmi les trois gestes du dernier geste, avec deux faux ; sinon, seuls des faux gestes sont proposés (ch. 28). | C'est voulu : un héros sans nom n'a pas été « tenu » par un Écho. Au ch. 28, l'héritière d'une promesse de l'ère I peut proposer le nom gardé (« Aube »), Nyx IV rappelle « Lisière » (s'il a été retenu au ch. 24) et Gorr peut proposer « Fissure » (si `confiance.gorr ≥ 2`). Puis vient la Nomination, où le nom connu figure parmi des leurres : c'est le vrai carrefour entre les deux fins hautes. |
 | `nom = faux` | Ni Intrication ni Découplage. | Prendre une étiquette (« le Dormeur », « l'Anomalie », « le Couplé »), c'est ne pas être nommé par un lien, et ne pas rester sans nom. La Nomination l'indique d'une phrase : **Les branches** — « *Dans une autre branche, quelqu'un nous aurait appelés.* » Le joueur ne voit les leurres seuls que si son parcours ne lui a laissé aucun nom connu. |
-| Le héros possède **Vacuum decay** (`vacuum_decay`) et conditions du Découplage réunies | Le dernier geste peut être **une menace** : le Ghom se retire par prudence. **Le Découplage**, avec la scène en plus « Ce qu'il a cru ». | La menace ne contourne aucune condition : sans `nom = aucun`, sans toutes les questions ouvertes, ou avec Dispersion, le sort ne change rien. Le sort n'est jamais lancé pendant l'Aventure. |
+| Le héros possède **Vacuum decay** (`vacuum_decay`) et conditions du Découplage réunies | Le dernier geste peut être **une menace** : le Ghom ne se retire pas, le sort est lancé. **La Bascule.** | La menace ne contourne aucune condition : sans `nom = aucun`, sans toutes les questions ouvertes, ou avec Dispersion, le sort ne change rien. C'est le seul endroit de l'Aventure où il est lancé. |
+| La Bascule déjà vue (`bascule_vue`) et conditions du Découplage réunies | Le geste de la **négociation** s'ajoute. S'il est réussi : **La Gratuité**. | Le sort n'est pas nécessaire. Deux mauvaises propositions closent la négociation : le calcul des fins reprend sans elle. |
+| `bascule_vue` mais `nom ≠ aucun` ou une question ouverte fausse | Le geste de la négociation n'est **pas** proposé. | Même fidélité que pour toutes les fins secrètes. |
 | Le dernier geste est fait, mais le Ghom ne se retire pas | Calcul normal, sans Découplage ; Intrication impossible (pas de nom). | Le Ghom reste, et ce n'est pas un échec : la fin par défaut obtenue a une phrase de plus (« *La pression resta, plus douce.* »). |
 | `confiance ≤ -6` et conditions du Découplage réunies | **La Dispersion**. | Le Ghom ne peut pas se retirer d'un monde qui a déjà défait celui qui le lui demandait. |
 | `heros_disperse` et `couplage_ghom_dechu` et Cœur habité | **La Dispersion**, `fin.monde = ouvert` (si `confiance ≥ 0`). | La plus douce des fins amères : le réseau se fait, sans le héros. |
@@ -148,6 +164,8 @@ Chaque fichier de fin suit le même plan :
 | L'Équilibre | **Contour tiède** : les bords du héros sont flous, sa couleur ternie. | + esquive, − Élan reçu. |
 | L'Intrication | **Fils d'intrication** : de fines lignes de lumière, par paires, sur les mains et le visage, qui scintillent avec les Échos liés. | Intrication renforcée avec tous les Échos. |
 | Le Découplage | **Aucune** : le corps garde ses marques, et rien d'autre. | Aucun ; le héros porte toutes ses transformations précédentes. |
+| La Bascule | **Aucune** (tout est réécrit ; la sauvegarde est effacée). Cicatrice : voir [`la-bascule.md`](la-bascule.md). | Aucun. |
+| La Gratuité | **Aucune** : le corps garde ses marques. | Aucun. |
 | La Dispersion | — (le héros n'est plus jouable dans l'Aventure ; son corps d'avant le chapitre 28 reste disponible ailleurs) | — |
 
 ## 7. Drapeaux
@@ -156,4 +174,13 @@ Chaque fichier de fin suit le même plan :
 
 **Nouveaux de l'ère V utilisés ici :** `carnet_intact`, `ghom_dechu.issue`, `ghom_dechu.echo`, `derniere_lacune`, `derniere_reponse`, `combat_final_libre`, `heros_disperse`, `doubles.epargnes`.
 
-**Posés ici (nouveaux) :** `fin`, `fin.monde`.
+**Posés ici (nouveaux) :** `fin`, `fin.monde`, `q28.annotee` (La Gratuité).
+
+**Drapeaux méta (hors sauvegarde).** Ils survivent à l'effacement du jeu, comme les cicatrices, et ne sont lus que par le dernier geste du ch. 28 et par l'écran titre :
+
+| Drapeau | Clé de stockage | Posé par | Effet |
+| --- | --- | --- | --- |
+| `bascule_vue` | `realms.endings` (liste de fins vues : `bascule`, `gratuite`) | La Bascule | Rend possible le geste de la négociation (`secondEndingAvailable()`). |
+| *(à féliciter)* | `realms.congratulate` | La Bascule et La Gratuité | Une fois, au prochain démarrage : l'écran « Fin secrète découverte ». Effacé aussitôt. |
+
+Seules **La Bascule** et **La Gratuité** posent ces drapeaux ; les effacements d'Escarmouche et d'Arcade n'en posent aucun et ne félicitent rien. En développement : `?ending=bascule` / `?ending=gratuite` (voir `apps/game/src/params.ts`).

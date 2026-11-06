@@ -295,9 +295,11 @@ Calque : la Lacune du Cœur (`x`, convention de l'ère IV) et les quatre **ancre
 **Si le héros possède le Vacuum decay** (`vacuum_decay`, obtenu au ch. 26) **: le geste de la menace.** *Ce n'est pas un cinquième geste affiché : c'est ce que le héros porte, et que le Ghom sent.* Le geste peut alors être **la menace** : au lieu de demander, le héros lui montre ce qu'il tient. Aucun texte ne s'adresse au joueur ; le héros ne fait que parler au Ghom, ou se taire.
 
 - Le geste de la menace n'est proposé que si les **mêmes conditions** que le vrai geste sont réunies (`nom = aucun`, aucune question ouverte fausse, pas de Dispersion). Il s'ajoute alors à la liste, à côté du vrai geste ; sans le sort, rien ne change. Un héros qui a pris un nom, ou une fausse réponse, ne peut pas menacer pour de bon : il n'a pas traversé le parcours sans se laisser fixer, et le Ghom ne le croit pas.
-- **« Ghom. Je tiens ce qui défait aussi ta place. Pars. » :** le héros n'attaque rien. Il rappelle ce que Merlin a dit à la plaine : si le vide du Tissu n'est qu'un vide parmi d'autres, une poche de l'autre sorte, une seule, réécrit les constantes presque à la vitesse de la lumière, **le Ghom compris**, puisque lui aussi tient par ce que le vide permet. *(Hypothèse du jeu, jamais mesurée.)* Le Ghom ne peut pas fuir une bulle qui va plus vite que tout ce qu'il connaît, et il n'a aucune raison de parier là-dessus.
-- L'Influence « Se retirer » apparaît **comme pour le vrai geste**. Le Ghom l'emploie : fin **Le Découplage**, avec une scène en plus (ci-dessous). Il n'y a pas de combat : le héros ne lance jamais le sort, et le sort n'est pas utilisable dans le chapitre (il y mettrait fin à tout : aucune fin, aucune sauvegarde).
-- Le menacer ne contourne pas les fidélités : la menace n'ouvre rien que `nom = aucun` et les questions ouvertes n'ouvraient déjà. Elle transforme une demande en une **négociation** : le Ghom part parce qu'il est plus prudent que le héros, pas parce qu'il est bon.
+- **« Ghom. Je tiens ce qui défait aussi ta place. Pars. » :** le héros rappelle ce que Merlin a dit à la plaine : si le vide du Tissu n'est qu'un vide parmi d'autres, une poche de l'autre sorte, une seule, réécrit les constantes presque à la vitesse de la lumière, **le Ghom compris**. *(Hypothèse du jeu, jamais mesurée.)*
+- **Le Ghom ne se retire pas.** Il n'emploie pas « Se retirer » : la pression pèse, ne bouge pas, ne dit rien. Il ne croit pas à la menace, ou il la juge impossible à tenir. **Une menace qu'on ne tient pas n'en est pas une** : le héros **lance le sort**. Il n'y a pas de second choix ; le choix était le geste. C'est le seul endroit de l'Aventure où le sort est lancé.
+- **Le Ghom tente de contenir la bulle** en réimposant l'ancien vide **à l'intérieur** d'elle (physiquement : tenir le champ du bon côté de la barrière, sur une paroi mince qu'il faut tenir partout à la fois, à la vitesse de la lumière). Cet effort révèle sa volonté : **garder l'univers tel qu'il est**. Il échoue : la bulle se répand et réécrit tout. → fin **La Bascule** ([`../06-fins/la-bascule.md`](../06-fins/la-bascule.md)), qui **efface la vraie sauvegarde** et fait redémarrer le jeu.
+
+**Si la sauvegarde a déjà vu La Bascule** (`bascule_vue`, drapeau méta qui survit à l'effacement) **: le geste de la négociation.** Il s'ajoute à la liste, sous les mêmes conditions de parcours (`nom = aucun`, aucune question ouverte fausse, pas de Dispersion), et **sans besoin du sort** : « Ghom. Je sais ce que tu veux. » Le héros sait désormais que le Ghom ne défera pas l'univers : la menace est inutile. S'ouvre une **négociation en quatre gestes**, où le Ghom répond par ses Influences (Réparation = oui, Distorsion = pas encore, Séisme = non). Réussie, elle mène à **La Gratuité** ([`../06-fins/la-gratuite.md`](../06-fins/la-gratuite.md)) : Gorr écrit dans le Carnet ce que le Ghom tient pour vrai sur l'existence de l'univers, donné comme hypothèse. Elle ne dit pas « Q28 est résolue » : elle l'annote.
 
 | Geste | Vrai ou faux | Effet |
 | --- | --- | --- |
@@ -324,20 +326,21 @@ Calque : la Lacune du Cœur (`x`, convention de l'ère IV) et les quatre **ancre
 | Choix ou objectif | Drapeaux | Effet plus tard |
 | --- | --- | --- |
 | Héritier revenu | `confiance.<lignée> +1` ; `confiance +1` (une fois) | Présent dans l'épilogue de la fin obtenue. |
-| Nomination : le nom connu | `nom = <lignée>` | Ouvre la condition de nom de **L'Intrication** ; ferme **Le Découplage**. |
-| Nomination : un leurre | `nom = faux` | Ferme **L'Intrication** et **Le Découplage**. |
-| Nomination : « Je n'ai pas de nom. » | `nom = aucun` | Garde ouvert **Le Découplage**. |
+| Nomination : le nom connu | `nom = <lignée>` | Ouvre la condition de nom de **L'Intrication** ; ferme **Le Découplage**, **La Bascule** et **La Gratuité**. |
+| Nomination : un leurre | `nom = faux` | Ferme **L'Intrication**, **Le Découplage**, **La Bascule** et **La Gratuité**. |
+| Nomination : « Je n'ai pas de nom. » | `nom = aucun` | Garde ouverts **Le Découplage**, **La Bascule** et **La Gratuité**. |
 | Première question de Gorr (sans `gorr_question`) | `gorr_question` ; `carnet.Q16 = repondue` | Richesse du Carnet. |
 | Voie Recoudre | `derniere_lacune = recousue` ; `lacunes.recousues +2` | Score d'Ordre ; départage. |
 | Voie Élargir | `derniere_lacune = elargie` ; `lacunes.elargies +2` | Score de Chaos ; départage. |
 | Voie Habiter | `derniere_lacune = habitee` ; `lacunes.habitees +2` | Condition de **L'Intrication**. |
 | ◆ Laisser libre | `combat_final_libre` | Scène supplémentaire dans **Le Découplage** et **L'Intrication**. |
 | Héros dispersé | `heros_disperse` | Fin **La Dispersion**, prioritaire. |
-| Q28 : le Ghom l'a voulu | `carnet.Q28 = fausse` ; `derniere_reponse = ghom` | Ferme l'Intrication et le Découplage ; +1 au score d'Ordre. |
-| Q28 : le rien est impossible | `carnet.Q28 = fausse` ; `derniere_reponse = rien_impossible` | Ferme l'Intrication et le Découplage ; +1 au score de Chaos. |
-| Q28 : je ne sais pas / les liens / le silence | `carnet.Q28 = ouverte` ; `derniere_reponse = …` | Garde ouvertes l'Intrication et le Découplage. |
+| Q28 : le Ghom l'a voulu | `carnet.Q28 = fausse` ; `derniere_reponse = ghom` | Ferme l'Intrication, le Découplage, la Bascule et la Gratuité ; +1 au score d'Ordre. |
+| Q28 : le rien est impossible | `carnet.Q28 = fausse` ; `derniere_reponse = rien_impossible` | Ferme l'Intrication, le Découplage, la Bascule et la Gratuité ; +1 au score de Chaos. |
+| Q28 : je ne sais pas / les liens / le silence | `carnet.Q28 = ouverte` ; `derniere_reponse = …` | Garde ouvertes l'Intrication, le Découplage, la Bascule et la Gratuité. |
 | Le dernier geste, et le Ghom se retire | — (pose `fin = decouplage`) | Fin **Le Découplage**. |
-| Le geste de la menace (avec `vacuum_decay`), et le Ghom se retire | `decouplage.menace` ; pose `fin = decouplage` | Fin **Le Découplage**, avec la scène « Ce qu'il a cru ». |
+| Le geste de la menace (avec `vacuum_decay`) | `bascule` ; pose `fin = bascule` ; sort lancé | Fin **La Bascule**. Efface la sauvegarde, pose le drapeau méta `bascule_vue`. |
+| Le geste de la négociation (avec `bascule_vue`), quatre gestes justes | `q28.annotee` ; pose `fin = gratuite` | Fin **La Gratuité**. |
 
 ## Récompenses
 
@@ -355,6 +358,7 @@ Ce chapitre ne prépare plus rien dans l'Aventure. Il laisse une seule chose ouv
 - **Dispersion du héros :** si `usure ≥ 8`, la chute du héros déclenche l'effet de Dispersion (chaleur et lumière à l'horizontale), pose `heros_disperse`, et retire le héros de la timeline sans défaite. Le Double du héros (s'il est là) est mis en avant par la caméra.
 - **« Laisser agir » :** réutiliser la commande de l'ère IV (ch. 19) ; le suivi des commandes du journal suffit pour vérifier `combat_final_libre`.
 - **Influence « Se retirer » :** Influence temporaire, sans coût, présente dans la barre uniquement après le choix 1 du dernier geste. Délai de 20 secondes sans action = refus. **Aucun texte n'invite le joueur à l'utiliser**, et aucun texte ne s'adresse au joueur : seul le héros parle, au Ghom.
-- **Geste de la menace :** disponible seulement si `hasForbidden("vacuumDecay")` et les conditions du vrai geste. Le sort n'est pas castable dans le chapitre (le moteur interdit son lancement hors Arcade et Escarmouche, et la sauvegarde y serait effacée) ; seul le geste, un choix de dialogue, existe.
+- **Geste de la menace :** disponible seulement si `hasForbidden("vacuumDecay")` et les conditions du vrai geste. Choisi, il **lance** le sort dans le chapitre : la scène de [`La Bascule`](../06-fins/la-bascule.md) se joue, puis l'Aventure appelle `vacuumDecayWipe({ ending: "bascule" })` (efface la sauvegarde, ajoute une cicatrice, enregistre la fin, pose le drapeau « féliciter au prochain démarrage »). Le moteur de combat n'est pas utilisé : la scène est écrite.
+- **Geste de la négociation :** disponible seulement si `secondEndingAvailable()` et les conditions du vrai geste. Les quatre gestes, leurs bonnes réponses et le décompte d'erreurs sont dans [`La Gratuité`](../06-fins/la-gratuite.md). Fin : `markEnding("gratuite")` et `congratulateNext("gratuite")`, sans effacement.
 - **Gorr écrit :** animation d'écriture lente dans le Carnet, avec la réponse choisie (ou une ligne vide pour le silence).
 - **Calcul des fins :** voir `06-fins/README.md`. Le calcul lit tous les drapeaux au moment où le nœud 5 se ferme.
