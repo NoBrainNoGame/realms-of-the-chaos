@@ -49,13 +49,13 @@ export {
   type CrystalState,
   type GelRules,
 } from "./crystals"
-export { type EnergyRules, HALT_MESSAGE } from "./energy"
-export type { FixationRule } from "./fixation"
 export type {
   DebateArgument,
   DebateReport,
   DebateRules,
 } from "./debate"
+export { type EnergyRules, HALT_MESSAGE } from "./energy"
+export type { FixationRule } from "./fixation"
 export type {
   RecomposeRule,
   ScriptAct,
