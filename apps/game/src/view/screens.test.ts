@@ -62,12 +62,12 @@ describe("Menu", () => {
 })
 
 describe("title screen", () => {
-  test("offers every mode; online and lore are announced but locked", () => {
+  test("offers every mode; online is announced but locked", () => {
     const title = mount(new TitleScreen(4))
     const items = title.menu.items
     expect(items.map((i) => i.id)).toEqual(TITLE_MENU.map((i) => i.id))
     expect(items.find((i) => i.id === "online")!.enabled).toBe(false)
-    expect(items.find((i) => i.id === "codex")!.enabled).toBe(false)
+    expect(items.find((i) => i.id === "codex")!.enabled).not.toBe(false)
     const chosen: string[] = []
     title.on("choose", (c: string) => chosen.push(c))
     key("ArrowDown")

@@ -3,6 +3,7 @@
  * guarded: storage can be missing or blocked (private mode, tests).
  */
 
+import type { Carry, Run } from "@realms/adventure"
 import {
   type CustomCharacter,
   checkCustom,
@@ -31,6 +32,8 @@ export const SAVE_KEYS = {
   custom: `${SAVE_PREFIX}custom`,
   /** Forbidden actions the player owns (see `grantForbidden`). */
   unlocks: `${SAVE_PREFIX}unlocks`,
+  /** The Adventure's progress (see `adventureSave`): a vacuum decay wipes it. */
+  adventure: `${SAVE_PREFIX}adventure`,
 } as const
 
 /** Survives every wipe: how many vacuum decays this browser has seen. */
@@ -152,6 +155,37 @@ export function customById(id: string): CustomCharacter | undefined {
 
 export const customId = (name: string) => `custom:${name}`
 export const isCustomId = (id: string) => id.startsWith("custom:")
+
+// ─── Adventure progress ─────────────────────────────────────────────────────
+
+/** The Adventure's save: part of the save, so a vacuum decay wipes it. */
+export interface AdventureSave {
+  /** Name of the saved character that plays the hero (none: the default one). */
+  hero: string | null
+  /** Per chapter id: the state the chapter starts from (unlocked chapters). */
+  starts: Record<string, Carry>
+  /** Chapters finished at least once. */
+  completed: string[]
+  /** The chapter in progress, if any (« Reprendre »). */
+  run: Run | null
+}
+
+export const emptyAdventureSave = (): AdventureSave => ({
+  hero: null,
+  starts: {},
+  completed: [],
+  run: null,
+})
+
+export function adventureSave(): AdventureSave {
+  const raw = read<Partial<AdventureSave>>(SAVE_KEYS.adventure)
+  if (!raw || typeof raw !== "object") return emptyAdventureSave()
+  return { ...emptyAdventureSave(), ...raw }
+}
+
+export function writeAdventureSave(save: AdventureSave) {
+  write(SAVE_KEYS.adventure, save)
+}
 
 // ─── Forbidden actions ──────────────────────────────────────────────────────
 

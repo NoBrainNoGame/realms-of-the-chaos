@@ -37,7 +37,7 @@ export function modularLookOf(presetId: string): CustomLook | undefined {
 
 /** The art id (a reference character) of any preset id. */
 export function lookOf(presetId: string): string {
-  if (!isCustomId(presetId)) return presetId
+  if (!isCustomId(presetId)) return looks.get(presetId) ?? presetId
   const known = looks.get(presetId)
   if (known) return known
   const stored = customById(presetId)

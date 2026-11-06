@@ -23,8 +23,12 @@ import { isSecretEnding } from "./endings"
  *                            `?ending=gratuite` records the second one (only
  *                            once the first is seen), without a wipe. It
  *                            applies on every load of the URL.
+ * - `?chapter=3`            dev: opens that Adventure chapter right away (the
+ *                            first one when nothing is unlocked: "prologue" or
+ *                            1 to 6), from the state it unlocked with, or a
+ *                            fresh one. `?mode=chronicles` opens the selector.
  * - `?mode=skirmish`         opens a screen directly: title, skirmish, local,
- *                            arcade, gallery, fight, tutorial or settings
+ *                            arcade, gallery, fight, tutorial, settings or chronicles
  *
  * Without `mode`, any fight parameter (seed, spectate, team, enemies) starts
  * a fight right away, as before the title screen existed.
@@ -38,6 +42,7 @@ export const MODES = [
   "fight",
   "tutorial",
   "settings",
+  "chronicles",
 ] as const
 export type StartMode = (typeof MODES)[number]
 
@@ -58,6 +63,8 @@ export interface Params {
   grant: string[]
   /** Dev: a secret ending to simulate (see `?ending=`). */
   ending: string | null
+  /** Dev: opens this Adventure chapter right away (`?chapter=3`). */
+  chapter: string | null
 }
 
 export const SPEEDS = [0.25, 0.5, 1, 2, 4]
@@ -82,11 +89,13 @@ export function parseParams(search: URLSearchParams): Params {
   const mode: StartMode =
     requested && MODES.includes(requested)
       ? requested
-      : search.has("gallery")
-        ? "gallery"
-        : ["seed", "spectate", "team", "enemies"].some((k) => search.has(k))
-          ? "fight"
-          : "title"
+      : search.has("chapter")
+        ? "chronicles"
+        : search.has("gallery")
+          ? "gallery"
+          : ["seed", "spectate", "team", "enemies"].some((k) => search.has(k))
+            ? "fight"
+            : "title"
 
   return {
     mode,
@@ -103,6 +112,7 @@ export function parseParams(search: URLSearchParams): Params {
       .split(",")
       .map((id) => id.trim())
       .filter((id) => Object.hasOwn(FORBIDDEN_ACTIONS, id)),
+    chapter: search.get("chapter")?.trim() || null,
     ending: isSecretEnding(search.get("ending") ?? "")
       ? search.get("ending")
       : null,

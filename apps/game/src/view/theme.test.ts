@@ -91,6 +91,7 @@ describe("URL parameters", () => {
       enemyTeam: DEFAULT_ENEMY_TEAM,
       grant: [],
       ending: null,
+      chapter: null,
     })
   })
 

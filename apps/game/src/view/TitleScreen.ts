@@ -27,6 +27,7 @@ export type TitleChoice =
   | "settings"
   | "creator"
   | "tutorial"
+  | "codex"
 
 /** The island of the title screen turns a quarter this often (ms). */
 export const TITLE_TURN_EVERY = 7000
@@ -39,7 +40,7 @@ export const TITLE_MENU: MenuItem[] = [
   { id: "local", label: "Duel local" },
   { id: "arcade", label: "Arcade" },
   { id: "online", label: "Duel en ligne", hint: "bientôt", enabled: false },
-  { id: "codex", label: "Chroniques", hint: "bientôt", enabled: false },
+  { id: "codex", label: "Chroniques" },
   { id: "creator", label: "Atelier" },
   { id: "settings", label: "Réglages" },
   { id: "tutorial", label: "Tutoriel" },
@@ -50,6 +51,8 @@ const DESCRIPTIONS: Record<string, string> = {
   local: "Deux joueurs, un seul écran : chacun son équipe, chacun son tour.",
   arcade:
     "Les Marées : des vagues de plus en plus fortes. Jusqu'où tiendrez-vous ?",
+  codex:
+    "L'aventure : un héros, des Échos, un monde qui se défait. Reprenez votre chapitre ou rejouez un chapitre ouvert.",
   creator:
     "Forgez votre propre Écho : choisissez ses actions, répartissez ses talents.",
   settings: "La taille du texte et celle de l'interface.",

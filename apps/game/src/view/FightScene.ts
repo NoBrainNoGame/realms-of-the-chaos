@@ -19,6 +19,7 @@ import {
   STATUSES,
   usefulActions,
 } from "@realms/engine"
+import type { AdventureRules } from "@realms/engine/adventure"
 import { Container, Graphics } from "pixi.js"
 import { settings } from "../settings"
 import {
@@ -99,7 +100,11 @@ export interface SceneOptions {
   speed: number
   teams: SceneTeam[]
   /** Buttons of the end screen (default: replay). */
-  endActions?: EndAction[]
+  endActions?: EndAction[] | ((combat: Combat) => EndAction[])
+  /** Adventure only: the opt-in combat rules (see `@realms/engine/adventure`). */
+  adventure?: AdventureRules
+  /** Adventure only: AI teams that never act (the bystanders). */
+  hold?: number[]
   /** Shows a "Menu" button to leave the fight. */
   quittable?: boolean
   /** A handmade map (`Board.fromAscii` rows) instead of a generated one. */
@@ -141,6 +146,7 @@ export function combatOptions(options: SceneOptions): CombatOptions {
     seed: options.seed,
     board: options.board && Board.fromAscii(options.board),
     positions: options.positions,
+    adventure: options.adventure,
     teams: options.teams.map((team) => ({
       name: team.name,
       controller: team.controller === "local" ? "human" : "ai",
@@ -313,6 +319,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
     super()
     this._speed = _options.speed
     this.combat = new Combat(combatOptions(_options))
+    for (const team of _options.hold ?? []) this.combat.holding.add(team)
   }
 
   get options(): Readonly<SceneOptions> {
@@ -1637,6 +1644,29 @@ export default class FightScene extends ViewChip<SceneEvents> {
           }),
         ]
 
+      case "fled":
+        return [
+          new booyah.Lambda(() => {
+            const view = this._views.get(event.fighterId)
+            if (view) view.container.visible = false
+            this._hud.log(
+              `${this.combat.getFighter(event.fighterId)?.name ?? "?"} s'enfuit.`,
+            )
+          }),
+        ]
+
+      case "fleeing":
+        return [
+          new booyah.Lambda(() =>
+            this._hud.log(
+              `${this.combat.getFighter(event.fighterId)?.name ?? "?"} bat en retraite.`,
+            ),
+          ),
+        ]
+
+      case "timeUp":
+        return [new booyah.Lambda(() => this._hud.log("Le temps est écoulé."))]
+
       case "vacuumDecay":
         return [
           new booyah.Lambda(() => {
@@ -2259,7 +2289,11 @@ export default class FightScene extends ViewChip<SceneEvents> {
     this._inputReady = false
     this._hud.setActions(null, this.combat, null)
     const winner = this.combat.winnerTeam
-    const actions = this._options.endActions ?? DEFAULT_END_ACTIONS
+    const configured = this._options.endActions
+    const actions =
+      typeof configured === "function"
+        ? configured(this.combat)
+        : (configured ?? DEFAULT_END_ACTIONS)
     const local = this.localTeams
     if (winner === null) this._hud.showEnd("Match nul", COLORS.text, actions)
     else if (local.length !== 1)
