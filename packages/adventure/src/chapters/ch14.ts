@@ -172,6 +172,16 @@ const BOARD_B = [
   "#..#....#..#",
 ]
 
+/** The six Cristaux d'archive, in three entangled pairs. */
+const ARCHIVES = [
+  { id: "a1", at: { x: 3, y: 1 }, twin: "a2" },
+  { id: "a2", at: { x: 8, y: 7 }, twin: "a1" },
+  { id: "b1", at: { x: 8, y: 1 }, twin: "b2" },
+  { id: "b2", at: { x: 3, y: 7 }, twin: "b1" },
+  { id: "c1", at: { x: 3, y: 4 }, twin: "c2" },
+  { id: "c2", at: { x: 8, y: 4 }, twin: "c1" },
+]
+
 function fonds(ally: Ally, rallie: boolean): FightSpec {
   const allies = [
     { preset: "@hero" as const, at: { x: 5, y: 3 } },
@@ -207,8 +217,7 @@ function fonds(ally: Ally, rallie: boolean): FightSpec {
       mark: "★",
       label:
         "Sauver les archives : mettre les Extracteurs hors d'état de nuire",
-      // CUT: the six Cristaux d'archive and their pairs do not exist; the
-      // fonds are saved when no Extracteur is left on the board.
+      // The fonds are saved when no Extracteur is left on the board.
       check: (r) =>
         r.result !== "defeat" &&
         r.fighters
@@ -222,11 +231,10 @@ function fonds(ally: Ally, rallie: boolean): FightSpec {
       id: "six",
       mark: "◆",
       label: "Les six Cristaux intacts",
-      // SIMPLIFIED: quick, whole victory stands for "nothing was broken".
+      // The six Cristaux d'archive (three pairs): none broken, none dead glass.
       check: (r) =>
         r.result !== "defeat" &&
-        r.ticks <= 12 &&
-        r.fighters.filter((f) => f.team === 1).every((f) => f.hp > 0),
+        ARCHIVES.every((c) => r.crystals?.state[c.id] === "set"),
       success: "Pas une fiche de moins.",
       onSuccess: [set("six_cristaux"), add("confiance.chroniqueur")],
     },
@@ -241,6 +249,7 @@ function fonds(ally: Ally, rallie: boolean): FightSpec {
     teams,
     rules: {
       neutral: rallie ? undefined : [2],
+      crystals: { crystals: ARCHIVES, raiders: [1] },
       clock: { period: 1, limit: 12, winner: 0 },
       flee: {
         team: 1,

@@ -271,6 +271,46 @@ export type FightEvent =
   /** Adventure fraying: cells lost height / a cold halo came up. */
   | { type: "frayed"; cells: Point[] }
   | { type: "haloUp"; fighterId: string }
+  /** Adventure crystals: broken for Élan or healing; its twin goes dead. */
+  | {
+      type: "crystalExtracted"
+      crystalId: string
+      fighterId: string
+      at: Point
+      gain: "elan" | "heal"
+      twinId: string | null
+    }
+  | { type: "crystalDead"; crystalId: string; at: Point | null }
+  | {
+      type: "crystalDetached"
+      crystalId: string
+      fighterId: string
+      at: Point
+    }
+  | { type: "crystalCarried"; crystalId: string; fighterId: string }
+  | { type: "crystalDropped"; crystalId: string; fighterId: string; at: Point }
+  | {
+      type: "crystalDeposited"
+      crystalId: string
+      fighterId: string
+      at: Point
+      /** The cell is one of the deposits of the map (else it is put down). */
+      deposit: boolean
+    }
+  | { type: "crystalsLinked"; fighterIds: [string, string] }
+  /** A carried crystal became a bridge over water or a hole. */
+  | { type: "bridged"; crystalId: string; fighterId: string; cells: Point[] }
+  /** Adventure gel: a fighter (or a water cell) froze. */
+  | {
+      type: "frozen"
+      fighterId?: string
+      cell?: Point
+      by: string | null
+      until?: number
+    }
+  | { type: "thawed"; fighterId?: string; cell?: Point; by: string | null }
+  /** A frozen fighter lets its turn go by. */
+  | { type: "frozenTurn"; fighterId: string }
   | { type: "fleeing"; fighterId: string }
   | { type: "fled"; fighterId: string }
   | { type: "timeUp" }

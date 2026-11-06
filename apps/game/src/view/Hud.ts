@@ -6,6 +6,7 @@ import {
   type Locomotion,
   MAX_ENERGY,
 } from "@realms/engine"
+import type { CrystalOp } from "@realms/engine/adventure"
 import { Container, Graphics, Rectangle, Sprite, Text } from "pixi.js"
 import { settings } from "../settings"
 import { actionIcon } from "./actionFx"
@@ -44,6 +45,8 @@ interface HudEvents extends booyah.BaseCompositeEvents {
   insist: []
   /** The Ghom withdraws from the fight ("Se retirer"). */
   withdraw: []
+  /** Crystals and cold: select an operation to aim (Extraire, Porter...). */
+  crystal: [op: CrystalOp, gain: "elan" | "heal"]
   /** The line-up is done: the fight starts. */
   fight: []
   /** Cancel the planned walk of the active fighter. */
@@ -950,12 +953,13 @@ export default class Hud extends ViewChip<HudEvents> {
       0,
     )
     this._actionBar.addChild(pass.view)
-    const after = this._autonomyButtons(
+    const afterGestures = this._autonomyButtons(
       fighter,
       combat,
       size,
       pass.view.x + 96 + 8,
     )
+    const after = this._crystalButtons(fighter, combat, size, afterGestures)
 
     // a planned walk: a click adds a stop, so cancelling needs a button
     if (fighter.path.length) {
@@ -1038,6 +1042,110 @@ export default class Hud extends ViewChip<HudEvents> {
         "withdraw",
         104,
       )
+    return x
+  }
+
+  /** The operation being aimed (Extraire, Porter, Geler...), if any. */
+  crystalMode: { op: CrystalOp; gain: "elan" | "heal" } | null = null
+
+  /**
+   * Crystal and cold buttons, after the autonomy ones, only for the
+   * operations the rules have. Returns the x where the next button goes.
+   */
+  private _crystalButtons(
+    fighter: Fighter,
+    combat: Combat,
+    size: number,
+    from: number,
+  ): number {
+    const kit = combat.adventure?.crystals
+    if (!kit) return from
+    let x = from
+    const ready = kit.available(fighter)
+    const entries: {
+      op: CrystalOp
+      gain: "elan" | "heal"
+      label: string
+      tip: string
+    }[] = [
+      {
+        op: "extract",
+        gain: "elan",
+        label: "Extraire\n(Élan)",
+        tip: "Brise un cristal voisin : l'équipe gagne de l'Élan. Sa jumelle devient du verre mort et une Lacune s'ouvre.",
+      },
+      {
+        op: "extract",
+        gain: "heal",
+        label: "Extraire\n(soin)",
+        tip: "Brise un cristal voisin : les alliés proches sont soignés. Sa jumelle devient du verre mort et une Lacune s'ouvre.",
+      },
+      {
+        op: "detach",
+        gain: "elan",
+        label: "Détacher",
+        tip: "Détache une géode de son support, sans la briser : elle reste au sol.",
+      },
+      {
+        op: "carry",
+        gain: "elan",
+        label: "Porter",
+        tip: "Prend une géode voisine. Elle tombe si le porteur tombe ; deux porteurs de jumelles sont liés.",
+      },
+      {
+        op: "deposit",
+        gain: "elan",
+        label: "Déposer",
+        tip: "Pose la géode portée sur une case voisine, ou sur un socle.",
+      },
+      {
+        op: "bridge",
+        gain: "elan",
+        label: "Pont de\ncristal",
+        tip: "Pose la géode portée en pont sur l'eau ou un trou : les cases deviennent praticables.",
+      },
+      {
+        op: "gel",
+        gain: "elan",
+        label: "Geler",
+        tip: "Refroidit un combattant ou une case d'eau : il ne peut plus bouger ni agir un moment.",
+      },
+      {
+        op: "thaw",
+        gain: "elan",
+        label: "Dégeler",
+        tip: "Réchauffe un combattant gelé ou une case de glace.",
+      },
+    ]
+    for (const entry of entries) {
+      if (!kit.has(entry.op)) continue
+      const usable = ready.includes(entry.op)
+      const mode = this.crystalMode
+      const chosen =
+        !!mode &&
+        mode.op === entry.op &&
+        (entry.op !== "extract" || mode.gain === entry.gain)
+      const b = button({
+        width: 104,
+        height: size,
+        label: entry.label,
+        onTap: () => {
+          if (usable) this.emit("crystal", entry.op, entry.gain)
+        },
+        onOver: () =>
+          this.showTooltip(
+            usable ? entry.tip : `${entry.tip} (Rien à portée.)`,
+            b.view.getGlobalPosition(),
+            true,
+          ),
+        onOut: () => this.hideTooltip(),
+      })
+      b.setState({ enabled: usable, selected: chosen })
+      b.view.label = `crystal-${entry.op}-${entry.gain}`
+      b.view.position.set(x, 0)
+      this._actionBar.addChild(b.view)
+      x += 104 + 8
+    }
     return x
   }
 

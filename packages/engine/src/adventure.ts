@@ -1,5 +1,12 @@
 import { MIN_ELEVATION } from "./board"
 import type { Combat } from "./combat"
+import {
+  CrystalKit,
+  type CrystalReport,
+  type CrystalRules,
+  type GelReport,
+  type GelRules,
+} from "./crystals"
 import { equals, keyOf, manhattan, type Point } from "./geometry"
 import { createRng, type Rng } from "./random"
 import type { FightEvent, Fighter, RefusalReason } from "./types"
@@ -9,6 +16,17 @@ import type { FightEvent, Fighter, RefusalReason } from "./types"
  * default: skirmish, duel, arcade and the balance tests never set them, so
  * their fights are exactly what they were.
  */
+export {
+  CRYSTAL_OPS,
+  type CrystalGain,
+  type CrystalKind,
+  type CrystalOp,
+  type CrystalRules,
+  type CrystalSpec,
+  type CrystalState,
+  type GelRules,
+} from "./crystals"
+
 export interface AdventureRules {
   /** The final scene (ch. 28): a vacuum decay there is the La Bascule ending. */
   finale?: boolean
@@ -69,6 +87,15 @@ export interface AdventureRules {
   fraying?: FrayingRule
   /** Cold halos that follow a fighter and hurt whoever starts a turn in one. */
   halos?: HaloRule[]
+  /**
+   * Entanglement crystals: break (Extraire), detach, carry, deposit them, and
+   * lay one as a bridge over water or a hole (see `CrystalRules`).
+   */
+  crystals?: CrystalRules
+  /** Glass walls: nobody stands in them, nothing is seen or aimed through. */
+  glass?: Point[]
+  /** Cold: freeze a fighter or a water cell, thaw them (see `GelRules`). */
+  gel?: GelRules
 }
 
 /**
@@ -263,6 +290,11 @@ export interface AdventureReport {
   }[]
   /** Fraying steps that happened. */
   frayed: number
+  /** What was done to the crystals (empty without `rules.crystals`). */
+  crystals: CrystalReport
+  /** Cells a crystal bridge made walkable. */
+  bridged: Point[]
+  gel: GelReport
 }
 
 /** Rule state of one fight; owned by a `Combat`. */
@@ -297,7 +329,22 @@ export class AdventureTracker {
     measured: [],
     doubles: [],
     frayed: 0,
+    crystals: {
+      extracted: [],
+      detached: [],
+      carried: [],
+      dropped: [],
+      deposited: [],
+      dead: [],
+      linked: [],
+      held: {},
+      state: {},
+    },
+    bridged: [],
+    gel: { frozen: [], iced: [], thawed: [] },
   }
+  /** Crystals, glass, bridges and ice (null without those rules). */
+  readonly crystals: CrystalKit | null = null
   /** The order the active ally refused, waiting for Respecter / Insister. */
   pending: { fighterId: string; order: AutonomyOrder } | null = null
   private _auto = new Map<string, AutonomyEntry>()
@@ -355,6 +402,21 @@ export class AdventureTracker {
       _combat.board.voids.add(keyOf(p))
     }
     this.report.lacune.cells = _combat.board.voids.size
+    if (rules.crystals || rules.glass || rules.gel) {
+      const kit = new CrystalKit(
+        _combat,
+        rules.crystals,
+        rules.gel,
+        rules.glass,
+        () => {
+          this.report.lacune.cells = _combat.board.voids.size
+        },
+      )
+      this.crystals = kit
+      this.report.crystals = kit.report.crystals
+      this.report.gel = kit.report.gel
+      this.report.bridged = kit.report.bridged
+    }
     for (const p of rules.superposition?.cells ?? []) {
       this._uncertain.add(keyOf(p))
     }
@@ -405,6 +467,14 @@ export class AdventureTracker {
       }
       case "damaged":
         this._strike(event.fighterId, event.sourceId)
+        break
+      case "died":
+      case "fled":
+      case "dissolved":
+        this.crystals?.lost(event.fighterId)
+        break
+      case "healed":
+        this.crystals?.healed(combat.getFighter(event.fighterId)!, event.amount)
         break
       case "actionUsed": {
         const f = combat.getFighter(event.fighterId)
@@ -662,6 +732,7 @@ export class AdventureTracker {
   /** The timeline moved on to `time`: the clock ticks. */
   advance(time: number) {
     this._release(time)
+    this.crystals?.advance(time)
     const clock = this.rules.clock
     if (!clock) return
     while (time >= this._nextTick && this._combat.state !== "ended") {
@@ -776,6 +847,11 @@ export class AdventureTracker {
       })
     }
     this._worked.clear()
+  }
+
+  /** A frozen fighter lets its turn go by. */
+  frozenTurn(fighter: Fighter): boolean {
+    return this.crystals?.isFrozen(fighter.id) ?? false
   }
 
   /** A turn begins: a silent cell drains energy. */

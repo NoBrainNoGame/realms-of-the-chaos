@@ -117,6 +117,18 @@ export class Board {
    * nobody can stand on them. Adventure rules only; empty in every other mode.
    */
   readonly voids = new Set<string>()
+  /**
+   * Glass walls (adventure rules): nobody stands there and nothing is seen or
+   * aimed through them.
+   */
+  readonly glass = new Set<string>()
+  /** Crystals and dead glass (adventure rules): one-cell obstacles. */
+  readonly blocks = new Set<string>()
+  /**
+   * Cells made walkable by a crystal bridge or by ice (adventure rules), with
+   * the level they are walked at. A bridge beats water, a hole and a Lacune.
+   */
+  readonly bridges = new Map<string, number>()
 
   constructor(
     public readonly width: number,
@@ -259,19 +271,28 @@ export class Board {
   standHeight(p: Point) {
     const cell = this.get(p)
     if (!cell) return 0
+    if (this.bridges.size > 0) {
+      const level = this.bridges.get(keyOf(p))
+      if (level !== undefined) return level
+    }
     return cell.terrain === "water" ? WATER_LEVEL : cell.elevation
   }
 
   /** Water deep enough to swim (depth 2 or more). */
   isDeepWater(p: Point) {
     const cell = this.get(p)
+    if (this.bridges.size > 0 && this.bridges.has(keyOf(p))) return false
     return !!cell && cell.terrain === "water" && -cell.elevation >= DEEP_WATER
   }
 
   /** Whether a character with this locomotion can be on a cell at all. */
   canStand(p: Point, locomotion: Locomotion = "walker") {
     if (!this.inBounds(p)) return false
-    if (this.voids.size > 0 && this.voids.has(keyOf(p))) return false
+    const key = keyOf(p)
+    if (this.bridges.size > 0 && this.bridges.has(key)) return true
+    if (this.voids.size > 0 && this.voids.has(key)) return false
+    if (this.glass.size > 0 && this.glass.has(key)) return false
+    if (this.blocks.size > 0 && this.blocks.has(key)) return false
     return locomotion !== "walker" || !this.isDeepWater(p)
   }
 
@@ -295,6 +316,8 @@ export class Board {
   moveCost(p: Point, locomotion: Locomotion = "walker") {
     const cell = this.get(p)
     if (!cell || !this.canStand(p, locomotion)) return Infinity
+    if (this.bridges.size > 0 && this.bridges.has(keyOf(p)))
+      return MOVE_COST.ground
     if (cell.terrain === "ground") return MOVE_COST.ground
     if (locomotion === "aquatic") return MOVE_COST.aquatic
     return this.isDeepWater(p) ? MOVE_COST.swim : MOVE_COST.wade
@@ -304,12 +327,23 @@ export class Board {
     return DIRECTIONS.map((d) => add(p, d)).filter((n) => this.inBounds(n))
   }
 
+  /** A glass wall stands on the line between the two cells. */
+  glassBetween(a: Point, b: Point) {
+    if (this.glass.size === 0) return false
+    const line = lineBetween(a, b)
+    for (let i = 1; i < line.length - 1; i++) {
+      if (this.glass.has(keyOf(line[i]))) return true
+    }
+    return false
+  }
+
   /**
    * Line of sight between two cells, from eye level (stand height + 1).
    * Any cell in between rising above the sight line blocks it, so hills
    * hide what is behind them and high ground sees over low obstacles.
    */
   hasLineOfSight(a: Point, b: Point) {
+    if (this.glassBetween(a, b)) return false
     const line = lineBetween(a, b)
     const eyeA = this.standHeight(a) + 1
     const eyeB = this.standHeight(b) + 1

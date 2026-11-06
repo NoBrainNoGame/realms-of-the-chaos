@@ -19,7 +19,7 @@ import {
   STATUSES,
   usefulActions,
 } from "@realms/engine"
-import type { AdventureRules } from "@realms/engine/adventure"
+import type { AdventureRules, CrystalOp } from "@realms/engine/adventure"
 import { Container, Graphics } from "pixi.js"
 import { settings } from "../settings"
 import {
@@ -173,6 +173,7 @@ type Mode =
   | { type: "move" }
   | { type: "action"; action: ActionDefinition }
   | { type: "divine"; id: string }
+  | { type: "crystal"; op: CrystalOp; gain: "elan" | "heal" }
 
 /**
  * What the player tries on the fight (a click or a key), checked by
@@ -187,6 +188,8 @@ export type SceneInput =
   | { type: "pass"; key?: boolean }
   /** Laisser agir, Respecter, Insister, Se retirer (Adventure autonomy). */
   | { type: "autonomy"; gesture: "letAct" | "insist" | "withdraw" }
+  /** Extraire, Porter, Geler... (Adventure crystals). */
+  | { type: "crystal"; op: CrystalOp }
   /** Back out of a selection or a planned walk (always harmless). */
   | { type: "cancel" }
   | { type: "camera" }
@@ -443,6 +446,16 @@ export default class FightScene extends ViewChip<SceneEvents> {
           this._command({ type: gesture, fighterId: fighter.id })
       })
     }
+    this._subscribe(this._hud, "crystal", (op, gain) => {
+      if (!this._activeHuman || !this._inputReady) return
+      if (!this.allows({ type: "crystal", op })) return
+      const same =
+        this._mode.type === "crystal" &&
+        this._mode.op === op &&
+        this._mode.gain === gain
+      this._mode = same ? { type: "move" } : { type: "crystal", op, gain }
+      this._refreshAll()
+    })
     this._subscribe(this._hud, "cancelWalk", () => this._cancelWalk())
     this._subscribe(this._hud, "hoverChoice", (choice) => {
       this._hoverChoice = choice
@@ -1751,6 +1764,45 @@ export default class FightScene extends ViewChip<SceneEvents> {
       case "frayed":
         return [new booyah.Lambda(() => this._hud.log("Le bord s'effiloche."))]
 
+      case "crystalExtracted":
+        return [
+          new booyah.Lambda(() => {
+            const who = this.combat.getFighter(event.fighterId)?.name ?? "?"
+            this._hud.log(
+              event.gain === "heal"
+                ? `${who} brise un cristal : les proches sont soignés.`
+                : `${who} brise un cristal : de l'Élan se libère.`,
+            )
+            this._refreshOverlay()
+          }),
+        ]
+
+      case "crystalDead":
+        return [
+          new booyah.Lambda(() => {
+            this._hud.log("Une jumelle se fige en verre mort.")
+            this._refreshOverlay()
+          }),
+        ]
+
+      case "crystalDetached":
+      case "crystalCarried":
+      case "crystalDropped":
+      case "crystalDeposited":
+      case "crystalsLinked":
+      case "bridged":
+      case "thawed":
+      case "frozen":
+      case "frozenTurn": {
+        const text = this._crystalLine(event)
+        return [
+          new booyah.Lambda(() => {
+            this._hud.log(text)
+            this._refreshOverlay()
+          }),
+        ]
+      }
+
       case "haloUp":
         return [
           new booyah.Lambda(() => {
@@ -1858,6 +1910,10 @@ export default class FightScene extends ViewChip<SceneEvents> {
   }
 
   private _refreshAll() {
+    this._hud.crystalMode =
+      this._mode.type === "crystal"
+        ? { op: this._mode.op, gain: this._mode.gain }
+        : null
     this._hud.setPreview(this.movePreview())
     this._hud.setStepPreview(this.stepPreview())
     this._hud.setLanding(this.landingPreview())
@@ -1912,6 +1968,40 @@ export default class FightScene extends ViewChip<SceneEvents> {
   }
 
   /** Cancel the planned walk of the active local fighter. */
+  /** One line of log for the crystal and cold events. */
+  private _crystalLine(event: FightEvent): string {
+    const name = (id?: string) =>
+      (id && this.combat.getFighter(id)?.name) || "Quelqu'un"
+    switch (event.type) {
+      case "crystalDetached":
+        return `${name(event.fighterId)} détache une géode.`
+      case "crystalCarried":
+        return `${name(event.fighterId)} porte une géode.`
+      case "crystalDropped":
+        return `${name(event.fighterId)} laisse tomber sa géode.`
+      case "crystalDeposited":
+        return event.deposit
+          ? `${name(event.fighterId)} dépose la géode sur son socle.`
+          : `${name(event.fighterId)} pose la géode.`
+      case "crystalsLinked":
+        return "Deux jumelles portées : leurs porteurs sont liés."
+      case "bridged":
+        return "Un pont de cristal se tend sur le vide."
+      case "frozen":
+        return event.fighterId
+          ? `${name(event.fighterId)} est gelé.`
+          : "L'eau prend en glace."
+      case "thawed":
+        return event.fighterId
+          ? `${name(event.fighterId)} dégèle.`
+          : "La glace fond."
+      case "frozenTurn":
+        return `${name(event.fighterId)} est pris dans le gel.`
+      default:
+        return ""
+    }
+  }
+
   private _cancelWalk() {
     const fighter = this._activeHuman
     if (!fighter?.path.length) return
@@ -2031,6 +2121,22 @@ export default class FightScene extends ViewChip<SceneEvents> {
           actionId: action.id,
           target: p,
         })
+        break
+      }
+      case "crystal": {
+        const { op, gain } = this._mode
+        const kit = this.combat.adventure?.crystals
+        const valid = !!kit?.targets(fighter, op).some((c) => equals(c, p))
+        if (valid)
+          this._command({
+            type: "crystal",
+            fighterId: fighter.id,
+            op,
+            target: p,
+            ...(gain === "heal" ? { gain } : {}),
+          })
+        this._mode = { type: "move" }
+        this._refreshAll()
         break
       }
       case "divine": {
@@ -2285,6 +2391,19 @@ export default class FightScene extends ViewChip<SceneEvents> {
       return
     }
     highlights.push(...this._weaveHighlights())
+    if (this._mode.type === "crystal" && this._activeHuman) {
+      const aims = this.combat.adventure?.crystals?.targets(
+        this._activeHuman,
+        this._mode.op,
+      )
+      if (aims?.length)
+        highlights.push({
+          cells: aims,
+          color: 0xffffff,
+          alpha: 0.45,
+          outline: true,
+        })
+    }
     const fighter = this._activeHuman
     const hovered = this._hovered
 
@@ -2436,6 +2555,74 @@ export default class FightScene extends ViewChip<SceneEvents> {
     const holes = tracker.lacuneCells
     if (holes.length)
       out.push({ cells: holes, color: 0x0a0612, alpha: 0.92, inset: 0 })
+    const kit = tracker.crystals
+    if (kit) {
+      if (kit.glassCells.length)
+        out.push({
+          cells: kit.glassCells,
+          color: 0x9be7ff,
+          alpha: 0.5,
+          inset: 2,
+          outline: true,
+        })
+      const veins = kit.crystals.filter(
+        (c) => c.state === "set" || c.state === "broken",
+      )
+      const loose = kit.crystals.filter((c) => c.state === "loose")
+      const dead = kit.crystals.filter((c) => c.state === "dead")
+      if (veins.length)
+        out.push({
+          cells: veins.map((c) => c.at),
+          color: 0xff6bd6,
+          alpha: 0.6,
+          inset: 8,
+          outline: true,
+        })
+      if (loose.length)
+        out.push({
+          cells: loose.map((c) => c.at),
+          color: 0xffd43b,
+          alpha: 0.6,
+          inset: 14,
+          outline: true,
+        })
+      if (dead.length)
+        out.push({
+          cells: dead.map((c) => c.at),
+          color: 0x6b7280,
+          alpha: 0.55,
+          inset: 8,
+        })
+      if (kit.bridgeCells.length)
+        out.push({
+          cells: kit.bridgeCells,
+          color: 0xb2f2ff,
+          alpha: 0.5,
+          inset: 1,
+        })
+      if (kit.iceCells.length)
+        out.push({
+          cells: kit.iceCells,
+          color: 0xe7f5ff,
+          alpha: 0.6,
+          inset: 1,
+          outline: true,
+        })
+      const frozen = kit.frozenFighters
+        .map((id) => this.combat.getFighter(id)?.position)
+        .filter((p): p is Point => !!p)
+      if (frozen.length)
+        out.push({
+          cells: frozen,
+          color: 0xa5d8ff,
+          alpha: 0.6,
+          inset: 0,
+          outline: true,
+        })
+      const carriers = kit.carriers
+      if (carriers.length)
+        out.push({ cells: carriers, color: 0xffd43b, alpha: 0.4, inset: 18 })
+    }
     const halo = tracker.haloCells()
     if (halo.length)
       out.push({ cells: halo, color: 0x8fd3ff, alpha: 0.22, inset: 6 })

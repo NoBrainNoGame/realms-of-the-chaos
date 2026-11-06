@@ -48,8 +48,8 @@ import {
 
 // ─── Combat : la grille des Citernes ────────────────────────────────────────
 
-// Walls `#` are thick glass. SIMPLIFIED: the engine has no line-of-sight
-// blocking by glass walls (they are hills of height 3).
+// Walls `#` are thick glass: nobody stands in them, nothing is seen or aimed
+// through them (rules.glass).
 const BOARD = [
   "..#...1...#~~~",
   "..#...1...#~ww",
@@ -60,6 +60,11 @@ const BOARD = [
   "..#...1...#...",
   "..............",
 ]
+
+/** The glass walls: every `#` of the board. */
+const GLASS = BOARD.flatMap((row, y) =>
+  [...row].flatMap((c, x) => (c === "#" ? [{ x, y }] : [])),
+)
 
 type Ally = "eva" | "squalor" | "none"
 
@@ -145,6 +150,7 @@ function citernes(ally: Ally, extras: number, broke: boolean): FightSpec {
     teams,
     rules: {
       clock: { period: 1, limit: 8, winner: 0 },
+      glass: GLASS,
       // SIMPLIFIED: guards and Brutus III break off under 30 % of their HP
       // (the doc says 25 % for the guards, 30 % for Brutus III).
       flee: {

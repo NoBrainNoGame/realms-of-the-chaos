@@ -2,6 +2,8 @@ import {
   type AdventureRules,
   AdventureTracker,
   type AutonomyOrder,
+  type CrystalGain,
+  type CrystalOp,
 } from "./adventure"
 import { decide, decideDivine } from "./ai"
 import {
@@ -80,6 +82,14 @@ export type Command =
   | { type: "insist"; fighterId: string }
   /** Adventure autonomy: the Ghom withdraws, the fight stops. */
   | { type: "withdraw"; fighterId: string }
+  /** Adventure crystals and cold: extract, detach, carry, deposit, bridge, gel. */
+  | {
+      type: "crystal"
+      fighterId: string
+      op: CrystalOp
+      target: Point
+      gain?: CrystalGain
+    }
   | {
       type: "useDivine"
       fighterId: string
@@ -530,6 +540,7 @@ export class Combat {
     return widest.filter(
       (p) =>
         this.inLaunchZone(action, origin, p) &&
+        !this.board.glassBetween(origin, p) &&
         (!action.lineOfSight || this.board.hasLineOfSight(origin, p)),
     )
   }
@@ -601,6 +612,7 @@ export class Combat {
       (p) =>
         this.inLaunchZone(action, origin, p) &&
         this.targetMatches(fighter, action, p, origin) &&
+        !this.board.glassBetween(origin, p) &&
         (!action.lineOfSight || this.board.hasLineOfSight(origin, p)),
     )
   }
@@ -826,6 +838,13 @@ export class Combat {
       fighter.cooldowns[id] = Math.max(0, fighter.cooldowns[id] - 1)
     }
 
+    if (this.adventure?.frozenTurn(fighter)) {
+      // frozen: the turn goes by
+      this._emit({ type: "frozenTurn", fighterId: fighter.id })
+      this._endTurn(fighter, this.baseDelay(fighter))
+      return
+    }
+
     if (fighter.controller === "ai") {
       this._playAi(fighter)
     } else if (this.adventure?.playsAlone(fighter)) {
@@ -845,6 +864,11 @@ export class Combat {
       if (this._activeFighter === fighter && this._state === "running") {
         this._pass(fighter)
       }
+      return
+    }
+    const raid = this.adventure?.crystals
+    if (raid?.raid(fighter)) {
+      this._finishCrystal(fighter, raid.cost("extract"))
       return
     }
     const spell = divine ? decideDivine(this, fighter) : null
@@ -914,6 +938,40 @@ export class Combat {
     })
     if (blocked) return blocked
     return this._logged(command, this._moveTo(fighter, destination, append))
+  }
+
+  /**
+   * Adventure: extract / detach / carry / deposit a crystal, lay it as a bridge,
+   * freeze or thaw. Ends the turn like an action.
+   */
+  crystal(op: CrystalOp, target: Point, gain: CrystalGain = "elan") {
+    const fighter = this._checkInput()
+    if (typeof fighter === "string") return this._result(fighter)
+    const command: Command = {
+      type: "crystal",
+      fighterId: fighter.id,
+      op,
+      target: { ...target },
+    }
+    if (gain !== "elan") command.gain = gain
+    if (this.adventure?.pending) return this._result(WAITING_FOR_GHOM)
+    const kit = this.adventure?.crystals
+    if (!kit) return this._result("Pas de cristaux ici")
+    const error = kit.operate(fighter, op, target, gain)
+    if (error) return this._result(error)
+    this._finishCrystal(fighter, kit.cost(op))
+    return this._logged(command, null)
+  }
+
+  private _finishCrystal(fighter: Fighter, cost: number) {
+    if (this._state === "ended") {
+      this._activeFighter = null
+      return
+    }
+    this._endTurn(
+      fighter,
+      this.baseDelay(fighter) * cost * this.delayMultiplier(fighter),
+    )
   }
 
   /** Use an action. Ends the turn and adds its cost to the timeline. */
@@ -1070,6 +1128,8 @@ export class Combat {
         return this.insist()
       case "withdraw":
         return this.withdraw()
+      case "crystal":
+        return this.crystal(command.op, command.target, command.gain)
       case "useDivine":
         return this.useDivine(command.divineId, command.target)
     }
@@ -1862,6 +1922,16 @@ export class Combat {
   /** The terrain changed under the rules (a hole opened or closed). */
   refreshTerrain() {
     this._regions.clear()
+  }
+
+  /** Adds Élan to a team (adventure rules). */
+  grantEnergy(team: number, amount: number) {
+    this._gainEnergy(team, amount)
+  }
+
+  /** Heals a fighter (adventure rules). */
+  healFighter(target: Fighter, amount: number) {
+    this._heal(target, amount)
   }
 
   /** Plans a walk for an AI fighter (flight). */

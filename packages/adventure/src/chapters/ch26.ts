@@ -35,11 +35,9 @@ const objectives: ObjectiveSpec[] = [
     id: "carnet-intact",
     mark: "★",
     label: "Garder le Carnet intact",
-    // SIMPLIFIED: the carrier is not tracked by the report; the Carnet is
-    // intact while none of the team fell.
-    check: (r) =>
-      r.result !== "defeat" &&
-      !r.fighters.some((f) => f.team === 0 && f.hp <= 0),
+    // The Carnet is a geode the hero carries: it is intact while it is still
+    // held (a carrier who falls lets it drop).
+    check: (r) => r.result !== "defeat" && !!r.crystals?.held.carnet,
     success: "Le Carnet n'a pas pris l'eau tiède.",
     failure: "Quelques pages ont fondu.",
     onSuccess: [set("carnet_intact")],
@@ -101,7 +99,20 @@ const fight: FightSpec = {
       ],
     },
   ],
-  rules: { clock: { period: 1, limit: 10, winner: 0 }, announce: true },
+  rules: {
+    clock: { period: 1, limit: 10, winner: 0 },
+    announce: true,
+    crystals: {
+      crystals: [
+        {
+          id: "carnet",
+          at: { x: 1, y: 4 },
+          kind: "geode",
+          carriedBy: { team: 0, index: 0 },
+        },
+      ],
+    },
+  },
   influences: ["earthquake", "timeWarp", "blessing"],
   startEnergy: 4,
   objectives,

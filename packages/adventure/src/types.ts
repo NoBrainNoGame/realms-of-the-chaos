@@ -322,6 +322,34 @@ export interface FightReport {
   }[]
   /** Fraying steps the ground went through. */
   frayed?: number
+  /** Crystals broken, detached, carried, dropped, deposited (adventure rules). */
+  crystals?: {
+    extracted: {
+      id: string
+      by: string
+      team: number
+      gain: "elan" | "heal"
+      at: { x: number; y: number }
+    }[]
+    detached: { id: string; by: string }[]
+    carried: { id: string; by: string }[]
+    dropped: { id: string; by: string; at: { x: number; y: number } }[]
+    deposited: { id: string; by: string; at: { x: number; y: number } }[]
+    dead: string[]
+    /** Pairs of fighters linked by entangled crystals. */
+    linked: [string, string][]
+    /** Who holds each crystal now (null: nobody). */
+    held: Record<string, string | null>
+    state: Record<string, string>
+  }
+  /** Cells a crystal bridge made walkable. */
+  bridged?: { x: number; y: number }[]
+  /** Cold: fighters frozen, cells iced, what thawed. */
+  gel?: {
+    frozen: { fighterId: string; by: string | null; until: number }[]
+    iced: { x: number; y: number }[]
+    thawed: string[]
+  }
   fighters: {
     id: string
     preset: string

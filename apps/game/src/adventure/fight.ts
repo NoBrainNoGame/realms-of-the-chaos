@@ -138,6 +138,9 @@ export function reportOf(spec: FightSpec, combat: Combat): FightReport {
     measured: tracker && structuredClone(tracker.measured),
     doubles: tracker && structuredClone(tracker.doubles),
     frayed: tracker?.frayed ?? 0,
+    crystals: tracker && structuredClone(tracker.crystals),
+    bridged: tracker && structuredClone(tracker.bridged),
+    gel: tracker && structuredClone(tracker.gel),
     fighters: combat.fighters.map((f) => ({
       id: f.id,
       preset: presetOf(f),
