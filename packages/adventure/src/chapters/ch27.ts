@@ -50,7 +50,7 @@ const disputed: FightSpec = {
       fighters: [at(GIANT, 6, 4), at(UNSTABLE, 6, 3), at(UNSTABLE, 6, 5)],
     },
   ],
-  rules: { clock: { period: 1, limit: 8, winner: 0 }, announce: true },
+  rules: { clock: { period: 10, limit: 8, winner: 0 }, announce: true },
   influences: ["earthquake", "timeWarp", "blessing"],
   startEnergy: 4,
   objectives: [
@@ -117,7 +117,7 @@ const pressures: FightSpec = {
       fighters: [at(UNSTABLE, 6, 3), at(UNSTABLE, 6, 5), at(UNSTABLE, 7, 4)],
     },
   ],
-  rules: { clock: { period: 1, limit: 7, winner: 0 }, announce: true },
+  rules: { clock: { period: 10, limit: 7, winner: 0 }, announce: true },
   influences: ["earthquake", "timeWarp", "blessing"],
   startEnergy: 6,
   objectives: objectives2,

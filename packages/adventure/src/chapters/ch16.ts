@@ -83,7 +83,7 @@ function fonderie(ally: Ally, rallie: boolean, extraits: boolean): FightSpec {
     ],
     // The clock stands for "tenir jusqu'à ce qu'il se passe quelque chose".
     rules: {
-      clock: { period: 1, limit: 10, winner: 0 },
+      clock: { period: 10, limit: 10, winner: 0 },
       flee: { team: 1, below: 0.25, exits: [{ x: 0, y: 0 }] },
       announce: true,
     },

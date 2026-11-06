@@ -240,7 +240,7 @@ function rupture(l: Id): FightSpec {
         ],
       },
       neutral: [2],
-      clock: { period: 1, limit: 9, winner: 0 },
+      clock: { period: 10, limit: 9, winner: 0 },
       announce: true,
     },
     influences: ["earthquake", "timeWarp", "blessing"],
@@ -339,7 +339,7 @@ const epreuve: FightSpec = {
   rules: {
     silent: LIP_X,
     silentDamage: 1,
-    clock: { period: 1, limit: 6, winner: 0 },
+    clock: { period: 10, limit: 6, winner: 0 },
     announce: true,
   },
   influences: ["earthquake", "timeWarp", "blessing"],

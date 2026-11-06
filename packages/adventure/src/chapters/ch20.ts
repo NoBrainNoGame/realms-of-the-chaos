@@ -145,7 +145,7 @@ const lacMuet: FightSpec = {
     zones: LAKE_ZONES,
     zoneTeams: [0],
     neutral: [2],
-    clock: { period: 1, limit: 8, winner: 0 },
+    clock: { period: 10, limit: 8, winner: 0 },
     announce: true,
   },
   influences: ["earthquake", "timeWarp", "blessing"],

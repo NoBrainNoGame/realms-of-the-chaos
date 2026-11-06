@@ -148,7 +148,7 @@ const ancrages: FightSpec = {
       ],
       decohereAt: 6,
     },
-    clock: { period: 1, limit: 8, winner: 0 },
+    clock: { period: 10, limit: 8, winner: 0 },
     announce: true,
   },
   influences: ["earthquake", "timeWarp", "blessing"],

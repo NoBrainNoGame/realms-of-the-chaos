@@ -265,7 +265,7 @@ function recomposition(
     ],
     rules: {
       finale: true,
-      clock: { period: 1, limit: 12, winner: 0 },
+      clock: { period: 10, limit: 12, winner: 0 },
       silent: LACUNE,
       silentDamage: 1,
       announce: true,

@@ -167,7 +167,7 @@ function bord(b: Bits): FightSpec {
       // A Lacunaire of the Chaos "fixes" instead of dying: brought to a stable
       // form, it stops (SIMPLIFIED stand-in for the peace of three).
       fixOnDeath: [2],
-      clock: { period: 1, limit: 10, winner: 0 },
+      clock: { period: 10, limit: 10, winner: 0 },
       announce: true,
     },
     influences: ["earthquake", "timeWarp", "blessing"],

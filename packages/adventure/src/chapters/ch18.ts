@@ -174,7 +174,7 @@ function evacuation(
         deposits: AUTOUR,
         bridge: { span: 2 },
       },
-      clock: { period: 1, limit: 12, winner: 0 },
+      clock: { period: 10, limit: 12, winner: 0 },
       ...(portes
         ? {}
         : { flee: { team: 1, below: 0.3, exits: [{ x: 6, y: 0 }] } }),

@@ -98,7 +98,7 @@ const guetteurs: FightSpec = {
         { x: 5, y: 7 },
       ],
     },
-    clock: { period: 1, limit: 10, winner: 0 },
+    clock: { period: 10, limit: 10, winner: 0 },
     announce: true,
   },
   influences: ["earthquake", "timeWarp", "blessing"],

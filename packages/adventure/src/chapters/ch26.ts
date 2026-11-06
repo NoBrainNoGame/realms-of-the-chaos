@@ -109,7 +109,7 @@ const fight: FightSpec = {
     },
   ],
   rules: {
-    clock: { period: 1, limit: 10, winner: 0 },
+    clock: { period: 10, limit: 10, winner: 0 },
     announce: true,
     // La Tiédeur: only the heart of the stage is still hot; elsewhere the
     // heat has equalised, and every turn spent there costs a little. Acting,

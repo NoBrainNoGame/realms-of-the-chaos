@@ -93,7 +93,7 @@ export const fight: FightSpec = {
     },
   ],
   rules: {
-    clock: { period: 1, limit: 8, winner: 0 },
+    clock: { period: 10, limit: 8, winner: 0 },
     flee: {
       team: 1,
       below: 0.3,

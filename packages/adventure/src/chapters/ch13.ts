@@ -150,7 +150,7 @@ function citernes(ally: Ally, extras: number, broke: boolean): FightSpec {
     board: BOARD,
     teams,
     rules: {
-      clock: { period: 1, limit: 14, winner: 1 },
+      clock: { period: 10, limit: 14, winner: 1 },
       glass: GLASS,
       // The lampadaires, by pairs; the twin of (3,4) is in a façade off the map.
       crystals: {

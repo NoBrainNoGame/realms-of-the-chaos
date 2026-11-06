@@ -263,7 +263,7 @@ function fonds(ally: Ally, rallie: boolean): FightSpec {
     rules: {
       neutral: rallie ? undefined : [2],
       crystals: { crystals: ARCHIVES, raiders: [1] },
-      clock: { period: 1, limit: 12, winner: 0 },
+      clock: { period: 10, limit: 12, winner: 0 },
       flee: {
         team: 1,
         below: 0.25,
