@@ -8,7 +8,7 @@
  * a client with the same rules as the builder screen.
  */
 import { healthFor, type Kit, presetPower, STAT_LIMITS } from "./balance"
-import { ACTIONS, CHARACTERS } from "./content"
+import { ACTIONS, CHARACTERS, forbiddenAction } from "./content"
 import { checkSpell, NAME_RULE, type SpellRecipe } from "./spells"
 import type {
   ActionDefinition,
@@ -62,13 +62,27 @@ export type SpellsCheck =
   | { ok: true; ids: string[]; defs: ActionDefinition[] }
   | { ok: false; reason: string }
 
+/** What a caller explicitly allows beyond the public rules. */
+export interface CheckOptions {
+  /** Accept forbidden actions (vacuum decay) among the spells. */
+  forbidden?: boolean
+}
+
 /** Checks the picked spells of a character, and builds their actions. */
-export function checkSpells(spells: unknown): SpellsCheck {
+export function checkSpells(
+  spells: unknown,
+  options: CheckOptions = {},
+): SpellsCheck {
   if (!Array.isArray(spells) || spells.length < 1 || spells.length > MAX_SPELLS)
     return { ok: false, reason: `1 to ${MAX_SPELLS} spells` }
   const defs: ActionDefinition[] = []
   for (const entry of spells) {
     if (typeof entry === "string") {
+      const forbidden = options.forbidden ? forbiddenAction(entry) : undefined
+      if (forbidden) {
+        defs.push(forbidden)
+        continue
+      }
       if (!PICKABLE_ACTIONS.includes(entry))
         return { ok: false, reason: `unknown action "${entry}"` }
       defs.push(ACTIONS[entry])
@@ -87,7 +101,8 @@ export function checkSpells(spells: unknown): SpellsCheck {
 /** The kit a character plays: its spells when it picks some. */
 function kitOf(kit: string, spells?: (string | SpellRecipe)[]): Kit {
   if (spells === undefined) return kitPreset(kit).actions
-  const check = checkSpells(spells)
+  // internal: the public gate is `checkCustom`, which refuses forbidden spells
+  const check = checkSpells(spells, { forbidden: true })
   if (!check.ok) throw new Error(`Invalid spells: ${check.reason}`)
   return check.defs
 }
@@ -189,8 +204,11 @@ export type CustomCheck =
   | { ok: true; preset: CharacterPreset }
   | { ok: false; reason: string }
 
-/** Checks a character (builder, server) and makes its preset. */
-export function checkCustom(character: CustomCharacter): CustomCheck {
+/** Checks a character (builder, server) and makes its preset. Forbidden spells are refused unless `options.forbidden`. */
+export function checkCustom(
+  character: CustomCharacter,
+  options: CheckOptions = {},
+): CustomCheck {
   const { name, kit, stats, spells } = character
   if (!CHARACTERS[kit]) return { ok: false, reason: `unknown kit "${kit}"` }
   if (typeof name !== "string" || !CUSTOM_NAME.test(name))
@@ -207,7 +225,7 @@ export function checkCustom(character: CustomCharacter): CustomCheck {
   }
   let picked: SpellsCheck | null = null
   if (spells !== undefined) {
-    picked = checkSpells(spells)
+    picked = checkSpells(spells, options)
     if (!picked.ok) return { ok: false, reason: picked.reason }
   }
   const full = customStats(kit, pick(stats), spells)
@@ -235,8 +253,11 @@ export function checkCustom(character: CustomCharacter): CustomCheck {
 }
 
 /** The preset of a valid character (throws otherwise). */
-export function customPreset(character: CustomCharacter): CharacterPreset {
-  const check = checkCustom(character)
+export function customPreset(
+  character: CustomCharacter,
+  options: CheckOptions = {},
+): CharacterPreset {
+  const check = checkCustom(character, options)
   if (!check.ok) throw new Error(`Invalid character: ${check.reason}`)
   return check.preset
 }

@@ -7,10 +7,17 @@ import {
   customPreset,
   HP_PER_HEALTH,
   resolveAction,
+  scarredCharacters,
 } from "@realms/engine"
 import { Container, Graphics, Sprite } from "pixi.js"
 import { settings } from "../settings"
-import { arcadeBest, customCharacters, customId } from "../storage"
+import {
+  allowance,
+  arcadeBest,
+  customCharacters,
+  customId,
+  scarCount,
+} from "../storage"
 import Backdrop from "./Backdrop"
 import { LOCOMOTION_TRAITS } from "./Hud"
 import { registerLook } from "./looks"
@@ -103,7 +110,9 @@ export default class TeamPicker extends ViewChip<PickerEvents> {
   private _seed: number
   private _enemies: string[]
   /** The characters offered: the eight, then the saved customs. */
-  private _roster: Record<string, CharacterPreset> = { ...CHARACTERS }
+  private _roster: Record<string, CharacterPreset> = {
+    ...scarredCharacters(scarCount()),
+  }
   /** Ids of the saved customs, in order. */
   private _customIds: string[] = []
 
@@ -115,7 +124,7 @@ export default class TeamPicker extends ViewChip<PickerEvents> {
     this._seed = options.seed ?? Math.floor(Math.random() * 1e6)
     for (const c of customCharacters()) {
       const id = customId(c.name)
-      this._roster[id] = customPreset(c)
+      this._roster[id] = customPreset(c, allowance())
       this._customIds.push(id)
       registerLook(id, c.kit)
     }

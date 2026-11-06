@@ -3,8 +3,13 @@
  * like the kit it was built from, until the modular puppet exists. Every
  * place that picks art from a preset id goes through `lookOf`.
  */
-import { CHARACTERS, type CharacterPreset, customPreset } from "@realms/engine"
-import { customById, isCustomId } from "../storage"
+import {
+  CHARACTERS,
+  type CharacterPreset,
+  customPreset,
+  scarredFighter,
+} from "@realms/engine"
+import { allowance, customById, isCustomId, scarCount } from "../storage"
 
 const looks = new Map<string, string>()
 
@@ -35,13 +40,15 @@ export function resolveFighters(ids: string[]): (string | CharacterPreset)[] {
   const out: (string | CharacterPreset)[] = []
   for (const id of ids) {
     if (!isCustomId(id)) {
-      out.push(id)
+      // offline modes play the characters as the scars left them (online
+      // play, one day, stays canonical)
+      out.push(scarredFighter(id, scarCount()))
       continue
     }
     const stored = customById(id)
     if (!stored) continue
     registerLook(id, stored.kit)
-    out.push(customPreset(stored))
+    out.push(customPreset(stored, allowance()))
   }
   return out
 }

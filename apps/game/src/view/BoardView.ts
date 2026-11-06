@@ -32,6 +32,7 @@ import {
   shade,
   TILE_DEPTH,
   TILE_WIDTH,
+  tinted,
   toScreen,
   verticalScale,
   visibleFaces,
@@ -632,7 +633,10 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
           b.y + topY + 4,
           a.x,
           a.y + topY + 4,
-        ]).fill({ color: light < 1 ? 0x3f6b2a : 0x4f7d33, alpha: 0.9 })
+        ]).fill({
+          color: light < 1 ? tinted(0x3f6b2a) : tinted(0x4f7d33),
+          alpha: 0.9,
+        })
       }
     }
     const f = frontCorner()
@@ -802,11 +806,11 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
         x = nx
         y = ny
       }
-      g.stroke({ width: 1.3, color: 0x2b5d1f, alpha: 0.95 })
+      g.stroke({ width: 1.3, color: tinted(0x2b5d1f), alpha: 0.95 })
       points.forEach(([px, py], k) => {
         const dir = k % 2 === 0 ? 1 : -1
         g.ellipse(px + dir * 1.6, py - 2, 1.6, 0.9).fill(
-          k % 2 ? 0x4f8a2f : 0x3f7a25,
+          k % 2 ? tinted(0x4f8a2f) : tinted(0x3f7a25),
         )
       })
       items.push({ at: { x: t, y: 0 }, node: g })

@@ -317,6 +317,33 @@ export const ACTIONS: Record<string, ActionDefinition> = Object.fromEntries(
   actionList.map((action) => [action.id, action]),
 )
 
+/**
+ * Forbidden actions: in no character's kit, never valued by the spell
+ * builder, never chosen by the AI. A custom character may carry one only
+ * when the caller allows it (`checkCustom(c, { forbidden: true })`), so a
+ * server never accepts them by default.
+ */
+export const FORBIDDEN_ACTIONS: Record<string, ActionDefinition> = {
+  vacuumDecay: {
+    id: "vacuumDecay",
+    name: "Vacuum decay",
+    description:
+      "Le vide du Fragment n'est qu'un faux vide, métastable. Cet instant le fait basculer vers un vide plus bas : une bulle de vide vrai, qui s'étend presque à la vitesse de la lumière en réécrivant les constantes physiques sur son passage. Rien de ce qu'elle atteint ne reste tel quel.",
+    launch: { shape: "point", max: 0 },
+    lineOfSight: false,
+    target: "self",
+    timeCost: 1,
+    effects: [{ type: "vacuumDecay" }],
+  },
+}
+
+/** The forbidden action `id` (undefined when it is not one). */
+export function forbiddenAction(id: string): ActionDefinition | undefined {
+  return Object.hasOwn(FORBIDDEN_ACTIONS, id)
+    ? FORBIDDEN_ACTIONS[id]
+    : undefined
+}
+
 const characterList: CharacterPreset[] = [
   {
     id: "merlin",

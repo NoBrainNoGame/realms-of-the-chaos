@@ -5,8 +5,14 @@
  */
 import { Combat, type CombatOptions, type Command } from "./combat"
 import { CHARACTERS } from "./content"
-import { type CustomCharacter, checkCustom, customPreset } from "./custom"
+import {
+  type CheckOptions,
+  type CustomCharacter,
+  checkCustom,
+  customPreset,
+} from "./custom"
 import { createRng } from "./random"
+import { scarredFighter } from "./scars"
 
 export type ArcadeBonus = "heal" | "power" | "recruit"
 
@@ -41,8 +47,14 @@ export const ARCADE_MAX_WAVES = 50
 /** A team member: a character id, or a custom character (checked). */
 export type ArcadeMember = string | CustomCharacter
 
-function memberPreset(member: ArcadeMember) {
-  return typeof member === "string" ? member : customPreset(member)
+function memberPreset(
+  member: ArcadeMember,
+  scars: number,
+  check: CheckOptions,
+) {
+  return typeof member === "string"
+    ? scarredFighter(member, scars)
+    : customPreset(member, check)
 }
 
 export interface ArcadeState {
@@ -58,14 +70,18 @@ export interface ArcadeState {
   alive: boolean
 }
 
-export function startArcade(team: ArcadeMember[]): ArcadeState {
+/** `check`: what the caller allows in custom characters (forbidden spells). */
+export function startArcade(
+  team: ArcadeMember[],
+  check: CheckOptions = {},
+): ArcadeState {
   if (team.length < 1 || team.length > ARCADE_MAX_TEAM) {
     throw new Error(`An arcade team has 1 to ${ARCADE_MAX_TEAM} fighters`)
   }
   for (const id of team) {
     if (typeof id !== "string") {
-      const check = checkCustom(id)
-      if (!check.ok) throw new Error(`Invalid character: ${check.reason}`)
+      const checked = checkCustom(id, check)
+      if (!checked.ok) throw new Error(`Invalid character: ${checked.reason}`)
     } else if (!CHARACTERS[id]) throw new Error(`Unknown character "${id}"`)
   }
   return {
@@ -91,9 +107,15 @@ export function arcadeEnemies(runSeed: number, wave: number): string[] {
   return Array.from({ length: count }, () => rng.pick(ids))
 }
 
+/**
+ * `scars` are the save's vacuum decay scars: the reference characters are
+ * the scarred ones (same power, a few stats shifted).
+ */
 export function arcadeWaveOptions(
   runSeed: number,
   state: ArcadeState,
+  scars = 0,
+  check: CheckOptions = {},
 ): CombatOptions {
   return {
     seed: waveSeed(runSeed, state.wave),
@@ -101,14 +123,16 @@ export function arcadeWaveOptions(
       {
         name: "Vous",
         controller: "human",
-        fighters: state.team.map(memberPreset),
+        fighters: state.team.map((m) => memberPreset(m, scars, check)),
         statMultiplier: state.multiplier,
         hp: state.hp,
       },
       {
         name: `Marée ${state.wave}`,
         controller: "ai",
-        fighters: arcadeEnemies(runSeed, state.wave),
+        fighters: arcadeEnemies(runSeed, state.wave).map((id) =>
+          scarredFighter(id, scars),
+        ),
         statMultiplier:
           ARCADE_FIRST_WAVE + ARCADE_WAVE_GROWTH * (state.wave - 1),
       },
@@ -187,23 +211,28 @@ export interface ArcadeRecord {
   seed: number
   team: ArcadeMember[]
   waves: { log: Command[]; bonus: ArcadeBonus | null }[]
+  /** Scars of the save the run was played on (0 when absent). */
+  scars?: number
 }
 
 /**
  * Replay a whole run with the engine and return its real outcome. Throws if
  * the record is impossible (invalid commands, unfinished waves, fake bonus).
  */
-export function verifyArcadeRun(record: ArcadeRecord): {
+export function verifyArcadeRun(
+  record: ArcadeRecord,
+  check: CheckOptions = {},
+): {
   score: number
   waves: number
 } {
   if (record.waves.length > ARCADE_MAX_WAVES) throw new Error("Too many waves")
-  let state = startArcade(record.team)
+  let state = startArcade(record.team, check)
   for (const [index, wave] of record.waves.entries()) {
     if (!state.alive)
       throw new Error(`Wave ${index + 1} played after the run ended`)
     const combat = Combat.replay(
-      arcadeWaveOptions(record.seed, state),
+      arcadeWaveOptions(record.seed, state, record.scars ?? 0, check),
       wave.log,
     )
     if (combat.state !== "ended")

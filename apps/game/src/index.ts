@@ -1,9 +1,14 @@
 import * as booyah from "@ghom/booyah"
 import { Application, TextureStyle } from "pixi.js"
 import { params } from "./params"
+import { grantForbidden, scarCount } from "./storage"
 import Game from "./view/Game"
 import { Quality } from "./view/quality"
-import { COLORS, FONT } from "./view/theme"
+import { applyScars, COLORS, FONT } from "./view/theme"
+
+// the scars of past vacuum decays drift the colours (before anything draws)
+applyScars(scarCount())
+for (const id of params.grant) grantForbidden(id)
 
 // crisp pixel art everywhere
 TextureStyle.defaultOptions.scaleMode = "nearest"

@@ -13,6 +13,7 @@ import {
   customDefaults,
   customRange,
   customStats,
+  forbiddenAction,
   HP_PER_HEALTH,
   MAX_SPELLS,
   PICKABLE_ACTIONS,
@@ -23,8 +24,10 @@ import {
 import { Container, Graphics } from "pixi.js"
 import { generateName } from "../names"
 import {
+  allowance,
   customCharacters,
   deleteCustom,
+  forbiddenUnlocked,
   MAX_CUSTOMS,
   saveCustom,
 } from "../storage"
@@ -32,7 +35,7 @@ import { actionIcon } from "./actionFx"
 import Backdrop from "./Backdrop"
 import { Puppet } from "./Puppet"
 import SpellForge from "./SpellForge"
-import { COLORS } from "./theme"
+import { COLORS, MEANING } from "./theme"
 import { type Button, button, clearChildren, panel, text } from "./ui"
 import ViewChip from "./ViewChip"
 
@@ -42,10 +45,16 @@ interface CreatorEvents extends booyah.BaseCompositeEvents {
 
 type Spells = (string | SpellRecipe)[]
 
+/** A catalogue action, or a forbidden one. */
+const actionById = (id: string) => forbiddenAction(id) ?? resolveAction({}, id)
+
+/** The warning shown with a forbidden spell. */
+export const FORBIDDEN_WARNING = "Interdit. Hors de l'Aventure, il efface tout."
+
 /** What a slot shows of a spell. */
 export function spellInfo(entry: string | SpellRecipe) {
   if (typeof entry === "string") {
-    const action = resolveAction({}, entry)
+    const action = actionById(entry)
     return {
       name: action.name,
       cost: action.timeCost,
@@ -165,7 +174,7 @@ export default class Creator extends ViewChip<CreatorEvents> {
   }
 
   get canSave() {
-    if (!checkCustom(this.character).ok) return false
+    if (!checkCustom(this.character, allowance()).ok) return false
     if (this._editing) return true
     const saved = customCharacters()
     return (
@@ -266,7 +275,7 @@ export default class Creator extends ViewChip<CreatorEvents> {
         const { min, max } = customRange(this._kit, stats, stat, spells)
         if (min <= max) stats[stat] = Math.min(max, Math.max(min, stats[stat]))
       }
-      if (checkCustom({ ...this.character, stats }).ok) {
+      if (checkCustom({ ...this.character, stats }, allowance()).ok) {
         this._stats = stats
         return
       }
@@ -294,6 +303,11 @@ export default class Creator extends ViewChip<CreatorEvents> {
     return Math.ceil(PICKABLE_ACTIONS.length / PAGE)
   }
 
+  /** Forbidden spells of the save, offered apart (none until obtained). */
+  get forbidden(): string[] {
+    return forbiddenUnlocked()
+  }
+
   chooserPage(direction: -1 | 1) {
     if (!this._chooser) return
     const page = this._chooser.page + direction
@@ -304,7 +318,11 @@ export default class Creator extends ViewChip<CreatorEvents> {
 
   /** Picks an existing action for the slot being chosen. */
   pickAction(id: string) {
-    if (!this._chooser || !PICKABLE_ACTIONS.includes(id)) return false
+    if (
+      !this._chooser ||
+      !(PICKABLE_ACTIONS.includes(id) || this.forbidden.includes(id))
+    )
+      return false
     const ok = this.setSpell(this._chooser.slot, id)
     if (ok) this._chooser = null
     return ok
@@ -607,7 +625,7 @@ export default class Creator extends ViewChip<CreatorEvents> {
     )
     note.position.set(x, health.y + 28)
     this._box.addChild(health, note)
-    if (!checkCustom(this.character).ok) {
+    if (!checkCustom(this.character, allowance()).ok) {
       const warn = text(
         "Cette composition est trop forte ou trop faible : changez un sort ou une qualité.",
         12,
@@ -826,7 +844,7 @@ export default class Creator extends ViewChip<CreatorEvents> {
     })
     hint.position.set(16, top + 480)
     ids.forEach((id, i) => {
-      const action = resolveAction({}, id)
+      const action = actionById(id)
       const col = i % 2
       const row = Math.floor(i / 2)
       const b = button({
@@ -849,6 +867,34 @@ export default class Creator extends ViewChip<CreatorEvents> {
       this._box.addChild(b.view)
     })
     this._box.addChild(hint)
+
+    // forbidden spells, once obtained: apart, and ominous
+    this.forbidden.forEach((id, i) => {
+      const action = forbiddenAction(id)!
+      const y = top + 392 + i * 56
+      const b = button({
+        width: WIDTH - 32,
+        height: 44,
+        inline: true,
+        icon: actionIcon(action),
+        label: `${action.name} · délai ${action.timeCost.toFixed(2)}`,
+        labelColor: 0xe7f5ff,
+        onTap: () => this.pickAction(id),
+        onOver: () => {
+          hint.text = action.description
+        },
+      })
+      b.view.label = `creator:pick:${id}`
+      b.view.position.set(16, y)
+      b.setState({
+        enabled: !taken.has(id),
+        selected: this.spells[chooser.slot] === id,
+      })
+      const warning = text(FORBIDDEN_WARNING, 12, MEANING.damage)
+      warning.label = `creator:warning:${id}`
+      warning.position.set(18, y + 46)
+      this._box.addChild(b.view, warning)
+    })
 
     const prev = this._small("‹", () => this.chooserPage(-1), "creator:page:-")
     prev.view.position.set(16, top + 540)

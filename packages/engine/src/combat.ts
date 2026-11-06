@@ -159,6 +159,7 @@ export class Combat {
   private _state: CombatState = "running"
   private _activeFighter: Fighter | null = null
   private _winnerTeam: number | null = null
+  private _collapsed = false
   private _events: FightEvent[] = []
   private _log: Command[] = []
   private _presets = new Map<string, CharacterPreset>()
@@ -287,6 +288,11 @@ export class Combat {
 
   get activeFighter() {
     return this._activeFighter
+  }
+
+  /** Whether the fight ended by a vacuum decay (no winner, no survivor). */
+  get collapsed() {
+    return this._collapsed
   }
 
   get winnerTeam() {
@@ -1263,6 +1269,11 @@ export class Combat {
       case "selfHeal":
         if (fighter.alive)
           this._heal(fighter, this.estimateHeal(fighter, effect.power))
+        break
+      case "vacuumDecay":
+        this._collapsed = true
+        this._emit({ type: "vacuumDecay", fighterId: fighter.id })
+        this._end(null)
         break
     }
   }

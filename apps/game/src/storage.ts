@@ -3,7 +3,11 @@
  * guarded: storage can be missing or blocked (private mode, tests).
  */
 
-import { type CustomCharacter, checkCustom } from "@realms/engine"
+import {
+  type CustomCharacter,
+  checkCustom,
+  forbiddenAction,
+} from "@realms/engine"
 
 export interface ArcadeBest {
   score: number
@@ -13,11 +17,56 @@ export interface ArcadeBest {
   date: string
 }
 
-const ARCADE_KEY = "realms.arcade.best"
-const CUSTOM_KEY = "realms.custom"
+/**
+ * Every key of the player's save lives under this prefix, so that a vacuum
+ * decay (see `vacuumDecayWipe`) wipes them all, future keys included.
+ * Never put a setting or the scars under it.
+ */
+export const SAVE_PREFIX = "realms.save."
+
+/** The keys of the save (add new ones here, under the prefix). */
+export const SAVE_KEYS = {
+  arcade: `${SAVE_PREFIX}arcade.best`,
+  custom: `${SAVE_PREFIX}custom`,
+  /** Forbidden actions the player owns (see `grantForbidden`). */
+  unlocks: `${SAVE_PREFIX}unlocks`,
+} as const
+
+/** Survives every wipe: how many vacuum decays this browser has seen. */
+export const SCARS_KEY = "realms.scars"
+
+/** Keys from before the save had a prefix, moved on first use. */
+const LEGACY_KEYS: Record<string, string> = {
+  "realms.arcade.best": SAVE_KEYS.arcade,
+  "realms.custom": SAVE_KEYS.custom,
+}
+
+const ARCADE_KEY = SAVE_KEYS.arcade
+const CUSTOM_KEY = SAVE_KEYS.custom
+const UNLOCKS_KEY = SAVE_KEYS.unlocks
 export const MAX_CUSTOMS = 12
 
+let migrated = false
+
+function migrate() {
+  if (migrated) return
+  migrated = true
+  try {
+    const storage = globalThis.localStorage
+    if (!storage) return
+    for (const [old, key] of Object.entries(LEGACY_KEYS)) {
+      const value = storage.getItem(old)
+      if (value === null) continue
+      if (storage.getItem(key) === null) storage.setItem(key, value)
+      storage.removeItem(old)
+    }
+  } catch {
+    // storage blocked: nothing to move
+  }
+}
+
 function read<T>(key: string): T | null {
+  migrate()
   try {
     const raw = globalThis.localStorage?.getItem(key)
     return raw ? (JSON.parse(raw) as T) : null
@@ -27,6 +76,7 @@ function read<T>(key: string): T | null {
 }
 
 function write(key: string, value: unknown) {
+  migrate()
   try {
     globalThis.localStorage?.setItem(key, JSON.stringify(value))
   } catch {
@@ -56,7 +106,8 @@ export function customCharacters(): CustomCharacter[] {
   const out: CustomCharacter[] = []
   for (const entry of raw) {
     try {
-      if (!entry || !checkCustom(entry as CustomCharacter).ok) continue
+      if (!entry || !checkCustom(entry as CustomCharacter, allowance()).ok)
+        continue
     } catch {
       continue
     }
@@ -92,10 +143,80 @@ export function customById(id: string): CustomCharacter | undefined {
 export const customId = (name: string) => `custom:${name}`
 export const isCustomId = (id: string) => id.startsWith("custom:")
 
+// ─── Forbidden actions ──────────────────────────────────────────────────────
+
+/** Forbidden actions the player owns (ids of FORBIDDEN_ACTIONS). */
+export function forbiddenUnlocked(): string[] {
+  const raw = read<unknown>(UNLOCKS_KEY)
+  if (!Array.isArray(raw)) return []
+  return raw.filter(
+    (id): id is string => typeof id === "string" && !!forbiddenAction(id),
+  )
+}
+
+export function hasForbidden(id: string): boolean {
+  return forbiddenUnlocked().includes(id)
+}
+
+/** Gives the player a forbidden action (the Adventure, or `?grant=`). */
+export function grantForbidden(id: string) {
+  if (!forbiddenAction(id)) throw new Error(`Unknown forbidden action "${id}"`)
+  const owned = forbiddenUnlocked()
+  if (!owned.includes(id)) write(UNLOCKS_KEY, [...owned, id])
+}
+
+/** What the engine may accept in this save's characters. */
+export function allowance() {
+  return { forbidden: forbiddenUnlocked().length > 0 }
+}
+
+// ─── Scars and the wipe ─────────────────────────────────────────────────────
+
+/** How many times a vacuum decay wiped the save (0 when never). */
+export function scarCount(): number {
+  const n = read<unknown>(SCARS_KEY)
+  return typeof n === "number" && Number.isInteger(n) && n > 0 ? n : 0
+}
+
+/**
+ * The vacuum decay used outside the Adventure: erases the whole save (every
+ * key under SAVE_PREFIX, and the keys from before it) and leaves one more
+ * scar. Settings and the scars themselves are kept. Returns the new scars.
+ */
+export function vacuumDecayWipe(): number {
+  migrate()
+  try {
+    const storage = globalThis.localStorage
+    if (storage) {
+      const keys: string[] = []
+      for (let i = 0; i < storage.length; i++) {
+        const key = storage.key(i)
+        if (key?.startsWith(SAVE_PREFIX) || (key && key in LEGACY_KEYS))
+          keys.push(key)
+      }
+      for (const key of keys) storage.removeItem(key)
+    }
+  } catch {
+    // storage blocked: nothing was kept anyway
+  }
+  const scars = scarCount() + 1
+  write(SCARS_KEY, scars)
+  return scars
+}
+
+/** Empties the save without leaving a scar (tests). */
 export function clearStorage() {
   try {
-    globalThis.localStorage?.removeItem(ARCADE_KEY)
-    globalThis.localStorage?.removeItem(CUSTOM_KEY)
+    const storage = globalThis.localStorage
+    if (!storage) return
+    for (const key of Object.keys(storage)) {
+      if (
+        key.startsWith(SAVE_PREFIX) ||
+        key === SCARS_KEY ||
+        key in LEGACY_KEYS
+      )
+        storage.removeItem(key)
+    }
   } catch {
     // nothing to clear
   }

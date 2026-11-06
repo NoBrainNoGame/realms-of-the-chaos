@@ -7,6 +7,7 @@ import {
   depthAlong,
   levelHeight,
   project,
+  SKY,
   TILE_WIDTH,
 } from "./theme"
 import ViewChip from "./ViewChip"
@@ -317,9 +318,10 @@ export default class Backdrop extends ViewChip {
     canvas.height = 256
     const ctx = canvas.getContext("2d")!
     const g = ctx.createLinearGradient(0, 0, 0, 256)
-    g.addColorStop(0, "#0b0918")
-    g.addColorStop(0.55, "#1d1438")
-    g.addColorStop(1, "#2b1b4a")
+    const css = (c: number) => `#${c.toString(16).padStart(6, "0")}`
+    g.addColorStop(0, css(SKY[0]))
+    g.addColorStop(0.55, css(SKY[1]))
+    g.addColorStop(1, css(SKY[2]))
     ctx.fillStyle = g
     ctx.fillRect(0, 0, 2, 256)
     return Texture.from(canvas)

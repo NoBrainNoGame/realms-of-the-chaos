@@ -60,6 +60,11 @@ export type Effect =
   | { type: "delay"; amount: number }
   /** Heals the launcher itself. */
   | { type: "selfHeal"; power: number }
+  /**
+   * Forbidden: the false vacuum of the Fragment tunnels to a lower one.
+   * Ends the fight at once, with no winner (see `Combat.collapsed`).
+   */
+  | { type: "vacuumDecay" }
 
 export interface ActionDefinition {
   id: string
@@ -219,6 +224,8 @@ export type FightEvent =
       target: Point | null
     }
   | { type: "terrainChanged"; cell: Point }
+  /** A vacuum decay bubble was nucleated: nothing survives it. */
+  | { type: "vacuumDecay"; fighterId: string }
   | { type: "ended"; winnerTeam: number | null }
 
 export type CommandResult =

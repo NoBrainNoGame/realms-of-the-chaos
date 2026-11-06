@@ -1,14 +1,17 @@
 import type * as booyah from "@ghom/booyah"
 import type { Params } from "../params"
+import { vacuumDecayWipe } from "../storage"
 import ArcadeRun from "./ArcadeRun"
 import Creator from "./Creator"
 import FightScene, { classicFight, type SceneOptions } from "./FightScene"
 import Gallery from "./Gallery"
 import { resolveFighters } from "./looks"
+import MessageScreen from "./MessageScreen"
 import SettingsScreen from "./SettingsScreen"
 import TeamPicker, { type PickerMode, type PickerResult } from "./TeamPicker"
 import TitleScreen, { type TitleChoice } from "./TitleScreen"
 import Tutorial from "./Tutorial"
+import { applyScars } from "./theme"
 import ViewChip from "./ViewChip"
 
 export type Screen =
@@ -20,6 +23,8 @@ export type Screen =
   | { type: "tutorial" }
   | { type: "settings" }
   | { type: "creator"; edit?: string }
+  /** After a vacuum decay wiped the save. */
+  | { type: "collapse" }
 
 /** First screen from the URL (dev shortcuts), the title screen otherwise. */
 export function initialScreen(params: Params): Screen {
@@ -108,6 +113,7 @@ export function pickedFight(result: PickerResult, speed: number): SceneOptions {
 export default class Game extends ViewChip {
   private _current: booyah.Chip | null = null
   private _screen: Screen
+  private _collapsing = false
 
   constructor(private readonly _params: Params) {
     super()
@@ -124,6 +130,24 @@ export default class Game extends ViewChip {
 
   protected _onActivate() {
     this.show(this._screen)
+  }
+
+  protected _onTick() {
+    // the collapse waits for the scene's own tick to be over
+    if (this._collapsing) {
+      this._collapsing = false
+      this.collapse()
+    }
+  }
+
+  /**
+   * A vacuum decay was cast outside the Adventure: the save is wiped, the
+   * colours and some characters drift (scars), and the title screen
+   * follows a short message. (In the Adventure it will be the threat.)
+   */
+  collapse() {
+    applyScars(vacuumDecayWipe())
+    this.show({ type: "collapse" })
   }
 
   show(screen: Screen) {
@@ -171,6 +195,9 @@ export default class Game extends ViewChip {
       case "fight": {
         const scene = new FightScene(screen.options)
         this._subscribeOnce(scene, "quit", () => this.show({ type: "title" }))
+        this._subscribeOnce(scene, "vacuumDecay", () => {
+          this._collapsing = true
+        })
         this._subscribeOnce(scene, "endAction", (id: string) => {
           const picked = screen.picked
           if (id === "restart") {
@@ -195,10 +222,26 @@ export default class Game extends ViewChip {
       case "arcade": {
         const run = new ArcadeRun(screen.team, { speed })
         this._subscribeOnce(run, "exit", () => this.show({ type: "title" }))
+        this._subscribeOnce(run, "vacuumDecay", () => {
+          this._collapsing = true
+        })
         this._subscribeOnce(run, "again", () =>
           this.show({ type: "arcade", team: screen.team }),
         )
         return run
+      }
+
+      case "collapse": {
+        const message = new MessageScreen({
+          title: "Le vide a basculé",
+          color: 0xe7f5ff,
+          lines: ["Tout ce qui était là s'est réécrit."],
+          choices: [{ id: "title", label: "Écran titre" }],
+        })
+        this._subscribeOnce(message, "choose", () =>
+          this.show({ type: "title" }),
+        )
+        return message
       }
 
       case "tutorial": {

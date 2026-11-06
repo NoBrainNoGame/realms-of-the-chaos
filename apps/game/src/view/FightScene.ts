@@ -189,6 +189,11 @@ interface SceneEvents extends booyah.BaseCompositeEvents {
   endAction: [id: string]
   /** The player left the fight (Menu button). */
   quit: []
+  /**
+   * A vacuum decay was cast and its bubble has swallowed the screen: the
+   * game wipes the save (outside the Adventure). Nothing follows in the scene.
+   */
+  vacuumDecay: []
 }
 
 /**
@@ -1114,6 +1119,40 @@ export default class FightScene extends ViewChip<SceneEvents> {
     return new booyah.Lambda(() => this._activateChildChip(chip))
   }
 
+  /**
+   * The false vacuum decays: a bubble of true vacuum grows from the caster
+   * at (nearly) the speed of light, and everything it reaches goes white.
+   */
+  private _bubbleFx(fighterId: string) {
+    const at = this._center(fighterId)
+    const bubble = new Graphics()
+    bubble.position.set(at.x, at.y)
+    bubble.zIndex = 2_000_000
+    const veil = new Graphics()
+    veil.rect(-8000, -8000, 16000, 16000).fill(0xffffff)
+    veil.alpha = 0
+    veil.eventMode = "static"
+    return new booyah.Tween({
+      from: 0,
+      to: 1,
+      duration: this._ms(2400),
+      onActivate: () => {
+        this._effects.addChild(bubble)
+        this._container.addChild(veil)
+      },
+      onTick: (t) => {
+        const radius = 4000 * booyah.easeInCubic(t) + 8
+        bubble.clear()
+        bubble.circle(0, 0, radius).fill({ color: 0xb8e4ff, alpha: 0.55 })
+        bubble
+          .circle(0, 0, radius)
+          .stroke({ width: 6 + 40 * t, color: 0xffffff, alpha: 0.9 })
+        veil.alpha = Math.max(0, (t - 0.55) / 0.45)
+      },
+      // the veil stays: the scene is replaced under it
+    })
+  }
+
   private _center(fighterId: string, offsetY = -24) {
     const cell = this._cells.get(fighterId)!
     const { x, y } = this._board.cellTop(cell)
@@ -1598,7 +1637,20 @@ export default class FightScene extends ViewChip<SceneEvents> {
           }),
         ]
 
+      case "vacuumDecay":
+        return [
+          new booyah.Lambda(() => {
+            this._hud.banner("Vacuum decay", 0xe7f5ff)
+            this._hud.log("Le vide bascule.")
+          }),
+          this._spawn(this._bubbleFx(event.fighterId)),
+          new booyah.Wait(this._ms(2600)),
+          new booyah.Lambda(() => this.emit("vacuumDecay")),
+        ]
+
       case "ended":
+        // a collapse has no end screen: the game takes over (see above)
+        if (this.combat.collapsed) return []
         return [new booyah.Lambda(() => this._showEnd())]
 
       default:

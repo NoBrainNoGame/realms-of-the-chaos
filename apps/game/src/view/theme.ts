@@ -1,4 +1,5 @@
 import { MIN_ELEVATION, type Point } from "@realms/engine"
+import { scarTint } from "./scarTint"
 
 export const FONT = "Pixelify Sans, monospace"
 
@@ -111,6 +112,46 @@ export const WATER = {
   foam: 0xe7f5ff,
   bed: 0x8a7a55,
 }
+
+/** Sky gradient of the backdrop, from the top down. */
+export const SKY = [0x0b0918, 0x1d1438, 0x2b1b4a]
+
+// ─── Scars ─────────────────────────────────────────────────────────────────
+
+/** Every palette the scars drift, by name (all edited in place). */
+const PALETTES = {
+  COLORS,
+  MEANING,
+  TEAM_COLORS,
+  GROUND_TOP,
+  STRATA,
+  WATER,
+  SKY,
+}
+const pristine = JSON.stringify(PALETTES)
+let scarred = 0
+
+/**
+ * Drifts the whole palette to the save's scars (0 restores it). The
+ * palettes are edited in place, so every screen built afterwards, and every
+ * drawing that reads them when it draws, picks the new colours up: call it
+ * once at startup, and after a wipe.
+ */
+export function applyScars(scars: number) {
+  scarred = Math.max(0, Math.floor(scars))
+  const original = JSON.parse(pristine) as Record<
+    string,
+    Record<string, number>
+  >
+  for (const [name, palette] of Object.entries(PALETTES)) {
+    const target = palette as unknown as Record<string, number>
+    for (const key of Object.keys(target))
+      target[key] = scarTint(original[name][key], scarred)
+  }
+}
+
+/** A colour of the board drawn outside the palettes, drifted like them. */
+export const tinted = (color: number) => scarTint(color, scarred)
 
 // ─── Camera ────────────────────────────────────────────────────────────────
 

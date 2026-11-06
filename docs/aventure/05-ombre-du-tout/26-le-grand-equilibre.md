@@ -148,6 +148,13 @@ x·······x
 - ★ **Garder le Carnet intact** : le porteur ne tombe jamais. [`carnet_intact` ; sinon les trois dernières questions **répondues** du Carnet perdent leur page, voir « Choix et conséquences »]
 - ◆ **Garder la chaleur** : à la fin du tour 10, au moins 9 cases sont chaudes. [`confiance +1`]
 - ◆ **Lyra ne paie pas seule** : au moins une Réparation du Ghom pendant le combat. [`confiance.lyra +1`]
+- ◇ **La bulle (caché)** : au tour 7, une case du bord, loin des quatre puits, ne tiédit pas et ne s'efface pas : une poche immobile où l'air a l'air plus net qu'ailleurs. Un Écho qui s'y tient une fois, sans agir, la regarde (aucune indication ne désigne la case). [`vacuum_decay`, voir ci-dessous]
+
+**La bulle (Vacuum decay).** *La poche ne bouge pas. Elle n'est pas chaude, pas froide : elle est exacte. Le héros la regarde, et le geste lui vient comme un souvenir qui n'est pas le sien : défaire d'un coup ce que le vide a de provisoire.*
+
+- **Merlin** — « Ça, je ne l'ai jamais mesuré, et j'aimerais que ça reste vrai. Nous avons dit que notre vide était peut-être un vide parmi d'autres, une eau pas encore gelée. *(Un temps.)* Si c'est le cas, une poche de l'autre sorte, une seule, se met à grandir. À presque la vitesse de la lumière. Elle réécrit ce qu'elle touche : les constantes, les masses, tout ce qui tient les atomes debout. Personne ne l'entend venir, puisque rien ne va plus vite qu'elle. C'est une hypothèse. Une très mauvaise hypothèse, et j'en parle à regret. »
+- **Gorr** — « Trou qui mange le trou. Pas toucher. »
+- Le héros obtient le **sort interdit « Vacuum decay »** (drapeau `vacuum_decay`, ajouté à la liste `unlocks` de la sauvegarde). Il n'est jamais nécessaire : un parcours entier peut l'ignorer.
 
 **Défaite :** le héros tombe, ou tous les alliés tombent. (Le porteur qui tombe n'est **pas** une défaite.)
 
@@ -286,6 +293,7 @@ Si Nyx rejoint ici, elle sera présente au chapitre 28 comme alliée (voir ce ch
 | Carnet abîmé | `carnet_intact = faux` | Les 3 dernières questions **répondues** (dans l'ordre des ids) apparaissent comme pages perdues ; dans le calcul des fins, la richesse du Carnet compte **3 de moins**. Les drapeaux `carnet.Qxx` ne changent pas : on se souvient des réponses, on ne les a plus écrites. |
 | ◆ Garder la chaleur | `confiance +1` | — |
 | ◆ Réparation pendant le combat | `confiance.lyra +1` | — |
+| ◇ La bulle | `vacuum_decay` | Le héros possède le sort interdit **Vacuum decay**. Au ch. 28, il rend possible la menace du dernier geste (voir ch. 28) ; hors de l'Aventure, il efface la sauvegarde. |
 | Nyx rejoint | `confiance.nyx +1` ou `+2` selon le choix | Nyx présente au ch. 28 même sans `paix_des_lacunes`. |
 | Q09 (Squalor) | `carnet.Q09 = repondue` | Richesse du Carnet. |
 | Q02 (Lyra) | `carnet.Q02 = repondue` | Richesse du Carnet. |
@@ -315,4 +323,5 @@ Si Nyx rejoint ici, elle sera présente au chapitre 28 comme alliée (voir ce ch
 - **Autonomie (ère IV) :** active ; le porteur du Carnet peut refuser (R4 de sa lignée) comme les autres, ce qui rend le choix du porteur plus délicat.
 - **Doubles autonomes (Squalor, Lyra) :** `generateCharacter(hash(idSauvegarde, lignée, 26), kit)`, contrôlés par l'IA alliée, avec sortie scriptée après 3 tours (Squalor) ou jusqu'à la fin (Lyra).
 - **Empreintes chaudes :** décalque de pas plus sombre qui s'estompe en 2 secondes ; purement visuel.
+- **La bulle :** une case du bord, tirée par la graine de la sauvegarde parmi les cases sans puits, sans empreinte. Elle ne porte aucun marqueur. Quand un Écho y reste un tour sans agir, la scène se déclenche et `grantForbidden("vacuumDecay")` s'exécute (même effet que l'URL de développement `?grant=vacuumDecay`).
 - **Palette de la plaine :** désaturer tout le plateau et l'éclairer uniformément ; seuls les Échos gardent leurs couleurs.

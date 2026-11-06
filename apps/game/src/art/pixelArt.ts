@@ -286,6 +286,20 @@ export const CHARACTER_ART: Record<string, PixelArt> = {
 // ─── Action & divine icons (8×8) ────────────────────────────────────────────
 
 export const ICON_ART: Record<string, PixelArt> = {
+  // forbidden: a bubble of true vacuum, black at its heart
+  vacuumDecay: {
+    palette: { k: OUTLINE, w: "#e7f5ff", b: "#74c0fc", v: "#0b0918" },
+    rows: [
+      "..kwwk..",
+      ".kbbbbk.",
+      "kbbvvbbk",
+      "wbvvvvbw",
+      "wbvvvvbw",
+      "kbbvvbbk",
+      ".kbbbbk.",
+      "..kwwk..",
+    ],
+  },
   kick: {
     palette: { k: OUTLINE, b: "#8d5a2b", B: "#5c3a1a" },
     rows: [

@@ -12,9 +12,17 @@ import {
   arcadeRecruit,
   arcadeWaveOptions,
   CHARACTERS,
+  type CheckOptions,
   startArcade,
 } from "@realms/engine"
-import { customById, customId, isCustomId, submitArcadeScore } from "../storage"
+import {
+  allowance,
+  customById,
+  customId,
+  isCustomId,
+  scarCount,
+  submitArcadeScore,
+} from "../storage"
 import FightScene, { type SceneOptions } from "./FightScene"
 import { registerLook } from "./looks"
 import MessageScreen from "./MessageScreen"
@@ -26,6 +34,8 @@ interface ArcadeEvents extends booyah.BaseCompositeEvents {
   exit: []
   /** Start a new run with the same team. */
   again: []
+  /** A vacuum decay swallowed a wave (the game wipes the save). */
+  vacuumDecay: []
 }
 
 /** Scene options of the current wave (the engine's arcade setup). */
@@ -33,8 +43,10 @@ export function waveScene(
   runSeed: number,
   state: ArcadeState,
   speed: number,
+  scars = 0,
+  check: CheckOptions = {},
 ): SceneOptions {
-  const options = arcadeWaveOptions(runSeed, state)
+  const options = arcadeWaveOptions(runSeed, state, scars, check)
   return {
     seed: options.seed!,
     speed,
@@ -74,8 +86,8 @@ export default class ArcadeRun extends ViewChip<ArcadeEvents> {
     super()
     const seed = _options.seed ?? Math.floor(Math.random() * 1e9)
     const members = arcadeMembers(team)
-    this._run = startArcade(members)
-    this._record = { seed, team: members, waves: [] }
+    this._run = startArcade(members, allowance())
+    this._record = { seed, team: members, waves: [], scars: scarCount() }
   }
 
   /** Progress of the run (team, hit points, wave, score). */
@@ -107,12 +119,19 @@ export default class ArcadeRun extends ViewChip<ArcadeEvents> {
   }
 
   private _startWave() {
-    const options = waveScene(this._record.seed, this._run, this._options.speed)
+    const options = waveScene(
+      this._record.seed,
+      this._run,
+      this._options.speed,
+      this._record.scars,
+      allowance(),
+    )
     if (this._options.autoplay) options.teams[0].controller = "ai"
     const scene = new FightScene(options)
     this._show(scene)
     this._subscribeOnce(scene, "endAction", () => this._afterWave(scene))
     this._subscribeOnce(scene, "quit", () => this.emit("exit"))
+    this._subscribeOnce(scene, "vacuumDecay", () => this.emit("vacuumDecay"))
   }
 
   private _afterWave(scene: FightScene) {

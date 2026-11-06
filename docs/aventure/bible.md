@@ -49,6 +49,7 @@ Ce qui suit est le résumé du lore. Le détail et les statuts (Établi, Hypoth�
 | **Les Influences** | Ce qu'un Ghom fait au monde : la Distorsion (le temps), le Séisme (la matière), la Réparation (l'ordre, payé en chaleur). |
 | **Le Puits** | Un amas très dense où le temps propre ralentit. Le héros y dort entre les ères. |
 | **Les Archives** | Les traces lisibles du passé : la lumière tardive, les strates des abysses, les défauts des cristaux. |
+| **Vacuum decay** | Sort interdit, caché au ch. 26. Hypothèse physique : notre vide serait un faux vide (métastable), et une poche de vide « vrai » grandirait à presque la vitesse de la lumière en réécrivant les constantes. Jamais mesuré : le jeu le donne comme une hypothèse. Dans l'Aventure, il ne se lance pas ; il sert de **menace** au dernier geste du ch. 28 (voir Le Découplage). Hors de l'Aventure, il efface la sauvegarde et laisse des **cicatrices** (couleurs légèrement décalées, quelques points de statistiques déplacés sans changer l'équilibre). |
 | **Ordre et Chaos** | Les deux philosophies, *tout figer* contre *tout ouvrir*. La vie existe **entre** les deux. |
 
 ### Les Ghoms

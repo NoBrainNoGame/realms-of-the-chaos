@@ -88,7 +88,12 @@ describe("URL parameters", () => {
       speed: 1,
       playerTeam: DEFAULT_PLAYER_TEAM,
       enemyTeam: DEFAULT_ENEMY_TEAM,
+      grant: [],
     })
+  })
+
+  test("grant keeps only forbidden actions that exist", () => {
+    expect(parse("?grant=vacuumDecay,kick,nope").grant).toEqual(["vacuumDecay"])
   })
 
   test("flags and values", () => {

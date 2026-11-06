@@ -292,6 +292,13 @@ Calque : la Lacune du Cœur (`x`, convention de l'ère IV) et les quatre **ancre
 
 *Si les conditions sont réunies : le vrai geste et deux faux gestes. Sinon : trois faux gestes. Rien n'indique qu'un autre geste aurait existé.*
 
+**Si le héros possède le Vacuum decay** (`vacuum_decay`, obtenu au ch. 26) **: le geste de la menace.** *Ce n'est pas un cinquième geste affiché : c'est ce que le héros porte, et que le Ghom sent.* Le geste peut alors être **la menace** : au lieu de demander, le héros lui montre ce qu'il tient. Aucun texte ne s'adresse au joueur ; le héros ne fait que parler au Ghom, ou se taire.
+
+- Le geste de la menace n'est proposé que si les **mêmes conditions** que le vrai geste sont réunies (`nom = aucun`, aucune question ouverte fausse, pas de Dispersion). Il s'ajoute alors à la liste, à côté du vrai geste ; sans le sort, rien ne change. Un héros qui a pris un nom, ou une fausse réponse, ne peut pas menacer pour de bon : il n'a pas traversé le parcours sans se laisser fixer, et le Ghom ne le croit pas.
+- **« Ghom. Je tiens ce qui défait aussi ta place. Pars. » :** le héros n'attaque rien. Il rappelle ce que Merlin a dit à la plaine : si le vide du Tissu n'est qu'un vide parmi d'autres, une poche de l'autre sorte, une seule, réécrit les constantes presque à la vitesse de la lumière, **le Ghom compris**, puisque lui aussi tient par ce que le vide permet. *(Hypothèse du jeu, jamais mesurée.)* Le Ghom ne peut pas fuir une bulle qui va plus vite que tout ce qu'il connaît, et il n'a aucune raison de parier là-dessus.
+- L'Influence « Se retirer » apparaît **comme pour le vrai geste**. Le Ghom l'emploie : fin **Le Découplage**, avec une scène en plus (ci-dessous). Il n'y a pas de combat : le héros ne lance jamais le sort, et le sort n'est pas utilisable dans le chapitre (il y mettrait fin à tout : aucune fin, aucune sauvegarde).
+- Le menacer ne contourne pas les fidélités : la menace n'ouvre rien que `nom = aucun` et les questions ouvertes n'ouvraient déjà. Elle transforme une demande en une **négociation** : le Ghom part parce qu'il est plus prudent que le héros, pas parce qu'il est bon.
+
 | Geste | Vrai ou faux | Effet |
 | --- | --- | --- |
 | « Ghom. Tu peux partir. Nous continuerons. » | **vrai** | L'Influence « Se retirer » apparaît (ci-dessous). |
@@ -330,6 +337,7 @@ Calque : la Lacune du Cœur (`x`, convention de l'ère IV) et les quatre **ancre
 | Q28 : le rien est impossible | `carnet.Q28 = fausse` ; `derniere_reponse = rien_impossible` | Ferme l'Intrication et le Découplage ; +1 au score de Chaos. |
 | Q28 : je ne sais pas / les liens / le silence | `carnet.Q28 = ouverte` ; `derniere_reponse = …` | Garde ouvertes l'Intrication et le Découplage. |
 | Le dernier geste, et le Ghom se retire | — (pose `fin = decouplage`) | Fin **Le Découplage**. |
+| Le geste de la menace (avec `vacuum_decay`), et le Ghom se retire | `decouplage.menace` ; pose `fin = decouplage` | Fin **Le Découplage**, avec la scène « Ce qu'il a cru ». |
 
 ## Récompenses
 
@@ -347,5 +355,6 @@ Ce chapitre ne prépare plus rien dans l'Aventure. Il laisse une seule chose ouv
 - **Dispersion du héros :** si `usure ≥ 8`, la chute du héros déclenche l'effet de Dispersion (chaleur et lumière à l'horizontale), pose `heros_disperse`, et retire le héros de la timeline sans défaite. Le Double du héros (s'il est là) est mis en avant par la caméra.
 - **« Laisser agir » :** réutiliser la commande de l'ère IV (ch. 19) ; le suivi des commandes du journal suffit pour vérifier `combat_final_libre`.
 - **Influence « Se retirer » :** Influence temporaire, sans coût, présente dans la barre uniquement après le choix 1 du dernier geste. Délai de 20 secondes sans action = refus. **Aucun texte n'invite le joueur à l'utiliser**, et aucun texte ne s'adresse au joueur : seul le héros parle, au Ghom.
+- **Geste de la menace :** disponible seulement si `hasForbidden("vacuumDecay")` et les conditions du vrai geste. Le sort n'est pas castable dans le chapitre (le moteur interdit son lancement hors Arcade et Escarmouche, et la sauvegarde y serait effacée) ; seul le geste, un choix de dialogue, existe.
 - **Gorr écrit :** animation d'écriture lente dans le Carnet, avec la réponse choisie (ou une ligne vide pour le silence).
 - **Calcul des fins :** voir `06-fins/README.md`. Le calcul lit tous les drapeaux au moment où le nœud 5 se ferme.

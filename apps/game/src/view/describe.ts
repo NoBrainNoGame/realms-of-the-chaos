@@ -15,7 +15,7 @@ import {
   STEP_DELAY_RATIO,
   type StatusId,
 } from "@realms/engine"
-import { MEANING, type Meaning } from "./theme"
+import { MEANING, type Meaning, tinted } from "./theme"
 import { tag } from "./ui"
 
 /** Meaning color of each status (its dot on the fighter, its name). */
@@ -29,11 +29,22 @@ export const STATUS_MEANING: Record<StatusId, Meaning> = {
 
 /** Dot color of each status on the fighters (slowed: a darker yellow). */
 export const STATUS_COLORS: Record<StatusId, number> = {
-  poisoned: MEANING.poison,
-  slowed: 0xc29200,
-  hasted: MEANING.time,
-  shielded: MEANING.shield,
-  enraged: MEANING.damage,
+  // read when drawn: the scars drift the palettes after this module loads
+  get poisoned() {
+    return MEANING.poison
+  },
+  get slowed() {
+    return tinted(0xc29200)
+  },
+  get hasted() {
+    return MEANING.time
+  },
+  get shielded() {
+    return MEANING.shield
+  },
+  get enraged() {
+    return MEANING.damage
+  },
 }
 
 const plural = (n: number, word: string) => `${n} ${word}${n > 1 ? "s" : ""}`

@@ -129,6 +129,9 @@ export function scoreAction(
   return score / Math.sqrt(action.timeCost)
 }
 
+const isForbidden = (action: ActionDefinition) =>
+  action.effects.some((e) => e.type === "vacuumDecay")
+
 /** Best (action, target) usable from `origin`, or null. */
 export function bestAction(
   combat: Combat,
@@ -141,6 +144,8 @@ export function bestAction(
   for (const action of combat.actionsOf(fighter, origin)) {
     // the AI walks with planned paths; sprinting is a player convenience
     if (action.movement || combat.isOnCooldown(fighter, action)) continue
+    // forbidden: the AI never ends the world
+    if (isForbidden(action)) continue
     for (const target of combat.getValidTargets(fighter, action, origin)) {
       const score = scoreAction(combat, fighter, action, target, origin)
       if (score >= MIN_ACTION_SCORE && (!best || score > best.score)) {
@@ -162,6 +167,7 @@ export function usefulActions(combat: Combat, fighter: Fighter): string[] {
     .filter(
       (action) =>
         !action.movement &&
+        !isForbidden(action) &&
         !combat.isOnCooldown(fighter, action) &&
         combat
           .getValidTargets(fighter, action)

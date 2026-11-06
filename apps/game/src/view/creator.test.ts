@@ -13,6 +13,7 @@ import {
   customCharacters,
   customId,
   deleteCustom,
+  SAVE_KEYS,
   saveCustom,
 } from "../storage"
 import { mount, tick } from "../test/harness"
@@ -46,7 +47,7 @@ describe("custom storage", () => {
 
   test("invalid entries are dropped, at most 12 are kept", () => {
     localStorage.setItem(
-      "realms.custom",
+      SAVE_KEYS.custom,
       JSON.stringify([
         sample(),
         { ...sample("Bad1"), kit: "nobody" },
@@ -57,7 +58,7 @@ describe("custom storage", () => {
       ]),
     )
     expect(customCharacters().map((c) => c.name)).toEqual(["Zaren"])
-    localStorage.setItem("realms.custom", "not json")
+    localStorage.setItem(SAVE_KEYS.custom, "not json")
     expect(customCharacters()).toEqual([])
     for (let i = 0; i < 15; i++)
       saveCustom(sample(`Nom${"abcdefghijklmnop"[i]}`))
