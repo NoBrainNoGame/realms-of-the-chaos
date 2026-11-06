@@ -132,7 +132,7 @@ export default class PuzzleBoard extends Container {
         }
         this._body.addChild(cell)
       }
-    for (const t of spec.tokens) {
+    spec.tokens.forEach((t, i) => {
       const at = s.pos.get(t.id) as PuzzleCell
       const mates = s.tokensAt(at)
       const k = mates.findIndex((m) => m.id === t.id)
@@ -146,14 +146,20 @@ export default class PuzzleBoard extends Container {
       dot.cursor = "pointer"
       dot.on("pointertap", () => this.clickCell(at.x, at.y))
       this._body.addChild(dot)
-    }
+      // the number ties the dot to its name in the legend below
+      const n = text(String(i + 1), 13, 0x1b1424, { fontWeight: "700" })
+      n.anchor.set(0.5)
+      n.position.copyFrom(dot.position)
+      n.eventMode = "none"
+      this._body.addChild(n)
+    })
     let y = spec.h * CELL + 6
-    const names = spec.tokens.map((t) => t.label).join(" · ")
+    const names = spec.tokens.map((t, i) => `${i + 1} ${t.label}`).join("  ·  ")
     const legend = text(
       `${names}${spec.moves ? ` — déplacements : ${s.movesLeft}` : ""}`,
       13,
       COLORS.muted,
-      { wordWrap: true, wordWrapWidth: Math.max(this.need, 280) },
+      { wordWrap: true, wordWrapWidth: Math.max(this.need, 400) },
     )
     legend.position.set(0, y)
     this._body.addChild(legend)
