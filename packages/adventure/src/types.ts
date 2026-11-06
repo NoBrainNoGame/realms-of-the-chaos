@@ -305,6 +305,23 @@ export interface FightReport {
   switched?: { fighterId: string; to: number }[]
   /** Era IV autonomy: orders, refusals, "Laisser agir", "Insister", withdrawal. */
   autonomy?: AutonomyReport
+  /** Lacune cells grown, mended, left; the Lacune took everything. */
+  lacune?: { grown: number; mended: number; cells: number; swallowed: boolean }
+  /** Uncertain cells that settled, and who measured them (null: decoherence). */
+  measured?: {
+    cell: { x: number; y: number }
+    state: "solid" | "void"
+    by: string | null
+  }[]
+  /** Doubles that were struck: `found` is whether the struck place was real. */
+  doubles?: {
+    struck: string
+    other: string
+    found: boolean
+    by: string | null
+  }[]
+  /** Fraying steps the ground went through. */
+  frayed?: number
   fighters: {
     id: string
     preset: string

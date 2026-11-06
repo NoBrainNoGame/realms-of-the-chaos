@@ -718,6 +718,8 @@ export class Combat {
     }
 
     this._advanceTime(next.at)
+    // the clock itself may have ended the fight (time up, swallowed)
+    if ((this._state as CombatState) === "ended") return this._flush()
 
     if (next.kind === "move") this._step(next.fighter)
     else this._startTurn(next.fighter)
@@ -1842,6 +1844,24 @@ export class Combat {
     this._emit({ type: "fled", fighterId: fighter.id })
     this._activeFighter = null
     this._checkVictory()
+  }
+
+  /**
+   * One of the two positions of a double (or a fighter swallowed by its own
+   * uncertainty) is not there: it leaves the island without a fight.
+   */
+  dissolve(fighter: Fighter) {
+    if (this.departed.has(fighter.id)) return
+    this.departed.add(fighter.id)
+    this._clearWalk(fighter)
+    this._emit({ type: "dissolved", fighterId: fighter.id })
+    if (this._activeFighter === fighter) this._activeFighter = null
+    this._checkVictory()
+  }
+
+  /** The terrain changed under the rules (a hole opened or closed). */
+  refreshTerrain() {
+    this._regions.clear()
   }
 
   /** Plans a walk for an AI fighter (flight). */

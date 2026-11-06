@@ -78,11 +78,23 @@ function passe(squalor: boolean): FightSpec {
       },
     ],
     rules: {
-      // SIMPLIFIED: no fixation gauge, no Front de Marée, no Superposition of
-      // the east columns, no drift and no waves of arrival (tours 1, 3, 4, 5).
+      // SIMPLIFIED: no fixation gauge, no Front de Marée, no drift and no
+      // waves of arrival (tours 1, 3, 4, 5). The east columns are uncertain
+      // until something comes within a cell of them, or the tide settles
+      // them (tick 6).
       // The Lacunaire is a neutral swimmer with hit points; holding out until
       // the clock runs down stands for "he is fixed".
       neutral: [1],
+      superposition: {
+        cells: [
+          { x: 6, y: 2 },
+          { x: 6, y: 4 },
+          { x: 7, y: 1 },
+          { x: 7, y: 3 },
+          { x: 7, y: 5 },
+        ],
+        decohereAt: 6,
+      },
       clock: { period: 1, limit: 10, winner: 0 },
     },
     influences: ["earthquake", "timeWarp", "blessing"],

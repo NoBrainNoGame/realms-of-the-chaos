@@ -112,6 +112,11 @@ const ASCII: Record<string, { terrain: Terrain; elevation: number }> = {
 
 export class Board {
   private readonly _cells: Cell[]
+  /**
+   * Cells that are holes in the Tissu (a Lacune, a cell measured as void):
+   * nobody can stand on them. Adventure rules only; empty in every other mode.
+   */
+  readonly voids = new Set<string>()
 
   constructor(
     public readonly width: number,
@@ -266,6 +271,7 @@ export class Board {
   /** Whether a character with this locomotion can be on a cell at all. */
   canStand(p: Point, locomotion: Locomotion = "walker") {
     if (!this.inBounds(p)) return false
+    if (this.voids.size > 0 && this.voids.has(keyOf(p))) return false
     return locomotion !== "walker" || !this.isDeepWater(p)
   }
 

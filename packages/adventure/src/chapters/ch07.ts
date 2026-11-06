@@ -60,8 +60,19 @@ const maree: FightSpec = {
     },
   ],
   rules: {
-    // SIMPLIFIED: the Front de Marée, the Superposition layer and the double
-    // victory (north edge or 12 ticks) do not exist. Surviving 12 ticks wins.
+    // SIMPLIFIED: the Front de Marée and the double victory (north edge or 12
+    // ticks) do not exist. Surviving 12 ticks wins.
+    // Planks of the middle that nobody has stepped near yet are uncertain:
+    // the first to come within a cell settles them (or the tide, at tick 9).
+    superposition: {
+      cells: [
+        { x: 1, y: 6 },
+        { x: 2, y: 6 },
+        { x: 4, y: 7 },
+      ],
+      pVoid: 0.4,
+      decohereAt: 9,
+    },
     clock: { period: 1, limit: 12, winner: 0 },
     announce: true,
   },
@@ -91,8 +102,8 @@ const maree: FightSpec = {
       id: "pas-de-galet-perdu",
       mark: "◆",
       label: "Aucun des deux ne tombe",
-      // SIMPLIFIED: the uncertain cells and the Galet do not exist; nobody
-      // falling (every ally still standing) stands for it.
+      // SIMPLIFIED: the Galet does not exist; nobody falling (every ally
+      // still standing) stands for it.
       check: (r) =>
         r.fighters.filter((f) => f.team === 0).every((f) => f.hp > 0),
       success: "Chaque planche a tenu sous les pas.",

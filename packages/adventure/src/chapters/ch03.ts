@@ -158,8 +158,10 @@ const fightNuit: FightSpec = {
       ],
     },
     fixOnDeath: [1],
-    // CUT: the effilocheur's cold halo around the Assis at tour 3 (no moving
-    // silent cells).
+    // The effilocheur's cold halo comes up at tour 3 (about time 30) and
+    // follows it: whoever starts a turn within a cell of it takes the cold.
+    clock: { period: 10 },
+    halos: [{ team: 1, index: 4, radius: 1, from: 3 }],
     announce: true,
   },
   influences: ["earthquake", "timeWarp", "blessing"],

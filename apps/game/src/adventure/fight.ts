@@ -134,6 +134,10 @@ export function reportOf(spec: FightSpec, combat: Combat): FightReport {
     arrived: [...(tracker?.arrived ?? [])],
     switched: (tracker?.switched ?? []).map((s) => ({ ...s })),
     autonomy: tracker && structuredClone(tracker.autonomy),
+    lacune: tracker && { ...tracker.lacune },
+    measured: tracker && structuredClone(tracker.measured),
+    doubles: tracker && structuredClone(tracker.doubles),
+    frayed: tracker?.frayed ?? 0,
     fighters: combat.fighters.map((f) => ({
       id: f.id,
       preset: presetOf(f),

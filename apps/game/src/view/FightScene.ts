@@ -1686,6 +1686,79 @@ export default class FightScene extends ViewChip<SceneEvents> {
           ),
         ]
 
+      case "lacuneGrew":
+        return [
+          new booyah.Lambda(() => {
+            for (const cell of event.cells)
+              this._fx.spawn(
+                particles(
+                  this._effects,
+                  this._board.cellTop(cell),
+                  FX.debris(),
+                ),
+              )
+            this._hud.log("La Lacune s'étend.")
+            this._refreshOverlay()
+          }),
+        ]
+
+      case "lacuneMended":
+        return [
+          new booyah.Lambda(() => {
+            this._hud.log("Une case de Lacune est recousue.")
+            this._refreshOverlay()
+          }),
+        ]
+
+      case "swallowed":
+        return [
+          new booyah.Lambda(() =>
+            this._hud.banner("La Lacune a tout pris.", 0xff8787),
+          ),
+        ]
+
+      case "measured":
+        return [
+          new booyah.Lambda(() => {
+            this._hud.log(
+              event.state === "void"
+                ? "Une case incertaine se fixe : un vide."
+                : "Une case incertaine se fixe : du sol.",
+            )
+            this._refreshOverlay()
+          }),
+        ]
+
+      case "doubleResolved":
+        return [
+          new booyah.Lambda(() =>
+            this._hud.log(
+              event.found
+                ? `${this.combat.getFighter(event.struckId)?.name ?? "?"} était bien là.`
+                : "Le coup n'a rien trouvé : cette place était vide.",
+            ),
+          ),
+        ]
+
+      case "dissolved":
+        return [
+          new booyah.Lambda(() => {
+            const view = this._views.get(event.fighterId)
+            if (view) view.container.visible = false
+          }),
+        ]
+
+      case "frayed":
+        return [new booyah.Lambda(() => this._hud.log("Le bord s'effiloche."))]
+
+      case "haloUp":
+        return [
+          new booyah.Lambda(() => {
+            this._hud.log("Un froid se lève autour de l'effilocheur.")
+            this._refreshOverlay()
+          }),
+        ]
+
       case "switched":
         return [
           new booyah.Lambda(() => {
@@ -2211,6 +2284,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
       this._board.setHighlights(highlights)
       return
     }
+    highlights.push(...this._weaveHighlights())
     const fighter = this._activeHuman
     const hovered = this._hovered
 
@@ -2348,6 +2422,41 @@ export default class FightScene extends ViewChip<SceneEvents> {
     }
 
     this._board.setHighlights(highlights)
+  }
+
+  /**
+   * The Tissu as the Adventure rules make it: holes (a Lacune, a cell
+   * measured as void) are dark, uncertain cells show two tones in a
+   * checkerboard (they are not decided yet), cold halos are pale blue.
+   */
+  private _weaveHighlights(): Highlight[] {
+    const tracker = this.combat.adventure
+    if (!tracker) return []
+    const out: Highlight[] = []
+    const holes = tracker.lacuneCells
+    if (holes.length)
+      out.push({ cells: holes, color: 0x0a0612, alpha: 0.92, inset: 0 })
+    const halo = tracker.haloCells()
+    if (halo.length)
+      out.push({ cells: halo, color: 0x8fd3ff, alpha: 0.22, inset: 6 })
+    const uncertain = tracker.uncertainCells
+    if (uncertain.length) {
+      out.push({
+        cells: uncertain.filter((c) => (c.x + c.y) % 2 === 0),
+        color: 0x4dd0e1,
+        alpha: 0.4,
+        inset: 3,
+        outline: true,
+      })
+      out.push({
+        cells: uncertain.filter((c) => (c.x + c.y) % 2 !== 0),
+        color: 0xb197fc,
+        alpha: 0.4,
+        inset: 3,
+        outline: true,
+      })
+    }
+    return out
   }
 
   private _showEnd() {

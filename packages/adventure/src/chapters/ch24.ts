@@ -138,9 +138,12 @@ function bord(b: Bits): FightSpec {
     rules: {
       silent,
       silentDamage: 1,
-      // SIMPLIFIED: "le Bord grandit" (two ground cells go out every two
-      // turns) is two strips of ground that must stay worked, else they go
-      // silent; the Ghom du Chaos has no body and no Distorsion.
+      // "Le Bord grandit": every two turns two cells next to the grey go out
+      // for good; an action of the Ghom's side next to a hole mends it.
+      lacunes: { cells: [], edge: silent, every: 2, spread: 2 },
+      // SIMPLIFIED: two strips of ground that must stay worked, else they go
+      // silent (the doc's other half of the Bord); the Ghom du Chaos has no
+      // body and no Distorsion.
       zones: [
         {
           id: "ouest",

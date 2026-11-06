@@ -1,5 +1,7 @@
+import { MIN_ELEVATION } from "./board"
 import type { Combat } from "./combat"
 import { equals, keyOf, manhattan, type Point } from "./geometry"
+import { createRng, type Rng } from "./random"
 import type { FightEvent, Fighter, RefusalReason } from "./types"
 
 /**
@@ -57,6 +59,88 @@ export interface AdventureRules {
   autonomy?: AutonomyRules
   /** The Ghom may withdraw from the fight (Découplage): it stops at once. */
   withdraw?: boolean
+  /** Lacune cells that grow, and that a fighter's action can mend. */
+  lacunes?: LacuneRules
+  /** Uncertain cells, settled by a measurement (see `SuperpositionRules`). */
+  superposition?: SuperpositionRules
+  /** Fighters that exist in two cells until one of them is struck. */
+  doubles?: DoubleRule[]
+  /** Ground whose height wears down tick after tick (the Tissu fraying). */
+  fraying?: FrayingRule
+  /** Cold halos that follow a fighter and hurt whoever starts a turn in one. */
+  halos?: HaloRule[]
+}
+
+/**
+ * A Lacune is a hole in the Tissu: nobody can stand on it. Every `every`
+ * clock ticks it spreads to `spread` free neighbouring cells (picked by the
+ * fight's seed; a cell where somebody stands is never taken). An action of a
+ * fighter of `mendTeams` next to a Lacune cell closes one of them. If the
+ * Lacune reaches `swallow` cells, nobody wins: the fight is lost.
+ */
+export interface LacuneRules {
+  /** Cells that are holes from the start. */
+  cells: Point[]
+  /**
+   * Cells the Lacune creeps in from without being holes themselves (the
+   * grey, walkable but cold): their free neighbours can be taken too.
+   */
+  edge?: Point[]
+  every: number
+  spread?: number
+  from?: number
+  swallow?: number
+  /** Teams whose actions mend cells (default: team 0). */
+  mendTeams?: number[]
+}
+
+/**
+ * Cells whose content is uncertain, as in a quantum system left alone: until
+ * something interacts with them they are neither ground nor hole. A fighter
+ * that steps within one cell of them or an action that covers them is such an
+ * interaction (a measurement): the cell then settles, by the seed, into hole
+ * (probability `pVoid`, default one half) or ground. A cell with somebody on
+ * it always settles as ground. At tick `decohereAt` the environment alone
+ * settles every cell left (decoherence).
+ */
+export interface SuperpositionRules {
+  cells: Point[]
+  pVoid?: number
+  decohereAt?: number
+}
+
+/**
+ * Two fighters of one team are the two positions of a single body. Striking
+ * one is a measurement: with probability `found` (default one half) the
+ * struck position is where the body was, and the other one is gone; else the
+ * blow met nothing and the struck position is the one that is gone. If the
+ * struck one falls, both go.
+ */
+export interface DoubleRule {
+  team: number
+  /** Indexes of the two fighters in the team's line-up. */
+  pair: [number, number]
+  found?: number
+}
+
+/** Every `every` ticks (from `from`), the cells lose `step` levels. */
+export interface FrayingRule {
+  cells: Point[]
+  every: number
+  from?: number
+  step?: number
+}
+
+/**
+ * The fighter at `index` of `team` is surrounded by cold within `radius`
+ * (Manhattan) from tick `from`: whoever starts a turn there, but its own
+ * team, takes the silent damage.
+ */
+export interface HaloRule {
+  team: number
+  index: number
+  radius: number
+  from?: number
 }
 
 export interface AutonomyReport {
@@ -158,6 +242,27 @@ export interface AdventureReport {
   zoneStates: Record<string, ZoneState>
   timeUp: boolean
   autonomy: AutonomyReport
+  lacune: {
+    grown: number
+    mended: number
+    /** Lacune cells at the end (or when the fight ended). */
+    cells: number
+    swallowed: boolean
+  }
+  measured: {
+    cell: Point
+    state: "solid" | "void"
+    /** Who measured; null for decoherence alone. */
+    by: string | null
+  }[]
+  doubles: {
+    struck: string
+    other: string
+    found: boolean
+    by: string | null
+  }[]
+  /** Fraying steps that happened. */
+  frayed: number
 }
 
 /** Rule state of one fight; owned by a `Combat`. */
@@ -188,6 +293,10 @@ export class AdventureTracker {
       autoTurns: {},
       withdrawn: false,
     },
+    lacune: { grown: 0, mended: 0, cells: 0, swallowed: false },
+    measured: [],
+    doubles: [],
+    frayed: 0,
   }
   /** The order the active ally refused, waiting for Respecter / Insister. */
   pending: { fighterId: string; order: AutonomyOrder } | null = null
@@ -200,6 +309,14 @@ export class AdventureTracker {
   private _nextTick: number
   private _arrivals: { rule: ArrivalRule; id: string; done: boolean }[] = []
   private _switches: { rule: SwitchRule; id: string; done: boolean }[] = []
+  private _rng: Rng | null = null
+  private _uncertain = new Set<string>()
+  private _doubles: {
+    rule: DoubleRule
+    ids: [string, string]
+    done: boolean
+  }[] = []
+  private _halos: { rule: HaloRule; id: string; up: boolean }[] = []
 
   constructor(
     private readonly _combat: Combat,
@@ -229,6 +346,27 @@ export class AdventureTracker {
       const id = member(entry.team, entry.index)
       this._auto.set(id, entry)
       this.report.autonomy.tiers[id] = entry.tier
+    }
+    if (rules.lacunes || rules.superposition || rules.doubles) {
+      // its own stream: the fight's dice are not touched by these rules
+      this._rng = createRng(_combat.rng.int(0, 2 ** 31 - 1))
+    }
+    for (const p of rules.lacunes?.cells ?? []) {
+      _combat.board.voids.add(keyOf(p))
+    }
+    this.report.lacune.cells = _combat.board.voids.size
+    for (const p of rules.superposition?.cells ?? []) {
+      this._uncertain.add(keyOf(p))
+    }
+    for (const rule of rules.doubles ?? []) {
+      this._doubles.push({
+        rule,
+        ids: [member(rule.team, rule.pair[0]), member(rule.team, rule.pair[1])],
+        done: false,
+      })
+    }
+    for (const rule of rules.halos ?? []) {
+      this._halos.push({ rule, id: member(rule.team, rule.index), up: false })
     }
     for (const p of rules.silent ?? []) this.silent.add(keyOf(p))
     for (const zone of rules.zones ?? []) {
@@ -262,11 +400,18 @@ export class AdventureTracker {
       case "moved": {
         const f = combat.getFighter(event.fighterId)
         if (f) this._work(f, event.to)
+        this._measureAround(event.to, event.fighterId)
         break
       }
+      case "damaged":
+        this._strike(event.fighterId, event.sourceId)
+        break
       case "actionUsed": {
         const f = combat.getFighter(event.fighterId)
         if (f) this._work(f, f.position)
+        if (f) this._mend(f)
+        for (const c of [event.target, ...event.cells])
+          this._measureCell(c, f?.id ?? null)
         if (event.partnerId) this.report.intrications++
         break
       }
@@ -310,6 +455,202 @@ export class AdventureTracker {
     }
   }
 
+  // ─── Lacunes, superposition, doubles, fraying ─────────────────────────────
+
+  /** Cells that are Lacune (or settled as void) right now. */
+  get lacuneCells(): Point[] {
+    return [...this._combat.board.voids].map((k) => {
+      const [x, y] = k.split(",").map(Number)
+      return { x, y }
+    })
+  }
+
+  /** Cells still uncertain. */
+  get uncertainCells(): Point[] {
+    return [...this._uncertain].map((k) => {
+      const [x, y] = k.split(",").map(Number)
+      return { x, y }
+    })
+  }
+
+  /** The cells of the halos that are up (the bearer's own cell included). */
+  haloCells(): Point[] {
+    const out: Point[] = []
+    for (const h of this._halos) {
+      if (!h.up) continue
+      const bearer = this._combat.getFighter(h.id)
+      if (!bearer?.alive || this._combat.departed.has(h.id)) continue
+      for (const cell of this._combat.board.cells) {
+        if (manhattan(cell, bearer.position) <= h.rule.radius) {
+          out.push({ x: cell.x, y: cell.y })
+        }
+      }
+    }
+    return out
+  }
+
+  /** The two positions of a double that is still unresolved. */
+  get unresolvedDoubles(): [string, string][] {
+    return this._doubles.filter((d) => !d.done).map((d) => d.ids)
+  }
+
+  private _keyPoint(k: string): Point {
+    const [x, y] = k.split(",").map(Number)
+    return { x, y }
+  }
+
+  private _setVoid(p: Point, on: boolean) {
+    const voids = this._combat.board.voids
+    if (on) voids.add(keyOf(p))
+    else voids.delete(keyOf(p))
+    this.report.lacune.cells = voids.size
+    this._combat.refreshTerrain()
+  }
+
+  private _grow() {
+    const rules = this.rules.lacunes
+    if (!rules) return
+    const combat = this._combat
+    const ticks = this.report.ticks
+    if (ticks < (rules.from ?? rules.every) || ticks % rules.every !== 0) return
+    const voids = combat.board.voids
+    const seen = new Set<string>()
+    const candidates: Point[] = []
+    const sources = [
+      ...[...voids].map((k) => this._keyPoint(k)),
+      ...(rules.edge ?? []),
+    ]
+    for (const source of sources) {
+      for (const n of combat.board.neighbors(source)) {
+        const nk = keyOf(n)
+        if (voids.has(nk) || seen.has(nk)) continue
+        seen.add(nk)
+        if (combat.fightersAt(n).length > 0) continue
+        candidates.push(n)
+      }
+    }
+    const grown: Point[] = []
+    for (let i = 0; i < (rules.spread ?? 1) && candidates.length > 0; i++) {
+      const [pick] = candidates.splice(
+        this._rng?.int(0, candidates.length - 1) ?? 0,
+        1,
+      )
+      grown.push(pick)
+      this._uncertain.delete(keyOf(pick))
+      voids.add(keyOf(pick))
+    }
+    if (grown.length === 0) return
+    this.report.lacune.grown += grown.length
+    this.report.lacune.cells = voids.size
+    combat.refreshTerrain()
+    combat.emitEvent({ type: "lacuneGrew", cells: grown })
+    if (rules.swallow !== undefined && voids.size >= rules.swallow) {
+      this.report.lacune.swallowed = true
+      combat.emitEvent({ type: "swallowed" })
+      combat.finish(null)
+    }
+  }
+
+  /** An action of the right team closes the closest Lacune cell next to it. */
+  private _mend(fighter: Fighter) {
+    const rules = this.rules.lacunes
+    if (!rules || !(rules.mendTeams ?? [0]).includes(fighter.team)) return
+    const voids = this._combat.board.voids
+    const near = [...voids]
+      .map((k) => this._keyPoint(k))
+      .filter((p) => manhattan(p, fighter.position) <= 1)
+    if (near.length === 0) return
+    const cell = near[0]
+    this._setVoid(cell, false)
+    this.report.lacune.mended++
+    this._combat.emitEvent({
+      type: "lacuneMended",
+      cell,
+      fighterId: fighter.id,
+    })
+  }
+
+  private _measureAround(at: Point, by: string | null) {
+    if (this._uncertain.size === 0) return
+    for (const k of [...this._uncertain]) {
+      const p = this._keyPoint(k)
+      if (manhattan(p, at) <= 1) this._settle(p, by)
+    }
+  }
+
+  private _measureCell(at: Point, by: string | null) {
+    if (this._uncertain.has(keyOf(at))) this._settle(at, by)
+  }
+
+  private _settle(cell: Point, by: string | null) {
+    const key = keyOf(cell)
+    if (!this._uncertain.delete(key)) return
+    const combat = this._combat
+    const occupied = combat.fightersAt(cell).length > 0
+    const pVoid = this.rules.superposition?.pVoid ?? 0.5
+    const isVoid = !occupied && (this._rng?.chance(pVoid) ?? false)
+    if (isVoid) this._setVoid(cell, true)
+    const state = isVoid ? "void" : "solid"
+    this.report.measured.push({ cell, state, by })
+    combat.emitEvent({ type: "measured", cell, state, fighterId: by })
+  }
+
+  /** A fighter was struck: if it is half of a double, the double settles. */
+  private _strike(fighterId: string, by: string | null) {
+    const entry = this._doubles.find(
+      (d) => !d.done && d.ids.includes(fighterId),
+    )
+    if (!entry) return
+    entry.done = true
+    const combat = this._combat
+    const struck = combat.getFighter(fighterId)
+    const otherId = entry.ids[0] === fighterId ? entry.ids[1] : entry.ids[0]
+    const other = combat.getFighter(otherId)
+    if (!struck || !other) return
+    const fallen = struck.hp <= 0
+    const found = fallen || (this._rng?.chance(entry.rule.found ?? 0.5) ?? true)
+    this.report.doubles.push({
+      struck: fighterId,
+      other: otherId,
+      found,
+      by,
+    })
+    combat.emitEvent({
+      type: "doubleResolved",
+      struckId: fighterId,
+      otherId,
+      found,
+    })
+    // found: the other position was never there; else the struck one was empty
+    combat.dissolve(found ? other : struck)
+  }
+
+  private _fray() {
+    const rule = this.rules.fraying
+    if (!rule) return
+    const ticks = this.report.ticks
+    if (ticks < (rule.from ?? rule.every) || ticks % rule.every !== 0) return
+    const combat = this._combat
+    const worn: Point[] = []
+    for (const p of rule.cells) {
+      const cell = combat.board.get(p)
+      if (!cell || cell.terrain !== "ground") continue
+      if (cell.elevation <= MIN_ELEVATION) continue
+      cell.elevation = Math.max(
+        MIN_ELEVATION,
+        cell.elevation - (rule.step ?? 1),
+      )
+      worn.push({ x: p.x, y: p.y })
+    }
+    if (worn.length === 0) return
+    this.report.frayed++
+    combat.refreshTerrain()
+    combat.emitEvent({ type: "frayed", cells: worn })
+    for (const cell of worn) {
+      combat.emitEvent({ type: "terrainChanged", cell })
+    }
+  }
+
   private _work(fighter: Fighter, at: Point) {
     const teams = this.rules.zoneTeams ?? [0]
     if (!teams.includes(fighter.team)) return
@@ -327,6 +668,10 @@ export class AdventureTracker {
       this._nextTick += clock.period
       this.report.ticks++
       this._tick()
+      this._grow()
+      this._fray()
+      this._decohere()
+      this._warm()
       this._combat.emitEvent({ type: "clockTick", tick: this.report.ticks })
       this._release(time)
       if (clock.limit !== undefined && this.report.ticks >= clock.limit) {
@@ -352,7 +697,7 @@ export class AdventureTracker {
       if (combat.state === "ended") return
       entry.done = true
       const fighter = combat.getFighter(entry.id)
-      if (!fighter?.alive) continue
+      if (!fighter?.alive || combat.departed.has(fighter.id)) continue
       const at = this._entryCell(fighter)
       combat.bringIn(fighter.id, at, combat.baseDelay(fighter) * 0.65)
       this.report.arrived.push(fighter.id)
@@ -393,6 +738,20 @@ export class AdventureTracker {
     return { ...(best ?? fighter.position) }
   }
 
+  private _decohere() {
+    const at = this.rules.superposition?.decohereAt
+    if (at === undefined || this.report.ticks < at) return
+    for (const k of [...this._uncertain]) this._settle(this._keyPoint(k), null)
+  }
+
+  private _warm() {
+    for (const h of this._halos) {
+      if (h.up || this.report.ticks < (h.rule.from ?? 0)) continue
+      h.up = true
+      this._combat.emitEvent({ type: "haloUp", fighterId: h.id })
+    }
+  }
+
   private _tick() {
     for (const zone of this.rules.zones ?? []) {
       const before = this.zoneState(zone.id)
@@ -421,8 +780,20 @@ export class AdventureTracker {
 
   /** A turn begins: a silent cell drains energy. */
   turnStart(fighter: Fighter): number {
-    if (!this.silent.has(keyOf(fighter.position))) return 0
-    return this.rules.silentDamage ?? 2
+    const cold =
+      this.silent.has(keyOf(fighter.position)) || this._inHalo(fighter)
+    return cold ? (this.rules.silentDamage ?? 2) : 0
+  }
+
+  private _inHalo(fighter: Fighter) {
+    for (const h of this._halos) {
+      if (!h.up || h.rule.team === fighter.team) continue
+      const bearer = this._combat.getFighter(h.id)
+      if (!bearer?.alive || this._combat.departed.has(h.id)) continue
+      if (manhattan(bearer.position, fighter.position) <= h.rule.radius)
+        return true
+    }
+    return false
   }
 
   /** A fighter was hurt: it may break off. */

@@ -67,8 +67,21 @@ const ile: FightSpec = {
   ],
   rules: {
     // SIMPLIFIED: Squalor leaves under half his hit points; "after two Lacunaires eaten" does not
-    // exist, nor the Superposition layer and the recoherence around the Lacune.
+    // exist, nor the recoherence of the cells around the Lacune after 3 idle turns.
     flee: { team: 2, below: 0.5, exits: [{ x: 5, y: 7 }] },
+    // The two Dédoublés are one body in two places; five cells of the east
+    // half are uncertain until a fighter comes close or a shot crosses them.
+    doubles: [{ team: 1, pair: [3, 4] }],
+    superposition: {
+      cells: [
+        { x: 5, y: 1 },
+        { x: 4, y: 2 },
+        { x: 5, y: 3 },
+        { x: 4, y: 4 },
+        { x: 5, y: 5 },
+      ],
+      pVoid: 0.3,
+    },
   },
   influences: [],
   startEnergy: 0,
@@ -79,10 +92,10 @@ const ile: FightSpec = {
       id: "carte-complete",
       mark: "★",
       label: "Une carte complète",
-      // SIMPLIFIED: the uncertain cells do not exist; nobody falling and the
-      // Lacunaires all gone stand for "every cell fixed".
+      // Every uncertain cell was settled before the end.
       check: (r) =>
         r.result === "victory" &&
+        (r.measured ?? []).length >= 5 &&
         r.fighters.filter((f) => f.team === 0).every((f) => f.hp > 0),
       success:
         "Carte complète. Eva la roule dans son étui avec une fierté mal cachée.",
@@ -99,8 +112,19 @@ const ile: FightSpec = {
       onSuccess: [add("confiance.squalor"), set("squalor_laisse_manger")],
       onFailure: [add("confiance.squalor", -1), set("squalor_frappe")],
     },
-    // CUT: "Pas de flèche perdue" (a dédoublé has no empty candidate position
-    // in the game, so Eva cannot shoot one).
+    {
+      id: "pas-de-fleche-perdue",
+      mark: "◆",
+      label: "Pas de flèche perdue",
+      // Eva never struck the empty position of a Dédoublé.
+      check: (r) => {
+        const eva = r.fighters.find((f) => f.preset === "eva")?.id
+        return !(r.doubles ?? []).some((d) => d.by === eva && !d.found)
+      },
+      success: "Aucune flèche n'est partie dans le vide.",
+      failure: "Une flèche d'Eva a traversé une place vide.",
+      onSuccess: [add("confiance.eva")],
+    },
   ],
   lines: [
     {

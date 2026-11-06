@@ -156,11 +156,29 @@ function marree(ile: Ile, squalor: boolean, ombres: boolean): FightSpec {
         ],
       },
     ],
-    // SIMPLIFIED: no rings of Superposition, no Front de Marée, no engulfment
+    // The two Dédoublés of wave 2 are one body in two places (a double); a
+    // ring of cells around the Heart is uncertain until measured or until
+    // tick 10.
+    // SIMPLIFIED: no Front de Marée, no engulfment
     // scripted at the end of wave 4 (it is told in the next scene), no
     // adjustments from `lacune_geante_habitee`, from Peut-Être's heart or
     // from the star of ch. 7. The clock stands for "hold the four waves".
-    rules: { neutral: [1], clock: { period: 1, limit: 16, winner: 0 } },
+    rules: {
+      neutral: [1],
+      clock: { period: 1, limit: 16, winner: 0 },
+      doubles: [{ team: 2, pair: [4, 5] }],
+      superposition: {
+        cells: [
+          { x: 2, y: 3 },
+          { x: 8, y: 3 },
+          { x: 2, y: 5 },
+          { x: 8, y: 5 },
+          { x: 4, y: 7 },
+          { x: 6, y: 7 },
+        ],
+        decohereAt: 10,
+      },
+    },
     influences: ["earthquake", "timeWarp", "blessing"],
     startEnergy: 4,
     goal: "Tenir l'île : on ne gagne rien à frapper la Marée, on gagne à tenir la terre. Le Cœur ne doit pas tomber.",

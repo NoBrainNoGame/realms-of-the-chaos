@@ -246,6 +246,31 @@ export type FightEvent =
   | { type: "autonomous"; fighterId: string; why: "tier" | "letAct" }
   | { type: "insisted"; fighterId: string; cost: number }
   | { type: "withdrew" }
+  /** Adventure lacunes: the hole spreads / a Lacune cell is mended. */
+  | { type: "lacuneGrew"; cells: Point[] }
+  | { type: "lacuneMended"; cell: Point; fighterId: string }
+  /** The Lacune took the whole stage: the fight is lost. */
+  | { type: "swallowed" }
+  /** Adventure superposition: an uncertain cell was measured. */
+  | {
+      type: "measured"
+      cell: Point
+      state: "solid" | "void"
+      fighterId: string | null
+    }
+  /** Adventure doubles: one of the two positions of a fighter was struck. */
+  | {
+      type: "doubleResolved"
+      struckId: string
+      otherId: string
+      /** The struck position was the real one (the other is gone). */
+      found: boolean
+    }
+  /** Something left the island without fleeing (a double's empty position). */
+  | { type: "dissolved"; fighterId: string }
+  /** Adventure fraying: cells lost height / a cold halo came up. */
+  | { type: "frayed"; cells: Point[] }
+  | { type: "haloUp"; fighterId: string }
   | { type: "fleeing"; fighterId: string }
   | { type: "fled"; fighterId: string }
   | { type: "timeUp" }

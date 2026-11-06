@@ -90,10 +90,10 @@ const ancrages: FightSpec = {
       name: "Les Lacunaires",
       side: "enemies",
       fighters: [
-        // SIMPLIFIED: no Superposition (two states, probabilities, fixing on
-        // contact): the unstable ones stand in the bowl and the engine fights
-        // them as ordinary enemies. The giant, due on turn 4, starts at the
-        // centre.
+        // The two Dédoublés are one body in two places (a double). Some cells
+        // of the bowl are uncertain until measured (see the rules).
+        // SIMPLIFIED: the unstable ones are ordinary enemies. The giant, due
+        // on turn 4, starts at the centre.
         { preset: UNSTABLE, at: { x: 3, y: 3 } },
         { preset: UNSTABLE, at: { x: 6, y: 3 } },
         { preset: UNSTABLE, at: { x: 3, y: 5 } },
@@ -131,6 +131,17 @@ const ancrages: FightSpec = {
     silent: CUVETTE_X,
     silentDamage: 1,
     neutral: [2],
+    doubles: [{ team: 1, pair: [4, 5] }],
+    superposition: {
+      cells: [
+        { x: 2, y: 2 },
+        { x: 4, y: 2 },
+        { x: 5, y: 2 },
+        { x: 7, y: 2 },
+        { x: 2, y: 6 },
+      ],
+      decohereAt: 6,
+    },
     clock: { period: 1, limit: 8, winner: 0 },
     announce: true,
   },
@@ -151,12 +162,19 @@ const ancrages: FightSpec = {
       mark: "★",
       label:
         "Viser sans savoir : Eva IV tire d'elle-même sur ce qui n'est pas encore quelque part",
-      // SIMPLIFIED: no Superposition and no log of her shots; Eva IV standing
-      // at the end, with the village held, stands for "she shot without being
-      // forced". The scene cancels it if the hero forced her (eva_forcee) or
-      // never lifted R4-eva (r4_eva_levee).
-      check: (r) =>
-        r.result !== "defeat" && evaAlive(r) && anchorsAlive(r) >= 2,
+      // Eva IV settled at least one uncertain cell or double herself (the
+      // report says who measured), the village held. The scene cancels it if
+      // the hero forced her (eva_forcee) or never lifted R4-eva
+      // (r4_eva_levee).
+      check: (r) => {
+        const eva = r.fighters.find((f) => f.preset === EVA4.id)?.id
+        const shot =
+          (r.measured ?? []).some((m) => m.by === eva) ||
+          (r.doubles ?? []).some((d) => d.by === eva)
+        return (
+          r.result !== "defeat" && evaAlive(r) && anchorsAlive(r) >= 2 && shot
+        )
+      },
       success: "Eva IV a tiré sans savoir. La flèche est à elle.",
       failure: "Eva IV n'a pas tiré au hasard.",
       onSuccess: [
