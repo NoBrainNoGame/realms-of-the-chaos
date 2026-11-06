@@ -48,7 +48,9 @@ import BoardView, {
   depthOf,
   type Highlight,
 } from "./BoardView"
+import DecorCrystals from "./DecorCrystals"
 import { describeHp, describeStatus } from "./describe"
+import EnemyElan from "./EnemyElan"
 import { FX, floatingText, particles, projectile } from "./effects"
 import FighterView, { STATUS_COLORS, type WaterState } from "./FighterView"
 import { FightVoice, type LineSpec } from "./fightLines"
@@ -244,6 +246,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
   private _hits!: Container
   private _board!: BoardView
   private _hud!: Hud
+  private _decor: DecorCrystals | null = null
   private _views = new Map<string, FighterView>()
   /** Displayed cell of each fighter (lags behind the engine while animating). */
   private _cells = new Map<string, Point>()
@@ -424,8 +427,19 @@ export default class FightScene extends ViewChip<SceneEvents> {
 
     this._faceEnemies()
 
+    // the decor crystals of ch. 6 (non blocking, depth-sorted with the fighters)
+    if (this.combat.adventure?.report.decor) {
+      this._decor = new DecorCrystals(this.combat, this._board)
+      this._activateChildChip(this._decor, {
+        context: { container: this._entities },
+      })
+    }
+
     this._hud = new Hud()
     this._activateChildChip(this._hud)
+    // the Élan of a mute enemy Ghom (ch. 5 and 6)
+    if (EnemyElan.teamsOf(this.combat).length)
+      this._activateChildChip(new EnemyElan(this.combat))
     this._hud.setSpeed(this._speed)
     this._hud.setTimeline(this.combat)
     this._hud.setDivine(this.combat, this.playerTeam, false, null)
@@ -1839,6 +1853,24 @@ export default class FightScene extends ViewChip<SceneEvents> {
             this._hud.log(`✧ ${name(event.fighterId)} se recompose`)
             this._showEntry(event.fighterId, event.position)
           }),
+        ]
+
+      case "decor":
+        return [
+          new booyah.Lambda(() => {
+            this._decor?.handle(event)
+            if (event.kind === "merge")
+              this._hud.log("Les cristaux glissent ensemble et se fondent.")
+          }),
+        ]
+
+      case "settled":
+        return [
+          new booyah.Lambda(() =>
+            this._hud.log(
+              `${this.combat.getFighter(event.fighterId)?.name ?? "?"} se fixe dans une forme stable.`,
+            ),
+          ),
         ]
 
       case "warmed":
