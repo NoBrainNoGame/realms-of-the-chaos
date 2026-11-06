@@ -52,16 +52,24 @@ const maree: FightSpec = {
       name: "Lacunaires du Front de Marée",
       side: "enemies",
       fighters: [
-        { preset: UNSTABLE, at: { x: 7, y: 6 } },
-        { preset: UNSTABLE, at: { x: 7, y: 7 } },
-        { preset: UNSTABLE, at: { x: 5, y: 7 } },
-        { preset: UNSTABLE, at: { x: 6, y: 7 } },
+        // they come out of the Front by pairs, at ticks 2 and 5
+        { preset: UNSTABLE, at: { x: 7, y: 6 }, arrives: { tick: 2 } },
+        { preset: UNSTABLE, at: { x: 7, y: 7 }, arrives: { tick: 2 } },
+        { preset: UNSTABLE, at: { x: 5, y: 7 }, arrives: { tick: 5 } },
+        { preset: UNSTABLE, at: { x: 6, y: 7 }, arrives: { tick: 5 } },
       ],
     },
   ],
   rules: {
-    // SIMPLIFIED: the Front de Marée and the double victory (north edge or 12
-    // ticks) do not exist. Surviving 12 ticks wins.
+    // The Front de Marée comes from the east and moves one column west every
+    // two ticks, turning what it covers uncertain. Two ways to win: both
+    // allies reach the north edge, or 12 ticks go by.
+    tide: { axis: "x", from: 8, dir: -1, every: 2, start: 2 },
+    reach: {
+      team: 0,
+      count: 2,
+      cells: [3, 4, 5, 6].map((x) => ({ x, y: 0 })),
+    },
     // Planks of the middle that nobody has stepped near yet are uncertain:
     // the first to come within a cell settles them (or the tide, at tick 9).
     superposition: {
@@ -101,10 +109,15 @@ const maree: FightSpec = {
       id: "pas-de-galet-perdu",
       mark: "◆",
       label: "Aucun des deux ne tombe",
-      // SIMPLIFIED: the Galet does not exist; nobody falling (every ally
-      // still standing) stands for it.
+      // No cell turned to water because an ally came close to it, and nobody
+      // fell.
       check: (r) =>
-        r.fighters.filter((f) => f.team === 0).every((f) => f.hp > 0),
+        r.fighters.filter((f) => f.team === 0).every((f) => f.hp > 0) &&
+        !(r.measured ?? []).some(
+          (m) =>
+            m.state === "void" &&
+            r.fighters.some((f) => f.team === 0 && f.id === m.by),
+        ),
       success: "Chaque planche a tenu sous les pas.",
     },
   ],

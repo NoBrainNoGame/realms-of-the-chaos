@@ -26,6 +26,7 @@ import {
   type ScriptRule,
   type WarmthRules,
 } from "./script"
+import { type ReachRule, reached, TideKit, type TideRule } from "./tide"
 import { emptyTrace, TraceKit, type TraceReport } from "./trace"
 import type { FightEvent, Fighter, RefusalReason } from "./types"
 
@@ -56,6 +57,7 @@ export type {
   ScriptStep,
   WarmthRules,
 } from "./script"
+export type { ReachRule, TideRule } from "./tide"
 /**
  * Opt-in combat rules of the Adventure ("Chroniques"). Every field is off by
  * default: skirmish, duel, arcade and the balance tests never set them, so
@@ -170,6 +172,10 @@ export interface AdventureRules {
   debate?: DebateRules
   /** Glass walls: nobody stands in them, nothing is seen or aimed through. */
   glass?: Point[]
+  /** A column of uncertain cells that advances (see `TideRule`). */
+  tide?: TideRule
+  /** A second way to win, by standing on cells (see `ReachRule`). */
+  reach?: ReachRule
   /** Cells nobody walks on fray into Lacunes (see `IdleFrayRule`). */
   idleFray?: IdleFrayRule
   /** The Élan at a perfect cadence, or stopped for good (see `EnergyRules`). */
@@ -411,6 +417,7 @@ export class AdventureTracker {
   /** The Élan rules (null without them). */
   readonly energy: EnergyKit | null
   private _cold: IdleFrayKit | null = null
+  private _tide: TideKit | null = null
   readonly report: AdventureReport = {
     ticks: 0,
     divineUsed: {},
@@ -503,6 +510,7 @@ export class AdventureTracker {
     }
     this.locked = new Set(rules.lockedDivine)
     this.energy = rules.energy ? new EnergyKit(_combat, rules.energy) : null
+    if (rules.tide) this._tide = new TideKit(_combat, rules.tide)
     if (rules.idleFray) this._cold = new IdleFrayKit(_combat, rules.idleFray)
     this._nextTick = rules.clock?.period ?? Infinity
     const member = (team: number, index: number) => {
@@ -885,6 +893,15 @@ export class AdventureTracker {
     combat.dissolve(found ? other : struck)
   }
 
+  /** The Front de Marée moves: the cells it covers become uncertain. */
+  private _flood() {
+    const cells = this._tide?.tick(this.report.ticks) ?? []
+    for (const c of cells) this._uncertain.add(keyOf(c))
+    const reach = this.rules.reach
+    if (reach && this._combat.state !== "ended" && reached(this._combat, reach))
+      this._combat.finish(reach.team)
+  }
+
   private _chill() {
     const cells = this._cold?.tick(this.report.ticks) ?? []
     if (cells.length === 0) return
@@ -959,6 +976,7 @@ export class AdventureTracker {
       this.script.tick(this.report.ticks)
       this.energy?.tick(this.report.ticks)
       this._chill()
+      this._flood()
       this._decohere()
       this._warm()
       this._combat.emitEvent({ type: "clockTick", tick: this.report.ticks })
