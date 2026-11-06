@@ -5,6 +5,7 @@ import {
   ICON_ART,
   type PixelArt,
 } from "../art/pixelArt"
+import { lookOf } from "./looks"
 
 const cache = new Map<string, Texture>()
 
@@ -34,8 +35,10 @@ export function artToTexture(key: string, art: PixelArt): Texture {
   return texture
 }
 
-export const characterTexture = (presetId: string) =>
-  artToTexture(`character:${presetId}`, CHARACTER_ART[presetId])
+export const characterTexture = (presetId: string) => {
+  const look = lookOf(presetId)
+  return artToTexture(`character:${look}`, CHARACTER_ART[look])
+}
 
 export const iconTexture = (id: string) =>
   artToTexture(`icon:${id}`, ICON_ART[id])

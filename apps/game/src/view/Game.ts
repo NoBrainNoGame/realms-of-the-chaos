@@ -1,8 +1,10 @@
 import type * as booyah from "@ghom/booyah"
 import type { Params } from "../params"
 import ArcadeRun from "./ArcadeRun"
+import Creator from "./Creator"
 import FightScene, { classicFight, type SceneOptions } from "./FightScene"
 import Gallery from "./Gallery"
+import { resolveFighters } from "./looks"
 import SettingsScreen from "./SettingsScreen"
 import TeamPicker, { type PickerMode, type PickerResult } from "./TeamPicker"
 import TitleScreen, { type TitleChoice } from "./TitleScreen"
@@ -17,6 +19,7 @@ export type Screen =
   | { type: "gallery" }
   | { type: "tutorial" }
   | { type: "settings" }
+  | { type: "creator"; edit?: string }
 
 /** First screen from the URL (dev shortcuts), the title screen otherwise. */
 export function initialScreen(params: Params): Screen {
@@ -39,8 +42,8 @@ export function initialScreen(params: Params): Screen {
             seed: params.seed ?? randomSeed(),
             speed: params.speed,
             spectate: params.spectate,
-            playerTeam: params.playerTeam,
-            enemyTeam: params.enemyTeam,
+            playerTeam: resolveFighters(params.playerTeam),
+            enemyTeam: resolveFighters(params.enemyTeam),
           }),
           quittable: true,
           placement: true,
@@ -69,12 +72,12 @@ export function pickedFight(result: PickerResult, speed: number): SceneOptions {
         {
           name: "l'équipe bleue",
           controller: "local",
-          fighters: result.teams[0],
+          fighters: resolveFighters(result.teams[0]),
         },
         {
           name: "l'équipe rouge",
           controller: "local",
-          fighters: result.teams[1],
+          fighters: resolveFighters(result.teams[1]),
         },
       ],
     }
@@ -86,11 +89,15 @@ export function pickedFight(result: PickerResult, speed: number): SceneOptions {
     placement: true,
     endActions: ends,
     teams: [
-      { name: "Vous", controller: "local", fighters: result.teams[0] },
+      {
+        name: "Vous",
+        controller: "local",
+        fighters: resolveFighters(result.teams[0]),
+      },
       {
         name: "Chaos",
         controller: "ai",
-        fighters: result.enemies,
+        fighters: resolveFighters(result.enemies),
         statMultiplier: result.difficulty.multiplier,
       },
     ],
@@ -134,7 +141,9 @@ export default class Game extends ViewChip {
         const title = new TitleScreen()
         this._subscribeOnce(title, "choose", (choice: TitleChoice) =>
           this.show(
-            choice === "tutorial" || choice === "settings"
+            choice === "tutorial" ||
+              choice === "settings" ||
+              choice === "creator"
               ? { type: choice }
               : { type: "picker", mode: choice },
           ),
@@ -207,6 +216,12 @@ export default class Game extends ViewChip {
         const screen = new SettingsScreen()
         this._subscribeOnce(screen, "back", () => this.show({ type: "title" }))
         return screen
+      }
+
+      case "creator": {
+        const creator = new Creator(screen.edit)
+        this._subscribeOnce(creator, "back", () => this.show({ type: "title" }))
+        return creator
       }
 
       case "gallery": {

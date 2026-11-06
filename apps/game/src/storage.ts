@@ -3,6 +3,8 @@
  * guarded: storage can be missing or blocked (private mode, tests).
  */
 
+import { type CustomCharacter, checkCustom } from "@realms/engine"
+
 export interface ArcadeBest {
   score: number
   waves: number
@@ -12,6 +14,8 @@ export interface ArcadeBest {
 }
 
 const ARCADE_KEY = "realms.arcade.best"
+const CUSTOM_KEY = "realms.custom"
+export const MAX_CUSTOMS = 12
 
 function read<T>(key: string): T | null {
   try {
@@ -44,9 +48,54 @@ export function submitArcadeScore(run: ArcadeBest): boolean {
   return true
 }
 
+/** Saved characters of the workshop (invalid entries are dropped). */
+export function customCharacters(): CustomCharacter[] {
+  const raw = read<unknown>(CUSTOM_KEY)
+  if (!Array.isArray(raw)) return []
+  const seen = new Set<string>()
+  const out: CustomCharacter[] = []
+  for (const entry of raw) {
+    try {
+      if (!entry || !checkCustom(entry as CustomCharacter).ok) continue
+    } catch {
+      continue
+    }
+    const c = entry as CustomCharacter
+    if (seen.has(c.name)) continue
+    seen.add(c.name)
+    out.push(c)
+  }
+  return out.slice(0, MAX_CUSTOMS)
+}
+
+/** Saves a character, replacing the one of the same name (12 at most). */
+export function saveCustom(character: CustomCharacter) {
+  const list = customCharacters()
+  const index = list.findIndex((c) => c.name === character.name)
+  if (index >= 0) list[index] = character
+  else list.push(character)
+  write(CUSTOM_KEY, list.slice(-MAX_CUSTOMS))
+}
+
+export function deleteCustom(name: string) {
+  write(
+    CUSTOM_KEY,
+    customCharacters().filter((c) => c.name !== name),
+  )
+}
+
+/** The stored character of a "custom:name" preset id, if it still exists. */
+export function customById(id: string): CustomCharacter | undefined {
+  return customCharacters().find((c) => customId(c.name) === id)
+}
+
+export const customId = (name: string) => `custom:${name}`
+export const isCustomId = (id: string) => id.startsWith("custom:")
+
 export function clearStorage() {
   try {
     globalThis.localStorage?.removeItem(ARCADE_KEY)
+    globalThis.localStorage?.removeItem(CUSTOM_KEY)
   } catch {
     // nothing to clear
   }

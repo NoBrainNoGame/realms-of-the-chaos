@@ -3,14 +3,17 @@ import {
   ACTIONS,
   AFFINITIES,
   CHARACTERS,
+  type CharacterPreset,
   createRng,
+  customPreset,
   HP_PER_HEALTH,
 } from "@realms/engine"
 import { Container, Graphics, Sprite } from "pixi.js"
 import { settings } from "../settings"
-import { arcadeBest } from "../storage"
+import { arcadeBest, customCharacters, customId } from "../storage"
 import Backdrop from "./Backdrop"
 import { LOCOMOTION_TRAITS } from "./Hud"
+import { registerLook } from "./looks"
 import { Puppet } from "./Puppet"
 import { characterTexture } from "./textures"
 import { COLORS, TEAM_COLORS } from "./theme"
@@ -99,6 +102,10 @@ export default class TeamPicker extends ViewChip<PickerEvents> {
   private _difficulty = 1
   private _seed: number
   private _enemies: string[]
+  /** The characters offered: the eight, then the saved customs. */
+  private _roster: Record<string, CharacterPreset> = { ...CHARACTERS }
+  /** Ids of the saved customs, in order. */
+  private _customIds: string[] = []
 
   constructor(
     readonly mode: PickerMode,
@@ -106,9 +113,19 @@ export default class TeamPicker extends ViewChip<PickerEvents> {
   ) {
     super()
     this._seed = options.seed ?? Math.floor(Math.random() * 1e6)
-    this._picks = Array.from(
-      { length: this.steps },
-      (_, i) => options.teams?.[i]?.slice(0, MAX_TEAM) ?? [],
+    // the arcade rebuilds its team from the reference characters only
+    if (mode !== "arcade") {
+      for (const c of customCharacters()) {
+        const id = customId(c.name)
+        this._roster[id] = customPreset(c)
+        this._customIds.push(id)
+        registerLook(id, c.kit)
+      }
+    }
+    this._picks = Array.from({ length: this.steps }, (_, i) =>
+      (options.teams?.[i] ?? [])
+        .filter((id) => this._roster[id])
+        .slice(0, MAX_TEAM),
     )
     this._enemies = randomTeam(this._seed + 1)
   }
@@ -139,7 +156,7 @@ export default class TeamPicker extends ViewChip<PickerEvents> {
   }
 
   get focusedId() {
-    return this._cards[this._focus]?.id ?? Object.keys(CHARACTERS)[0]
+    return this._cards[this._focus]?.id ?? Object.keys(this._roster)[0]
   }
 
   get canConfirm() {
@@ -229,7 +246,7 @@ export default class TeamPicker extends ViewChip<PickerEvents> {
     this._hint.y = 40
     this._layout.addChild(this._heading, this._hint)
 
-    const ids = Object.keys(CHARACTERS)
+    const ids = Object.keys(this._roster)
     for (const [i, id] of ids.entries()) {
       this._cards.push(this._createCard(id, i))
     }
@@ -290,7 +307,7 @@ export default class TeamPicker extends ViewChip<PickerEvents> {
   // ─── Building ─────────────────────────────────────────────────────────────
 
   private _createCard(id: string, index: number): Card {
-    const preset = CHARACTERS[id]
+    const preset = this._roster[id]
     const view = new Container()
     view.label = `card:${id}`
     view.position.set(
@@ -309,7 +326,13 @@ export default class TeamPicker extends ViewChip<PickerEvents> {
     const name = text(preset.name, 16, COLORS.text, { fontWeight: "700" })
     name.anchor.set(0.5, 0)
     name.position.set(CARD.width / 2, 136)
-    const title = text(preset.title, 11, COLORS.muted)
+    const title = text(
+      this._customIds.includes(id)
+        ? `Forgé · ${CHARACTERS[this._kitOf(id)].name}`
+        : preset.title,
+      11,
+      this._customIds.includes(id) ? COLORS.combo : COLORS.muted,
+    )
     title.anchor.set(0.5, 0)
     title.position.set(CARD.width / 2, 158)
     const badge = text("", 14, 0x15121f, { fontWeight: "700" })
@@ -323,6 +346,10 @@ export default class TeamPicker extends ViewChip<PickerEvents> {
     })
     this._layout.addChild(view)
     return { id, view, bg, puppet, badge }
+  }
+
+  private _kitOf(id: string) {
+    return customCharacters().find((c) => customId(c.name) === id)?.kit ?? id
   }
 
   private _setFocus(index: number) {
@@ -406,7 +433,7 @@ export default class TeamPicker extends ViewChip<PickerEvents> {
 
   private _drawSheet(id: string) {
     clearChildren(this._sheet)
-    const preset = CHARACTERS[id]
+    const preset = this._roster[id]
     const s = preset.stats
     const portrait = new Sprite(characterTexture(id))
     portrait.scale.set(3)

@@ -1,6 +1,5 @@
 import * as booyah from "@ghom/booyah"
 import {
-  CHARACTERS,
   type Combat,
   DIVINE_ACTIONS,
   type Fighter,
@@ -968,7 +967,7 @@ export default class Hud extends ViewChip<HudEvents> {
     clearChildren(this._card)
     if (!fighter) return
 
-    const preset = CHARACTERS[fighter.presetId]
+    const preset = combat.presetOf(fighter)
     const lines: Container[] = []
 
     const portrait = new Sprite(characterTexture(fighter.presetId))

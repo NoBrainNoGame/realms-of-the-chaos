@@ -1,6 +1,7 @@
 import type { Point } from "@realms/engine"
 import { Container, Graphics, Sprite } from "pixi.js"
 import { softCircle } from "./effects"
+import { lookOf } from "./looks"
 
 /**
  * Isometric characters, "Dofus style": vector puppets made of articulated
@@ -1327,7 +1328,7 @@ export class Puppet extends Container {
 
   constructor(readonly presetId: string) {
     super()
-    const style = STYLES[presetId]
+    const style = STYLES[lookOf(presetId)]
     if (!style) throw new Error(`No puppet style for "${presetId}"`)
     const build = (front: boolean) =>
       style.kind === "golem"
@@ -1375,8 +1376,8 @@ export class Puppet extends Container {
   /** Approximate head height, for UI placement. */
   get headHeight() {
     return (
-      (STYLES[this.presetId].kind === "golem" ? 56 : 54) *
-      STYLES[this.presetId].scale
+      (STYLES[lookOf(this.presetId)].kind === "golem" ? 56 : 54) *
+      STYLES[lookOf(this.presetId)].scale
     )
   }
 
@@ -1400,7 +1401,7 @@ export class Puppet extends Container {
 
   setFacing(facing: Facing) {
     this._facing = facing
-    const scale = STYLES[this.presetId].scale
+    const scale = STYLES[lookOf(this.presetId)].scale
     for (const rig of [this._front, this._back]) {
       rig.root.scale.x = (isMirrored(facing) ? -1 : 1) * scale
     }
