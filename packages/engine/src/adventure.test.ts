@@ -312,4 +312,24 @@ describe("adventure rules are opt-in", () => {
       { fighterId: "brutus-1-1", to: 0 },
     ])
   })
+
+  test("an exit lets a team leave one by one and win when the chosen ones are out", () => {
+    const c = fight({
+      noDefeat: [0, 1],
+      clock: { period: 10, limit: 30, winner: 1 },
+      exit: { team: 0, cells: [{ x: 1, y: 4 }], who: [0] },
+      scripts: [
+        {
+          team: 0,
+          index: 0,
+          steps: [{ act: { do: "move", to: { x: 1, y: 4 } } }],
+        },
+      ],
+    })
+    c.run()
+    expect(c.departed.has("lyra-0-0")).toBe(true)
+    expect(c.departed.has("brutus-0-1")).toBe(false)
+    expect(c.adventure?.report.fled).toContain("lyra-0-0")
+    expect(c.winnerTeam).toBe(0)
+  })
 })

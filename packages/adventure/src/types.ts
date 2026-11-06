@@ -201,6 +201,11 @@ export interface FightLine {
     | "heal"
     | "lost"
     | `unlock:${string}`
+    /** The first time any fighter uses this action. */
+    | `act:${string}`
+    /** The first Cristal broken / the first Lacune (dead twin). */
+    | "crystal"
+    | "gap"
     /** The first Intrication of the fight. */
     | "intrication"
     /** A fallen foe set into a rock (a fixed Lacunaire). */

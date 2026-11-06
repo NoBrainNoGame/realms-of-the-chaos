@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import { ch13 } from "./chapters/ch13"
 import { ch15 } from "./chapters/ch15"
 import { ch17 } from "./chapters/ch17"
 import { ch18 } from "./chapters/ch18"
@@ -218,6 +219,20 @@ describe("chapter 17: Relevé and Argumenter", () => {
         expect(ok(told, id)).toBe(true)
       expect(told.debate?.extraOnce).toBe(true)
       expect(none.debate?.extraOnce).toBe(false)
+    }
+  })
+})
+
+describe("chapter 13: the grille", () => {
+  test("the flight is an exit rule, the lampadaires are Cristaux in pairs", () => {
+    const specs = fightsOf(ch13)
+    expect(specs.length).toBeGreaterThan(0)
+    for (const spec of specs) {
+      const { exit, crystals, flee } = spec.rules
+      expect(exit?.who).toEqual([0, 1])
+      expect(exit?.cells.length).toBeGreaterThanOrEqual(2)
+      expect(crystals?.crystals.filter((c) => c.twin)).toHaveLength(4)
+      expect(flee?.own?.[0].below).toBe(0.3)
     }
   })
 })

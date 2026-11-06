@@ -115,9 +115,12 @@ function citernes(ally: Ally, extras: number, broke: boolean): FightSpec {
       id: "fuir",
       mark: "★",
       label: "Conduire le héros et Lyra III jusqu'à la grille des Citernes",
-      // SIMPLIFIED: the exits `>` are not a rule of the engine; the flight is
-      // a clock (8 turns, the grille is reached) and nobody must be dispersed.
-      check: (r) => r.result !== "defeat",
+      check: (r) =>
+        r.result !== "defeat" &&
+        r.fighters
+          .filter((f) => f.team === 0)
+          .slice(0, 2)
+          .every((f) => f.fled),
       success: "Vous êtes dehors. Dehors, c'est dangereux.",
       failure: "La Garde vous fige avant la grille.",
     },
@@ -135,9 +138,7 @@ function citernes(ally: Ally, extras: number, broke: boolean): FightSpec {
       id: "lampadaires",
       mark: "◆",
       label: "Ne briser aucun Cristal-lampadaire",
-      // The Cristal broken or not is decided before the fight (a gesture);
-      // here only the flight must succeed.
-      check: (r) => r.result !== "defeat",
+      check: (r) => r.result !== "defeat" && !r.crystals?.extracted.length,
       success: "Les lampadaires brillent toujours, par paires.",
       onSuccess: [add("confiance.lyra")],
     })
@@ -149,13 +150,34 @@ function citernes(ally: Ally, extras: number, broke: boolean): FightSpec {
     board: BOARD,
     teams,
     rules: {
-      clock: { period: 1, limit: 8, winner: 0 },
+      clock: { period: 1, limit: 14, winner: 1 },
       glass: GLASS,
-      // SIMPLIFIED: guards and Brutus III break off under 30 % of their HP
-      // (the doc says 25 % for the guards, 30 % for Brutus III).
+      // The lampadaires, by pairs; the twin of (3,4) is in a façade off the map.
+      crystals: {
+        crystals: [
+          { id: "l1", at: { x: 4, y: 0 }, twin: "l2" },
+          { id: "l2", at: { x: 10, y: 4 }, twin: "l1" },
+          { id: "l3", at: { x: 6, y: 2 }, twin: "l4" },
+          { id: "l4", at: { x: 6, y: 6 }, twin: "l3" },
+          { id: "l5", at: { x: 3, y: 4 } },
+        ],
+      },
+      // The hero (0) and Lyra III (1) leave by the grille `>`; Squalor III
+      // also by the canal (13,2).
+      exit: {
+        team: 0,
+        who: [0, 1],
+        cells: [
+          { x: 13, y: 6 },
+          { x: 13, y: 7 },
+          ...(ally === "squalor" ? [{ x: 13, y: 2 }] : []),
+        ],
+      },
+      // The guards give in under 25 % of their HP, Brutus III under 30 %.
       flee: {
         team: 1,
-        below: 0.3,
+        below: 0.25,
+        own: [{ index: guards.length - 1, below: 0.3 }],
         exits: [
           { x: 0, y: 0 },
           { x: 0, y: 7 },
@@ -194,6 +216,26 @@ function citernes(ally: Ally, extras: number, broke: boolean): FightSpec {
             : "Dix ans que je calcule la trajectoire de tout ce qui bouge dans cette cité. Rien ne bouge. Et puis toi. Ne me remercie pas. Je m'ennuyais.",
       },
       {
+        when: "act:frost",
+        who: "sonneur",
+        text: "Ralentissez. Tout le monde. Ralentissez.",
+      },
+      {
+        when: "crystal",
+        who: "lyra",
+        text: "Voilà. On a payé avec l'argent de quelqu'un d'autre.",
+      },
+      {
+        when: "gap",
+        who: "lyra",
+        text: "Le verre a tinté. Là-derrière, quelqu'un a levé la tête.",
+      },
+      {
+        when: "heal",
+        who: "lyra",
+        text: "Je le paie. Avance.",
+      },
+      {
         when: "fleeing",
         who: "brutus",
         text: "Relevez-le. On ne laisse personne par terre.",
@@ -207,11 +249,6 @@ function citernes(ally: Ally, extras: number, broke: boolean): FightSpec {
   }
 }
 
-// CUT: the Sonneur's "Ralentissez" bubble and the Lyra heal bubble, the
-// lampadaire pairs on the map (the Extraire action does not exist: breaking a
-// Cristal is a gesture before the fight), the figé defeat (three enemies and
-// the Sonneur), the people behind the glass raising their heads, the exit at
-// (13,2) of Branchies/Squalor.
 function citernesBeat(): Beat {
   const allyCond: Record<Ally, Cond> = {
     eva: any(

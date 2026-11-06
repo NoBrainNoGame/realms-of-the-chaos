@@ -11,6 +11,9 @@ export class FightVoice {
   private _said = new Set<LineSpec>()
   private _casts = new Set<string>()
   private _healed = false
+  private _acts = new Set<string>()
+  private _crystal = false
+  private _gap = false
   private _paired = false
   private _lost = false
 
@@ -40,12 +43,28 @@ export class FightVoice {
           return this._take("lost")
         }
         return []
-      case "actionUsed":
-        if (!event.partnerId || this._paired) return []
-        this._paired = true
-        return this._take("intrication")
+      case "actionUsed": {
+        const out: LineSpec[] = []
+        if (!this._acts.has(event.baseActionId)) {
+          this._acts.add(event.baseActionId)
+          out.push(...this._take(`act:${event.baseActionId}`))
+        }
+        if (event.partnerId && !this._paired) {
+          this._paired = true
+          out.push(...this._take("intrication"))
+        }
+        return out
+      }
       case "unlocked":
         return this._take(`unlock:${event.divineId}`)
+      case "crystalExtracted":
+        if (this._crystal) return []
+        this._crystal = true
+        return this._take("crystal")
+      case "crystalDead":
+        if (this._gap) return []
+        this._gap = true
+        return this._take("gap")
       case "fixed":
         return this._take("fixed")
       case "fleeing":

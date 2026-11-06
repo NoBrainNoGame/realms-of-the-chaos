@@ -109,9 +109,17 @@ export interface AdventureRules {
     team: number
     below: number
     exits: Point[]
+    /** Members (index in the team) that break off at their own threshold. */
+    own?: { index: number; below: number }[]
     /** Blocked by an adjacent enemy, the fleeing fighter fights its way out. */
     attackIfBlocked?: boolean
   }
+  /**
+   * Exit cells for a team: a fighter of `team` standing on one when its next
+   * turn starts leaves the island, spared. When every member of `who` (indexes
+   * in the team; default: all of it) has left, `team` wins.
+   */
+  exit?: { team: number; cells: Point[]; who?: number[] }
   /** A fighter of these teams "fixes" into a rock (+1 height) instead of dying. */
   fixOnDeath?: number[]
   /** Waves, reinforcements, allies entering mid-fight. */
@@ -565,8 +573,32 @@ export class AdventureTracker {
     return this.report.zoneStates[id] ?? "active"
   }
 
+  private readonly _atExit = new Set<string>()
+
+  /** Standing on an exit cell at the start of its turn: the fighter leaves. */
+  private _leaveByExit(fighter: Fighter) {
+    const exit = this.rules.exit
+    if (!exit || !this._atExit.delete(fighter.id) || !fighter.alive) return
+    const combat = this._combat
+    const team = combat.fighters.filter((f) => f.team === exit.team)
+    const need = exit.who ? exit.who.map((i) => team[i]) : team
+    this.report.fled.push(fighter.id)
+    const done = need.every(
+      (f) => !f || f === fighter || combat.departed.has(f.id) || !f.alive,
+    )
+    combat.depart(fighter, done ? exit.team : undefined)
+  }
+
   /** A fighter stepped on a cell: it may unlock an Influence (`unlockOnReach`). */
   private _reach(fighterId: string, to: Point) {
+    const exit = this.rules.exit
+    if (exit) {
+      const g = this._combat.getFighter(fighterId)
+      if (g && g.team === exit.team) {
+        if (exit.cells.some((c) => equals(c, to))) this._atExit.add(g.id)
+        else this._atExit.delete(g.id)
+      }
+    }
     const list = this.rules.unlockOnReach
     if (!list) return
     const f = this._combat.getFighter(fighterId)
@@ -1018,6 +1050,7 @@ export class AdventureTracker {
 
   /** A turn begins: a silent cell drains energy. */
   turnStart(fighter: Fighter): number {
+    this._leaveByExit(fighter)
     this.debate?.turnStart(fighter)
     this._push(fighter)
     const cold =
@@ -1043,7 +1076,11 @@ export class AdventureTracker {
     const flee = this.rules.flee
     if (!flee || fighter.team !== flee.team || !fighter.alive) return
     if (this.fleeing.has(fighter.id)) return
-    if (fighter.hp / this._combat.maxHp(fighter) >= flee.below) return
+    const index = this._combat.fighters
+      .filter((f) => f.team === flee.team)
+      .indexOf(fighter)
+    const below = flee.own?.find((o) => o.index === index)?.below ?? flee.below
+    if (fighter.hp / this._combat.maxHp(fighter) >= below) return
     this.fleeing.add(fighter.id)
     this._combat.emitEvent({ type: "fleeing", fighterId: fighter.id })
   }

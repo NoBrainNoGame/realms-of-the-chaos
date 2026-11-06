@@ -1972,12 +1972,13 @@ export class Combat {
   }
 
   /** An Adventure fighter leaves the island alive (it fled): spared. */
-  depart(fighter: Fighter) {
+  depart(fighter: Fighter, winnerTeam?: number) {
     this.departed.add(fighter.id)
     this._clearWalk(fighter)
     this._emit({ type: "fled", fighterId: fighter.id })
     this._activeFighter = null
-    this._checkVictory()
+    if (winnerTeam !== undefined) this._end(winnerTeam)
+    else this._checkVictory()
   }
 
   /**
