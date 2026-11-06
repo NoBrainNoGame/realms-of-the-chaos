@@ -41,6 +41,7 @@ function toFight(island: ExplorationScene) {
     if (f.kind === "fight" || f.kind === "done") return f
     if (f.kind === "choice") island.pick(f.options[0].id)
     else if (f.kind === "hub") island.pick(f.topics[0].id)
+    else if (f.kind === "puzzle") island.puzzle?.finish()
     else island.advance()
   }
   throw new Error("no fight")

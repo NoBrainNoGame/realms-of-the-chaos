@@ -12,6 +12,7 @@ import {
   next,
   type ObjectiveResult,
   type Run,
+  solvePuzzle,
 } from "@realms/adventure"
 import { CHARACTERS } from "@realms/engine"
 import { Container } from "pixi.js"
@@ -19,6 +20,7 @@ import { HERO_NAME } from "../adventure/hero"
 import { completeChapter, LAST_CHAPTER, saveRun } from "../adventure/progress"
 import { settings } from "../settings"
 import Backdrop from "./Backdrop"
+import PuzzleBoard from "./PuzzleBoard"
 import { COLORS, TEAM_COLORS } from "./theme"
 import { clearChildren, Menu, type MenuItem, panel, text } from "./ui"
 import ViewChip from "./ViewChip"
@@ -71,6 +73,7 @@ export interface StoryOptions {
 export default class StoryScene extends ViewChip<StoryEvents> {
   private _box!: Container
   private _menu: Menu | null = null
+  private _board: PuzzleBoard | null = null
   private _run: Run
   private _debrief: ObjectiveResult[] | null = null
   private _finished = false
@@ -138,6 +141,18 @@ export default class StoryScene extends ViewChip<StoryEvents> {
     this._render()
   }
 
+  /** The puzzle on screen ended: the story reads the rules that hold. */
+  solve(rules: string[]) {
+    this._run = solvePuzzle(this._run, rules)
+    this._board = null
+    this._save()
+    this._render()
+  }
+
+  get board() {
+    return this._board
+  }
+
   private _save() {
     if (!this._options.sandbox) saveRun(this._run)
   }
@@ -165,6 +180,7 @@ export default class StoryScene extends ViewChip<StoryEvents> {
   private _render() {
     clearChildren(this._box)
     this._menu = null
+    this._board = null
     const chapter = chapterById(this._run.chapter)
     const scene = chapter.scenes[this._run.node]
     const body = new Container()
@@ -220,6 +236,12 @@ export default class StoryScene extends ViewChip<StoryEvents> {
       this._menu = menu
     }
 
+    const addBoard = (board: PuzzleBoard) => {
+      board.position.set(0, y)
+      body.addChild(board)
+      y += board.height + 12
+    }
+
     if (this._debrief) {
       addText("Bilan du combat", 18, 0xffe066, { fontWeight: "700" })
       for (const o of this._debrief) {
@@ -235,7 +257,7 @@ export default class StoryScene extends ViewChip<StoryEvents> {
     } else if (this._run.done) {
       this._finishChapter(addText, addMenu)
     } else {
-      this._renderFrame(frame(this._run), addText, addMenu)
+      this._renderFrame(frame(this._run), addText, addMenu, addBoard)
     }
 
     const height = y + 24
@@ -248,6 +270,7 @@ export default class StoryScene extends ViewChip<StoryEvents> {
     f: Frame,
     addText: (v: string, s: number, c: number, e?: object) => unknown,
     addMenu: (items: MenuItem[], on: (id: string) => void) => void,
+    addBoard: (board: PuzzleBoard) => void,
   ) {
     switch (f.kind) {
       case "line":
@@ -282,6 +305,13 @@ export default class StoryScene extends ViewChip<StoryEvents> {
           (id) => this.pick(id),
         )
         break
+      case "puzzle": {
+        if (f.prompt) addText(f.prompt, 17, COLORS.text)
+        const board = new PuzzleBoard(f.puzzle, (rules) => this.solve(rules))
+        this._board = board
+        addBoard(board)
+        break
+      }
       case "fight": {
         addText(f.fight.title, 20, 0xffe066, { fontWeight: "700" })
         addText(f.fight.goal, 16, COLORS.text)

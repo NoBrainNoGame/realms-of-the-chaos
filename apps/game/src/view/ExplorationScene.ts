@@ -28,6 +28,7 @@ import {
   overcome,
   pending,
   type Run,
+  solvePuzzle,
   wanderFight,
 } from "@realms/adventure"
 import {
@@ -44,6 +45,7 @@ import Backdrop from "./Backdrop"
 import BoardView, { COLUMN_BOTTOM, DEPTH, depthOf } from "./BoardView"
 import type FightScene from "./FightScene"
 import { facingBetween, Puppet } from "./Puppet"
+import PuzzleBoard from "./PuzzleBoard"
 import { speakerName, VOICE } from "./StoryScene"
 import { characterTexture } from "./textures"
 import {
@@ -134,6 +136,7 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
   /** The Élan bar and the Influences (top right of the island). */
   private _elan = new Container()
   private _menu: Menu | null = null
+  private _puzzle: PuzzleBoard | null = null
   private _size = { width: 0, height: 0 }
   private _fit = { scale: 1, x: 0, y: 0 }
 
@@ -882,6 +885,20 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
     this._afterRun()
   }
 
+  /** The puzzle on screen ended: the story reads the rules that hold. */
+  solve(rules: string[]) {
+    if (this._mode !== "story") return
+    this._run = solvePuzzle(this._run, rules)
+    this._puzzle = null
+    this._save()
+    this._afterRun()
+  }
+
+  /** The puzzle board on screen (read by the tests). */
+  get puzzle() {
+    return this._puzzle
+  }
+
   /** After the story moved: back to the island, or on with the scene. */
   private _afterRun() {
     this._speaking = null
@@ -973,6 +990,7 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
   }
 
   private _renderBox() {
+    this._puzzle = null
     clearChildren(this._box)
     this._menu = null
     this._speaker?.destroy()
@@ -990,6 +1008,7 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
     let items: MenuItem[] = []
     let on: (id: string) => void = () => {}
     let more = false
+    let board: PuzzleBoard | null = null
 
     if (this._mode === "look") {
       const line = this._looks[0]
@@ -1027,6 +1046,11 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
           body = "De quoi parler ?"
           items = f.topics.map((t) => ({ id: t.id, label: t.title }))
           on = (id) => this.pick(id)
+          break
+        case "puzzle":
+          body = f.prompt ?? ""
+          board = new PuzzleBoard(f.puzzle, (rules) => this.solve(rules))
+          this._puzzle = board
           break
         case "fight":
           body = `${f.fight.title}\n${f.fight.goal}`
@@ -1091,6 +1115,11 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
       portrait.position.set(16, 14)
       rows.addChild(portrait)
       y = Math.max(y, 14 + portrait.height + 8)
+    }
+    if (board) {
+      board.position.set(20, y)
+      rows.addChild(board)
+      y += board.height + 12
     }
     if (items.length) {
       const menu = new Menu(items, {
