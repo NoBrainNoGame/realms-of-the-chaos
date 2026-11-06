@@ -870,6 +870,8 @@ export class Combat {
 
   /** `divine: false`: the fighter acts alone, the Ghom's Élan is not spent. */
   private _playAi(fighter: Fighter, divine = true) {
+    if (this.adventure?.isSettled(fighter)) return this._pass(fighter)
+    if (this.adventure?.isMute(fighter.team)) divine = false
     const scripted = this.adventure?.script.hasScript(fighter) ?? false
     if (this.holding.has(fighter.team) && !scripted) {
       // a neutral team only breaks the crystals it was set to break

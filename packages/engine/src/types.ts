@@ -337,6 +337,18 @@ export type FightEvent =
   | { type: "unlocked"; divineId: string }
   | { type: "fleeing"; fighterId: string }
   | { type: "fled"; fighterId: string }
+  /** Adventure decor crystals: one stepped, shone, beat, or all fused. */
+  | {
+      type: "decor"
+      kind: "step" | "glow" | "pulse" | "merge"
+      /** Crystal concerned (-1: all of them). */
+      index: number
+      from?: Point
+      to?: Point
+      level?: number
+    }
+  /** Adventure: a fighter settled in a stable form (it stops, neutral). */
+  | { type: "settled"; fighterId: string; cell: Point }
   | { type: "timeUp" }
   | { type: "ended"; winnerTeam: number | null }
 

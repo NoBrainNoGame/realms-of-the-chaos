@@ -1,6 +1,7 @@
 import { MIN_ELEVATION } from "./board"
 import { IdleFrayKit, type IdleFrayRule } from "./cold"
 import type { Combat } from "./combat"
+import { MAX_ENERGY } from "./content"
 import {
   CrystalKit,
   type CrystalReport,
@@ -14,6 +15,7 @@ import {
   type DebateRules,
   emptyDebateReport,
 } from "./debate"
+import { DecorKit, type DecorReport, type DecorRules } from "./decor"
 import { EnergyKit, type EnergyRules } from "./energy"
 import { FixationKit, type FixationRule } from "./fixation"
 import { equals, keyOf, manhattan, type Point } from "./geometry"
@@ -59,6 +61,7 @@ export type { FixationRule } from "./fixation"
 
 import type { ScriptCond } from "./script"
 
+export type { DecorReport, DecorRules } from "./decor"
 export type {
   RecomposeRule,
   ScriptAct,
@@ -132,6 +135,22 @@ export interface AdventureRules {
   }[]
   /** Members that never strike a fighter of the teams `toward`. */
   peaceful?: { team: number; index: number; toward: number[] }[]
+  /**
+   * Members that leave the map when a fighter of the teams `by` strikes them
+   * (Nyx, frightened by an ally): they are scared off, not hurt.
+   */
+  shy?: { team: number; index: number; by: number[] }[]
+  /** Teams whose Ghom never acts: their Élan is full and stays so. */
+  mute?: number[]
+  /**
+   * A fighter of `teams` that stands on an inhabited cell (where two Échos of
+   * the ceasefire camps made the peace) settles into a stable form: neutral
+   * and inert. With `calm`, the Ghom of the Chaos then stops (no Lacune grows,
+   * no Distorsion), one whole turn goes by, and the fight ends.
+   */
+  settle?: { teams: number[]; calm?: boolean }
+  /** Decor crystals that follow the Intrications (see `DecorRules`). */
+  decor?: DecorRules
   /** Fighters no weapon can hurt (a Golem too dense to be wounded). */
   immune?: { team: number; index: number }[]
   /**
@@ -200,6 +219,11 @@ export interface AdventureRules {
   exit?: { team: number; cells: Point[]; who?: number[] }
   /** A fighter of these teams "fixes" into a rock (+1 height) instead of dying. */
   fixOnDeath?: number[]
+  /**
+   * A fixed foe is a block of ice rather than a rock: `melt` clock ticks
+   * later the cell becomes shallow water.
+   */
+  fixIce?: { melt: number }
   /** Waves, reinforcements, allies entering mid-fight. */
   arrivals?: ArrivalRule[]
   /** Fighters changing sides mid-fight. */
@@ -466,6 +490,16 @@ export interface AdventureReport {
   fixedAt: Point[]
   /** Cells of the Echo that received each Intrication. */
   intricationAt: Point[]
+  /** Cells inhabited by two Échos of the ceasefire camps (the peace). */
+  inhabitedAt: Point[]
+  /** Fighters settled in a stable form on an inhabited cell. */
+  settled: string[]
+  /** The Chaos fell calm after a settling (`settle.calm`). */
+  calm: boolean
+  /** Fighters scared off the map by a blow (`rules.shy`). */
+  scared: string[]
+  /** The decor crystals (`rules.decor`), if any. */
+  decor?: DecorReport
   /** Ids of the fighters that entered mid-fight, in order. */
   arrived: string[]
   /** Fighters that changed sides, in order. */
@@ -518,6 +552,8 @@ export class AdventureTracker {
   /** The last fleeing turn found its way shut by an adjacent enemy. */
   fleeBlocked = false
   readonly locked: Set<string>
+  /** The decor crystals (null without them). */
+  readonly decor: DecorKit | null = null
   /** The Élan rules (null without them). */
   readonly energy: EnergyKit | null
   private _cold: IdleFrayKit | null = null
@@ -539,6 +575,10 @@ export class AdventureTracker {
     distorted: [],
     fixedAt: [],
     intricationAt: [],
+    inhabitedAt: [],
+    settled: [],
+    calm: false,
+    scared: [],
     arrived: [],
     switched: [],
     zonesLost: [],
@@ -626,6 +666,14 @@ export class AdventureTracker {
       this.report.debate = this.debate.report
     }
     this.locked = new Set(rules.lockedDivine)
+    for (const t of rules.mute ?? []) {
+      const team = _combat.teams[t]
+      if (team) team.energy = MAX_ENERGY
+    }
+    if (rules.decor) {
+      this.decor = new DecorKit(_combat, rules.decor)
+      this.report.decor = this.decor.report
+    }
     this.energy = rules.energy ? new EnergyKit(_combat, rules.energy) : null
     if (rules.fixation) this._fix = new FixationKit(_combat, rules.fixation)
     if (rules.tide) this._tide = new TideKit(_combat, rules.tide)
@@ -704,6 +752,7 @@ export class AdventureTracker {
 
   /** Neutral teams are only enemies of the AI. */
   isEnemy(a: Fighter, b: Fighter) {
+    if (this._settled.has(a.id) || this._settled.has(b.id)) return false
     if (this.rules.truce?.length && this._inTruce(a, b)) return false
     if (this.rules.ceasefire && this._calm(a, b)) return false
     const na = this.isNeutral(a.team)
@@ -712,6 +761,56 @@ export class AdventureTracker {
     if (na && nb) return false
     const other = na ? b : a
     return other.controller === "ai"
+  }
+
+  private readonly _melting: { cell: Point; at: number }[] = []
+  private readonly _settled = new Set<string>()
+
+  /** The blocks of ice that came to term melt into shallow water. */
+  private _melt() {
+    const combat = this._combat
+    for (const m of [...this._melting]) {
+      if (this.report.ticks < m.at) continue
+      this._melting.splice(this._melting.indexOf(m), 1)
+      const cell = combat.board.get(m.cell)
+      if (!cell) continue
+      cell.terrain = "water"
+      cell.elevation = -1
+      combat.refreshTerrain()
+      combat.emitEvent({ type: "terrainChanged", cell: { ...m.cell } })
+      combat.emitEvent({ type: "thawed", cell: { ...m.cell }, by: null })
+    }
+  }
+  private _calmFrom = -1
+
+  /** Is the fighter settled in a stable form (it no longer acts)? */
+  isSettled(fighter: Fighter) {
+    return this._settled.has(fighter.id)
+  }
+
+  /** Does the Ghom of this team stay silent (`rules.mute`)? */
+  isMute(team: number) {
+    return this.rules.mute?.includes(team) ?? false
+  }
+
+  /** A fighter of `settle.teams` on an inhabited cell settles for good. */
+  private _settleFighter(fighter: Fighter | undefined) {
+    const rule = this.rules.settle
+    if (!rule || !fighter?.alive || this._settled.has(fighter.id)) return
+    if (!rule.teams.includes(fighter.team)) return
+    if (!this.report.inhabitedAt.some((c) => equals(c, fighter.position)))
+      return
+    this._settled.add(fighter.id)
+    this.report.settled.push(fighter.id)
+    this._combat.emitEvent({
+      type: "settled",
+      fighterId: fighter.id,
+      cell: { ...fighter.position },
+    })
+    if (rule.calm && !this.report.calm) {
+      this.report.calm = true
+      this._calmFrom = this.report.ticks
+    }
   }
 
   private _ceasefireCalm = 0
@@ -738,9 +837,27 @@ export class AdventureTracker {
     this.report.ceasefireBroken = true
   }
 
+  /** A blow hit a shy member: it leaves the map, scared, unhurt. */
+  private _frighten(hitId: string, byId: string) {
+    const shy = this.rules.shy
+    if (!shy?.length) return
+    const combat = this._combat
+    const hit = combat.getFighter(hitId)
+    const by = combat.getFighter(byId)
+    if (!hit?.alive || !by || combat.departed.has(hit.id)) return
+    for (const s of shy) {
+      const who = combat.fighters.filter((f) => f.team === s.team)[s.index]
+      if (who !== hit || !s.by.includes(by.team)) continue
+      this.report.scared.push(hit.id)
+      combat.depart(hit)
+      return
+    }
+  }
+
   /** The Distorsion of the bodiless Ghom, at the end of a tick. */
   private _distort() {
     const d = this.rules.distort
+    if (this.report.calm) return
     if (!d || this.report.ticks % d.every !== 0) return
     const combat = this._combat
     const free = combat.aliveFighters.filter(
@@ -852,9 +969,16 @@ export class AdventureTracker {
         const f = combat.getFighter(event.fighterId)
         if (f) this._work(f, event.to)
         if (f && this.rules.snatch) this._snatch(f)
+        this._settleFighter(f)
         this._measureAround(event.to, event.fighterId)
         break
       }
+      case "pushed":
+        this._settleFighter(combat.getFighter(event.fighterId))
+        break
+      case "ended":
+        this.decor?.end()
+        break
       case "damaged": {
         const c = this.rules.ceasefire
         if (c && event.sourceId) {
@@ -863,6 +987,7 @@ export class AdventureTracker {
           if (hit?.team === c.b && by?.team === c.a && !this.report.peace)
             this._breakCeasefire()
         }
+        if (event.sourceId) this._frighten(event.fighterId, event.sourceId)
         this._strike(event.fighterId, event.sourceId)
         break
       }
@@ -894,9 +1019,17 @@ export class AdventureTracker {
             ((f.team === c.a && partner.team === c.b) ||
               (f.team === c.b && partner.team === c.a)) &&
             this.silent.has(keyOf(f.position))
-          )
+          ) {
             this.report.peace = true
+            this.report.inhabitedAt.push({ ...f.position })
+            this._settleFighter(f)
+            this._settleFighter(partner)
+            for (const o of combat.fightersAt(f.position))
+              this._settleFighter(o)
+          }
         }
+        if (event.partnerId && f)
+          this.decor?.intrication(event.target, f, event.partnerId)
         break
       }
       case "divineUsed": {
@@ -1001,7 +1134,7 @@ export class AdventureTracker {
 
   private _grow() {
     const rules = this.rules.lacunes
-    if (!rules) return
+    if (!rules || this.report.calm) return
     const combat = this._combat
     const ticks = this.report.ticks
     if (ticks < (rules.from ?? rules.every) || ticks % rules.every !== 0) return
@@ -1209,6 +1342,7 @@ export class AdventureTracker {
       this._nextTick += clock.period
       this.report.ticks++
       this._tick()
+      this._melt()
       this._grow()
       this._fray()
       this.script.tick(this.report.ticks)
@@ -1225,6 +1359,11 @@ export class AdventureTracker {
         else this._ceasefireCalm++
       }
       this._combat.emitEvent({ type: "clockTick", tick: this.report.ticks })
+      // the Chaos fell calm: one whole turn goes by, then the rift comes
+      if (this.report.calm && this.report.ticks > this._calmFrom) {
+        this._combat.finish(clock.winner ?? null)
+        return
+      }
       this._release(time)
       if (clock.limit !== undefined && this.report.ticks >= clock.limit) {
         this.report.timeUp = true
@@ -1595,6 +1734,11 @@ export class AdventureTracker {
   }
 
   fixed(fighter: Fighter) {
+    if (this.rules.fixIce)
+      this._melting.push({
+        cell: { ...fighter.position },
+        at: this.report.ticks + this.rules.fixIce.melt,
+      })
     this.report.fixed.push(fighter.id)
     if (this.fleeing.has(fighter.id)) this.report.fixedFleeing.push(fighter.id)
     this.report.fixedAt.push({ ...fighter.position })
