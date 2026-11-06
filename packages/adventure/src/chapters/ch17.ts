@@ -724,7 +724,7 @@ export const ch17: Chapter = {
               ),
               choice("constante", [
                 opt("souvenir", "Je m'en souviendrai.", [
-                  fx(add("nom.propositions")),
+                  fx(add("nom.propositions"), set("nom.propositions.merlin")),
                 ]),
                 opt("non", "Non.", [
                   narr("Le nom ne se prendra qu'à la Nomination."),

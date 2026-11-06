@@ -45,6 +45,9 @@ const ERA3_FLAGS: Record<string, FlagSpec> = {
   merlin_convaincu: bool,
   "transformation.3": text("aucune", "A", "B"),
   "nom.propositions": count(9),
+  "nom.propositions.lyra": bool,
+  "nom.propositions.gorr": bool,
+  "nom.propositions.merlin": bool,
   premier_cristal: text("aucun", "sauve", "perdu"),
 
   // chapter 13

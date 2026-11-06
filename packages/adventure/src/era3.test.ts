@@ -142,7 +142,7 @@ describe("era III chapters", () => {
             for (let seed = 1; seed <= 12; seed++) {
               const { run } = play(c.id, seed, "win", carry, pick)
               expect(run.done).toBe(true)
-              expect(Number(run.flags.defaite ?? 0) ? true : false).toBe(false)
+              expect(!!Number(run.flags.defaite ?? 0)).toBe(false)
               expect(JSON.parse(JSON.stringify(run))).toEqual(run)
             }
       })

@@ -109,6 +109,11 @@ function retour(
 const BOARD = flat(11)
 const LACUNE = [4, 5, 6].flatMap((y) => [4, 5, 6].map((x) => ({ x, y })))
 
+const inHeart = (c: { x: number; y: number }) =>
+  c.x >= 4 && c.x <= 6 && c.y >= 4 && c.y <= 6
+const nearHeart = (c: { x: number; y: number }) =>
+  c.x >= 3 && c.x <= 7 && c.y >= 3 && c.y <= 7
+
 type Issue = "vaincu" | "suivi" | "laisse" | "couple"
 
 function recomposition(
@@ -156,15 +161,15 @@ function recomposition(
   if (issue === "couple") enemies.push(at(UNSTABLE, 10, 3), at(UNSTABLE, 10, 7))
 
   const objectives: ObjectiveSpec[] = [
-    // The three ways, first to complete wins. SIMPLIFIED: the report has no
-    // cell data, so each way is read from what the Ghom did (stitching = a
-    // Réparation, widening = Séismes, living in = two Intrications); they are
-    // exclusive, Habiter beating Élargir beating Recoudre.
+    // The three ways, first to complete wins, read from what the fight did
+    // at the Heart (cells 4..6): Habiter = two Intrications aimed at it,
+    // Élargir = Séismes while nobody works next to it, Recoudre = a Réparation
+    // on or next to it with a Bénédiction. Habiter beats Élargir beats Recoudre.
     {
       id: "habiter",
       mark: "◆",
       label: "Habiter le Cœur",
-      check: (r) => r.intrications >= 2,
+      check: (r) => (r.intricationAt ?? []).filter(inHeart).length >= 2,
       onSuccess: [
         set("derniere_lacune", "habitee"),
         add("lacunes.habitees", 2),
@@ -174,7 +179,10 @@ function recomposition(
       id: "elargir",
       mark: "◆",
       label: "Élargir le Cœur",
-      check: (r) => r.intrications < 2 && (r.divineUsed.earthquake ?? 0) >= 2,
+      check: (r) =>
+        (r.divineUsed.earthquake ?? 0) >= 2 &&
+        !(r.intricationAt ?? []).some(inHeart) &&
+        !(r.fixedAt ?? []).some(nearHeart),
       onSuccess: [
         set("derniere_lacune", "elargie"),
         add("lacunes.elargies", 2),
@@ -185,9 +193,9 @@ function recomposition(
       mark: "◆",
       label: "Recoudre le Cœur",
       check: (r) =>
-        r.intrications < 2 &&
-        (r.divineUsed.earthquake ?? 0) < 2 &&
-        (r.divineUsed.blessing ?? 0) >= 1,
+        (r.divineUsed.blessing ?? 0) >= 1 &&
+        (r.fixedAt ?? []).some(nearHeart) &&
+        (r.divineUsed.earthquake ?? 0) < 2,
       onSuccess: [
         set("derniere_lacune", "recousue"),
         add("lacunes.recousues", 2),
@@ -604,7 +612,11 @@ export const ch28: Chapter = {
           ),
           choice("fissure", [
             opt("1", "« Je m'en souviendrai. »", [
-              fx(set("nom.fissure"), add("confiance.gorr")),
+              fx(
+                set("nom.fissure"),
+                set("nom.propositions.gorr"),
+                add("confiance.gorr"),
+              ),
               say(
                 "gorr",
                 "Fissure. (Il le répète, pour l'apprendre.) Fissure.",
@@ -619,8 +631,8 @@ export const ch28: Chapter = {
           "gorr",
           "Gorr dit les noms, avant la question. Gorr dit le nom de chacun. Et toi ? Quel nom, Gorr dit ?",
         ),
-        // SIMPLIFIED: the run does not keep the list of names proposed; each
-        // lineage offers its name when its trust is at least +1, and the
+        // A lineage offers its name when it is in `nom.propositions.<lignée>`
+        // (kept since ch. 12, 17, 18 and 24) and its trust is at least +1; the
         // decoys (the labels of the legends) are always there.
         choice("nomination", [
           opt(
@@ -657,7 +669,7 @@ export const ch28: Chapter = {
               fx(set("nom", "lyra"), add("confiance.lyra")),
               say("lyra", "C'est celui que je t'ai donné. Il te va."),
             ],
-            gte("confiance.lyra", 1),
+            all(is("nom.propositions.lyra"), gte("confiance.lyra", 1)),
           ),
           opt(
             "nerea",
@@ -669,13 +681,13 @@ export const ch28: Chapter = {
                 "C'est le mien. Je veux dire : celui que je t'ai donné.",
               ),
             ],
-            gte("confiance.nerea", 1),
+            all(is("nom.propositions.nerea"), gte("confiance.nerea", 1)),
           ),
           opt(
             "merlin",
             "Constante.",
             [fx(set("nom", "merlin"), add("confiance.merlin"))],
-            gte("confiance.merlin", 1),
+            all(is("nom.propositions.merlin"), gte("confiance.merlin", 1)),
           ),
           opt(
             "nyx",
@@ -684,19 +696,19 @@ export const ch28: Chapter = {
               fx(set("nom", "nyx"), add("confiance.nyx")),
               say("nyx", "Lisière tient toujours."),
             ],
-            gte("confiance.nyx", 1),
+            all(is("nom.propositions.nyx"), gte("confiance.nyx", 1)),
           ),
           opt(
             "eva",
             "Écart.",
             [fx(set("nom", "eva"), add("confiance.eva"))],
-            gte("confiance.eva", 1),
+            all(is("nom.propositions.eva"), gte("confiance.eva", 1)),
           ),
           opt(
             "squalor",
             "Reste.",
             [fx(set("nom", "squalor"), add("confiance.squalor"))],
-            gte("confiance.squalor", 1),
+            all(is("nom.propositions.squalor"), gte("confiance.squalor", 1)),
           ),
           opt("dormeur", "Le Dormeur.", [
             fx(set("nom", "faux")),

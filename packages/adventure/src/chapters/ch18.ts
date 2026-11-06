@@ -303,7 +303,11 @@ const lienNom = (
     ...lines,
     choice(`nom-${nom}`, [
       opt("souvenir", "Je m'en souviendrai.", [
-        fx(add("nom.propositions"), add(`confiance.${nom}`)),
+        fx(
+          add("nom.propositions"),
+          set(`nom.propositions.${nom}`),
+          add(`confiance.${nom}`),
+        ),
       ]),
       opt("non", "Non.", [narr("La proposition est retirée.")]),
     ]),
@@ -627,7 +631,11 @@ export const ch18: Chapter = {
             stage("Tout le monde comprend que c'est un nom."),
             choice("nom-gorr", [
               opt("souvenir", "Je m'en souviendrai.", [
-                fx(add("nom.propositions"), add("confiance.gorr")),
+                fx(
+                  add("nom.propositions"),
+                  set("nom.propositions.gorr"),
+                  add("confiance.gorr"),
+                ),
               ]),
               opt("non", "Non.", [narr("La proposition est retirée.")]),
             ]),
