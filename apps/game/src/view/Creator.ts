@@ -583,9 +583,9 @@ export default class Creator extends ViewChip<CreatorEvents> {
       this._look
         ? "Son affinité. Son apparence est la vôtre, ses sorts se choisissent plus bas."
         : "Son apparence et son affinité. Ses sorts se choisissent plus bas.",
-      11,
-      COLORS.muted,
-      { lineHeight: 15, wordWrap: true, wordWrapWidth: 276 },
+      12,
+      0xcfc6e6,
+      { lineHeight: 16, wordWrap: true, wordWrapWidth: 276 },
     )
     kitNote.position.set(12, top + 236)
     const look = button({
@@ -630,7 +630,7 @@ export default class Creator extends ViewChip<CreatorEvents> {
     this._box.addChild(nameLabel, nameText, reroll.view)
 
     CUSTOM_STATS.forEach((stat, i) => {
-      const y = 144 + i * 44
+      const y = 140 + i * 40
       const label = text(STAT_LABELS[stat], 14, COLORS.text)
       label.position.set(x, y + 8)
       const value = text(String(this._stats[stat]), 16, 0xffe066, {
@@ -661,14 +661,14 @@ export default class Creator extends ViewChip<CreatorEvents> {
       COLORS.text,
       { fontWeight: "700" },
     )
-    health.position.set(x, 144 + CUSTOM_STATS.length * 44 + 8)
+    health.position.set(x, 140 + CUSTOM_STATS.length * 40 + 12)
     const note = text(
       "Plus une qualité monte, plus la santé baisse : votre Écho reste aussi fort que celui dont il reprend les actions.",
       11,
       COLORS.text,
       { wordWrap: true, wordWrapWidth: 340, lineHeight: 15 },
     )
-    note.position.set(x, health.y + 28)
+    note.position.set(x, health.y + 30)
     this._box.addChild(health, note)
     if (!checkCustom(this.character, allowance()).ok) {
       const warn = text(
@@ -803,19 +803,19 @@ export default class Creator extends ViewChip<CreatorEvents> {
       const info = spellInfo(entry)
       const name = text(info.name, 15, 0xffe066, { fontWeight: "700" })
       name.position.set(x + 10, top + 8)
-      const cost = text(`Délai : ${info.cost.toFixed(2)}`, 11, COLORS.muted)
+      const cost = text(`Délai : ${info.cost.toFixed(2)}`, 11, 0xcfc6e6)
       cost.anchor.set(1, 0)
       cost.position.set(x + width - 10, top + 11)
       const short =
         info.description.length > 110
           ? `${info.description.slice(0, 107)}…`
           : info.description
-      const description = text(short, 11, COLORS.text, {
+      const description = text(short, 12, COLORS.text, {
         wordWrap: true,
         wordWrapWidth: width - 20,
-        lineHeight: 14,
+        lineHeight: 15,
       })
-      description.position.set(x + 10, top + 30)
+      description.position.set(x + 10, top + 32)
       this._box.addChild(name, cost, description)
       const buttons: [string, string, () => void, boolean, number?][] = [
         ["Changer", "change", () => this.openChooser(i), true],

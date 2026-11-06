@@ -450,10 +450,16 @@ function arm(style: Style, hand: Hand, front: boolean, shade: boolean): Arm {
         .moveTo(-4, -16)
         .quadraticCurveTo(7, 0, -4, 16)
         .stroke({ width: 2, color: 0xc08a4a })
+      // seen from behind the string runs over the clothes: a faint thread,
+      // not a bright stripe across the dress
       item
         .moveTo(-4, -16)
         .lineTo(-4, 16)
-        .stroke({ width: 0.8, color: 0xe9ecef })
+        .stroke(
+          front
+            ? { width: 0.8, color: 0xe9ecef }
+            : { width: 0.6, color: 0x868e96, alpha: 0.45 },
+        )
       break
 
     case "swordShield":

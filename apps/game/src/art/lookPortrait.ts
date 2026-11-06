@@ -222,6 +222,18 @@ export function lookPortrait(look: CustomLook): PixelArt {
   }
   void helm
 
+  // light from the upper right: sheen on the hair, a lit cheek and shoulder
+  if (hair !== 8) {
+    put(
+      hx1 - 1,
+      hy0 + 2,
+      get(hx1 - 1, hy0 + 2) === KEYS.skin ? "L" : get(hx1 - 1, hy0 + 2),
+    )
+    if (get(hx1 - 1, hy0) === KEYS.hair) put(hx1 - 1, hy0, "J")
+    if (get(hx1 - 2, hy0 - 1) === KEYS.hair) put(hx1 - 2, hy0 - 1, "J")
+  }
+  if (get(right - 1, 10) === bodyKey) put(right - 1, 10, "K")
+
   // accessories
   switch (look.accessory % 5) {
     case 1: // goggles
@@ -285,6 +297,9 @@ export function lookPortrait(look: CustomLook): PixelArt {
       y: "#ffe066",
       p: "#f783ac",
       r: "#b04a4a",
+      L: css(shadeOf(r.skin, 1.12)),
+      J: css(shadeOf(r.hair, 1.35)),
+      K: css(shadeOf(top === 3 ? r.metal : r.cloth, 1.25)),
       g: css(shadeOf(0x343a40, 1)),
       o: "#74c0fc",
     },
