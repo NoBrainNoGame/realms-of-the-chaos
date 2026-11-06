@@ -201,7 +201,21 @@ export interface Encounter {
   auto?: boolean
   examine?: { lines: ExamineLine[]; effects?: Effect[] }
   wander?: Wanderer
+  /** Something only an Influence of the Ghom can move (repair, shake, distort). */
+  obstacle?: Obstacle
   if?: Cond
+}
+
+/** The Ghom's hands, on the island (same ids as the fight's divine powers). */
+export type Influence = "timeWarp" | "earthquake" | "blessing"
+
+export interface Obstacle {
+  influence: Influence
+  /** Read when the hero looks at it before it is moved. */
+  before: ExamineLine[]
+  /** Read when the Influence moves it; its effects count once. */
+  after: ExamineLine[]
+  effects?: Effect[]
 }
 
 export interface Exploration {
@@ -210,6 +224,8 @@ export interface Exploration {
   start: Spot
   /** Characters (of the team) who walk behind the hero here. */
   companions?: string[]
+  /** What the Ghom can do on this island (none by default). */
+  influences?: Influence[]
   encounters: Encounter[]
 }
 

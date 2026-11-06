@@ -97,6 +97,13 @@ export function validateChapter(chapter: Chapter): string[] {
       if (e.if) cond(e.if, `encounter ${e.id}`)
       effects(e.examine?.effects ?? [], `encounter ${e.id}`)
       effects(e.wander?.effects ?? [], `encounter ${e.id}`)
+      if (e.obstacle) {
+        if (!(ex.influences ?? []).includes(e.obstacle.influence))
+          err(
+            `encounter "${e.id}": the chapter does not give ${e.obstacle.influence}`,
+          )
+        effects(e.obstacle.effects ?? [], `encounter ${e.id}`)
+      }
     }
     // the story must never wait for something the hero cannot find
     for (const id of Object.keys(chapter.scenes))

@@ -4,6 +4,7 @@ import type {
   ExamineLine,
   Exploration,
   FightSpec,
+  Influence,
   Spot,
   Wanderer,
 } from "./types"
@@ -155,4 +156,68 @@ export function wanderFight(
     ],
     lines: [],
   }
+}
+
+// ─── The Ghom's Élan and Influences, on the island ──────────────────────────
+
+export const ELAN_MAX = 6
+/** Steps walked for the bar to gain one point (it also flows in fights). */
+export const STEPS_PER_ELAN = 5
+/** What an Influence costs when it is used on the island. */
+export const INFLUENCE_COST: Record<Influence, number> = {
+  timeWarp: 2,
+  earthquake: 3,
+  blessing: 3,
+}
+export const INFLUENCE_NAME: Record<Influence, string> = {
+  timeWarp: "Distorsion",
+  earthquake: "Séisme",
+  blessing: "Réparation",
+}
+
+export const elanOf = (run: Run) => Math.min(ELAN_MAX, run.elan ?? 0)
+
+/** The Élan after `steps` more steps on the island (capped). */
+export function gainElan(run: Run, steps: number): Run {
+  const sum = elanOf(run) + steps / STEPS_PER_ELAN
+  return { ...run, elan: Math.min(ELAN_MAX, Math.round(sum * 1000) / 1000) }
+}
+
+/** Influences the chapter lets the Ghom use. */
+export const influencesOf = (run: Run): Influence[] =>
+  explorationOf(run)?.influences ?? []
+
+export type InfluenceResult =
+  | { ok: true; run: Run; lines: ExamineLine[] }
+  | { ok: false; reason: "unknown" | "nothing" | "short"; cost?: number }
+
+/**
+ * The Ghom applies an Influence on the obstacle of `id` that is waiting for it.
+ * Pays the Élan, counts the effects once.
+ */
+export function influence(
+  run: Run,
+  id: string,
+  which: Influence,
+): InfluenceResult {
+  if (!influencesOf(run).includes(which))
+    return { ok: false, reason: "unknown" }
+  const e = explorationOf(run)?.encounters.find((x) => x.id === id)
+  if (!e?.obstacle || e.obstacle.influence !== which || seenBy(run, id))
+    return { ok: false, reason: "nothing" }
+  const cost = INFLUENCE_COST[which]
+  if (elanOf(run) < cost) return { ok: false, reason: "short", cost }
+  const paid = { ...run, elan: elanOf(run) - cost }
+  return {
+    ok: true,
+    run: withEffects(markSeen(paid, id), e.obstacle.effects ?? []),
+    lines: e.obstacle.after,
+  }
+}
+
+/** Lines read when an obstacle is looked at (before or after it moved). */
+export function lookAtObstacle(run: Run, id: string): ExamineLine[] {
+  const o = explorationOf(run)?.encounters.find((x) => x.id === id)?.obstacle
+  if (!o) throw new Error(`No obstacle "${id}"`)
+  return seenBy(run, id) ? o.after : o.before
 }

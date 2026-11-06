@@ -6,6 +6,7 @@ import {
   type Combat,
   DIVINE_ACTIONS,
   type Fighter,
+  MAX_ENERGY,
 } from "@realms/engine"
 import { adventureSave } from "../storage"
 import type { SceneOptions } from "../view/FightScene"
@@ -91,8 +92,11 @@ export const allyTeam = (spec: FightSpec) =>
   )
 
 /** Gives the Ghom its starting Élan (call once the scene exists). */
-export function startEnergy(spec: FightSpec, combat: Combat) {
-  combat.teams[allyTeam(spec)].energy = spec.startEnergy
+export function startEnergy(spec: FightSpec, combat: Combat, carried = 0) {
+  combat.teams[allyTeam(spec)].energy = Math.min(
+    MAX_ENERGY,
+    Math.max(spec.startEnergy, Math.floor(carried)),
+  )
 }
 
 /** What the story learns of a finished fight. */

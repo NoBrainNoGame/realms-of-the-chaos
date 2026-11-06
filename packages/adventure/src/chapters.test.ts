@@ -4,7 +4,9 @@ import {
   type Carry,
   CHAPTERS,
   choose,
+  ELAN_MAX,
   ERAS,
+  elanOf,
   enter,
   examine,
   explorationOf,
@@ -12,11 +14,16 @@ import {
   type FightReport,
   finishFight,
   frame,
+  gainElan,
+  INFLUENCE_COST,
+  influence,
+  lookAtObstacle,
   next,
   overcome,
   pending,
   type Run,
   START_CARRY,
+  STEPS_PER_ELAN,
   startChapter,
   TELEPORT_POOLS,
   teleportReaction,
@@ -177,5 +184,42 @@ describe("teleport reactions", () => {
     expect(
       teleportReaction({ trips: 5, chapter: 1, usure: 4 }, 1),
     ).toHaveLength(2)
+  })
+})
+
+describe("influences on the island", () => {
+  const onIsland = () => {
+    const r = startChapter("1", START_CARRY, 1)
+    return { ...r, node: r.node }
+  }
+  test("Élan flows with steps, the Ghom pays for an Influence, effects count once", () => {
+    let run = onIsland()
+    expect(elanOf(run)).toBe(0)
+    expect(influence(run, "rosee", "timeWarp")).toEqual({
+      ok: false,
+      reason: "short",
+      cost: INFLUENCE_COST.timeWarp,
+    })
+    run = gainElan(run, STEPS_PER_ELAN * 3)
+    expect(elanOf(run)).toBe(3)
+    expect(influence(run, "rosee", "earthquake")).toMatchObject({
+      reason: "nothing",
+    })
+    const out = influence(run, "rosee", "timeWarp")
+    if (!out.ok) throw new Error("should work")
+    expect(elanOf(out.run)).toBe(1)
+    expect(out.run.seen).toContain("rosee")
+    expect(lookAtObstacle(out.run, "rosee")).toEqual(out.lines)
+    expect(lookAtObstacle(run, "rosee")).not.toEqual(out.lines)
+    expect(influence(out.run, "rosee", "timeWarp")).toMatchObject({
+      reason: "nothing",
+    })
+    expect(elanOf(gainElan(run, 999))).toBe(ELAN_MAX)
+  })
+  test("a chapter without the Influence refuses it", () => {
+    const run = gainElan(startChapter("prologue", START_CARRY, 1), 999)
+    expect(influence(run, "rosee", "timeWarp")).toMatchObject({
+      reason: "unknown",
+    })
   })
 })

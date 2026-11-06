@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, test } from "bun:test"
 import { CHAPTERS } from "@realms/adventure"
+import { startEnergy } from "../adventure/fight"
 import { STARTING_LOOK } from "../adventure/hero"
 import { newGame, unlockedChapters } from "../adventure/progress"
 import { parseParams } from "../params"
@@ -325,5 +326,54 @@ describe("the map of the Fragments", () => {
     const sel2 = g2.current as Chronicles
     sel2.menu.select(sel2.menu.items.findIndex((i) => i.id === "map"))
     expect(g2.screen.type).toBe("map")
+  })
+})
+
+describe("the Ghom's Influences on the island", () => {
+  test("steps feed the Élan; an Influence needs it, reaches the obstacle nearby, counts once", () => {
+    const g = game("chapter=1")
+    const i = g.current as ExplorationScene
+    expect(i.elan).toBe(0)
+    expect(i.use("timeWarp")).toBe("nothing") // nothing within reach yet
+    i.advance()
+    i.walkTo({ x: 3, y: 7 }) // around the Borne's zone
+    tick(g, 3000)
+    expect(i.walkTo({ x: 5, y: 5 })).toBe(true)
+    tick(g, 6000)
+    expect(i.mode).toBe("walk")
+    expect(i.elan).toBeGreaterThan(1)
+    expect(i.use("timeWarp")).toBe("short")
+    i.advance()
+    expect(i.mode).toBe("walk")
+    // the wrong hand does nothing
+    expect(i.use("earthquake")).not.toBe("done")
+    i.advance()
+    for (const to of [
+      { x: 4, y: 5 },
+      { x: 5, y: 5 },
+      { x: 4, y: 5 },
+    ]) {
+      i.walkTo(to)
+      tick(g, 2500)
+    }
+    expect(i.elan).toBeGreaterThanOrEqual(2)
+    const before = i.elan
+    const ecoute = Number(i.run.flags.ecoute ?? 0)
+    expect(i.use("timeWarp")).toBe("done")
+    expect(i.elan).toBeCloseTo(before - 2)
+    expect(Number(i.run.flags.ecoute)).toBe(ecoute + 1)
+    i.advance()
+    expect(i.use("timeWarp")).toBe("nothing")
+  })
+
+  test("the Élan carried is the fight's starting Élan (never less than the fight's own)", () => {
+    const combat = { teams: [{ energy: 0 }, { energy: 0 }] } as never
+    const spec = { startEnergy: 3, teams: [{ side: "allies" }] } as never
+    startEnergy(spec, combat)
+    expect((combat as any).teams[0].energy).toBe(3)
+    startEnergy(spec, combat, 5.8)
+    expect((combat as any).teams[0].energy).toBe(5)
+    startEnergy(spec, combat, 99)
+    expect((combat as any).teams[0].energy).toBe(6)
   })
 })

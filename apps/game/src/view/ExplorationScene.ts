@@ -5,6 +5,7 @@ import {
   companionsOf,
   type Encounter,
   type ExamineLine,
+  elanOf,
   enter,
   examine,
   explorationOf,
@@ -14,6 +15,13 @@ import {
   type Frame,
   finishFight,
   frame,
+  gainElan,
+  INFLUENCE_COST,
+  INFLUENCE_NAME,
+  type Influence,
+  influence,
+  influencesOf,
+  lookAtObstacle,
   next,
   type ObjectiveResult,
   overcome,
@@ -23,7 +31,7 @@ import {
 } from "@realms/adventure"
 import { Board, type CharacterPreset, type Point } from "@realms/engine"
 import { Container, Graphics, Sprite } from "pixi.js"
-import { puppetId, reportOf } from "../adventure/fight"
+import { allyTeam, puppetId, reportOf } from "../adventure/fight"
 import { saveRun } from "../adventure/progress"
 import { settings } from "../settings"
 import Backdrop from "./Backdrop"
@@ -35,6 +43,7 @@ import { characterTexture } from "./textures"
 import {
   COLORS,
   ISO,
+  MEANING,
   PUPPET_SCALE,
   resetCamera,
   screenFacing,
@@ -72,6 +81,8 @@ const STEP_MS = 210
 /** Pause between two strolls of a wanderer (ms). */
 const STROLL = [1200, 3000] as const
 const BOX_WIDTH = 760
+/** How far (in cells) the Ghom's hand reaches from the hero. */
+const REACH = 3
 
 interface Actor {
   id: string
@@ -112,6 +123,8 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
   private _marks = new Container()
   private _hits = new Container()
   private _box = new Container()
+  /** The Élan bar and the Influences (top right of the island). */
+  private _elan = new Container()
   private _menu: Menu | null = null
   private _size = { width: 0, height: 0 }
   private _fit = { scale: 1, x: 0, y: 0 }
@@ -196,7 +209,7 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
     this._marks.sortableChildren = true
     this._world.addChild(this._entities, this._marks, this._hits)
     this._stage.addChild(this._world, this._backdrop.front)
-    this._container.addChild(this._stage, this._box)
+    this._container.addChild(this._stage, this._box, this._elan)
 
     this._view = new BoardView(
       this._board,
@@ -529,6 +542,11 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
     const cell = this._hero.cell
     this._trail.push(cell)
     if (this._trail.length > 12) this._trail.shift()
+    if (influencesOf(this._run).length) {
+      this._run = gainElan(this._run, 1)
+      this._save()
+      this._drawElan()
+    }
     if (this._mode !== "walk") return
     const here = activeEncounters(this._run)
     const story = pending(this._run)
@@ -588,9 +606,103 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
       this._looks = [...out.lines]
       this._mode = "look"
       this._renderBox()
+    } else if (e.obstacle) {
+      this._looks = [...lookAtObstacle(this._run, e.id)]
+      this._mode = "look"
+      this._renderBox()
     } else if (e.wander) {
       this._fightWanderer(e)
     }
+  }
+
+  // ─── The Ghom's Influences ────────────────────────────────────────────────
+
+  /** The Élan the Ghom has now. */
+  get elan() {
+    return elanOf(this._run)
+  }
+
+  /**
+   * The Ghom applies an Influence on the obstacle within reach that waits
+   * for it (the hero never knows where it comes from).
+   */
+  use(which: Influence): "done" | "nothing" | "short" | "unknown" {
+    if (this._mode !== "walk") return "nothing"
+    const reach = activeEncounters(this._run).filter(
+      (e) =>
+        e.obstacle &&
+        Math.abs(e.at.x - this._hero.cell.x) +
+          Math.abs(e.at.y - this._hero.cell.y) <=
+          REACH,
+    )
+    let reason: "nothing" | "short" | "unknown" = "nothing"
+    for (const e of reach) {
+      const out = influence(this._run, e.id, which)
+      if (out.ok) {
+        this._run = out.run
+        this._save()
+        this._looks = [...out.lines]
+        this._mode = "look"
+        this._drawElan()
+        this._sync()
+        this._renderBox()
+        this.emit("changed", this._run)
+        return "done"
+      }
+      if (out.reason === "short") reason = "short"
+    }
+    if (!influencesOf(this._run).includes(which)) reason = "unknown"
+    const cost = INFLUENCE_COST[which]
+    this._looks = [
+      {
+        style: "stage",
+        text:
+          reason === "short"
+            ? `Pas assez d'Élan pour ${INFLUENCE_NAME[which]} (${cost} ✦ requis).`
+            : reason === "unknown"
+              ? "Cette main n'est pas encore à vous ici."
+              : "Rien, ici, qui réponde à cette Influence.",
+      },
+    ]
+    this._mode = "look"
+    this._renderBox()
+    return reason
+  }
+
+  private _drawElan() {
+    clearChildren(this._elan)
+    const known = influencesOf(this._run)
+    if (!known.length || !exploring(this._run)) return
+    const have = elanOf(this._run)
+    const bar = text(
+      `Élan ${"✦".repeat(Math.floor(have))}${"·".repeat(6 - Math.floor(have))}`,
+      15,
+      MEANING.elan,
+    )
+    this._elan.addChild(bar)
+    known.forEach((which, i) => {
+      const cost = INFLUENCE_COST[which]
+      const t = text(
+        `${i + 1} · ${INFLUENCE_NAME[which]} (${cost} ✦)`,
+        13,
+        have >= cost ? COLORS.text : COLORS.muted,
+      )
+      t.position.set(0, 24 + i * 20)
+      t.eventMode = "static"
+      t.cursor = "pointer"
+      t.on("pointertap", () => this.use(which))
+      this._elan.addChild(t)
+    })
+    this._placeElan()
+  }
+
+  private _placeElan() {
+    const ui = settings().uiSize
+    this._elan.scale.set(ui)
+    this._elan.position.set(
+      Math.round(this._size.width - this._elan.width - 20),
+      16,
+    )
   }
 
   private _fightWanderer(e: Encounter) {
@@ -618,6 +730,7 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
     this._mode = "fight"
     this._stage.visible = false
     this._box.visible = false
+    this._elan.visible = false
     this._activateChildChip(scene)
     this._subscribeOnce(scene, "vacuumDecay", () => this.emit("vacuumDecay"))
     this._subscribeOnce(scene, "quit", () => this._leaveFight(null, spec))
@@ -629,10 +742,16 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
   private _leaveFight(report: FightReport | null, spec: FightSpec) {
     const scene = this._fight
     if (!scene) return
+    if (report)
+      this._run = {
+        ...this._run,
+        elan: scene.combat.teams[allyTeam(spec)].energy,
+      }
     this._terminateChildChip(scene)
     this._fight = null
     this._stage.visible = true
     this._box.visible = true
+    this._elan.visible = true
     const wander = this._wanderFight
     this._wanderFight = null
     if (!report) {
@@ -709,6 +828,7 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
   private _afterRun() {
     this._speaking = null
     this._sync()
+    this._drawElan()
     if (this._run.done) {
       this._mode = "story"
       this._renderBox()
@@ -724,6 +844,11 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
   }
 
   private _key(e: KeyboardEvent) {
+    if (this._mode === "walk" && ["1", "2", "3"].includes(e.key)) {
+      const which = influencesOf(this._run)[Number(e.key) - 1]
+      if (which) this.use(which)
+      return
+    }
     if (this._mode === "walk" && (e.key === "m" || e.key === "M")) {
       this.emit("map")
       return
@@ -772,6 +897,7 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
       y: this._fit.y + middle.y * scale,
     }
     this._placeBox()
+    this._placeElan()
   }
 
   private _placeBox() {

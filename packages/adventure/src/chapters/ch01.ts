@@ -219,6 +219,7 @@ export const ch01: Chapter = {
     island: tenirLesBords.board,
     start: { x: 0, y: 7 },
     companions: ["lyra"],
+    influences: ["timeWarp", "earthquake"],
     encounters: [
       {
         id: "borne",
@@ -299,6 +300,27 @@ export const ch01: Chapter = {
             {
               style: "stage",
               text: "Au loin, le sol se défait : ses derniers mètres sont flous, comme vus à travers une vitre sale, et derrière il n'y a que le Clair.",
+            },
+          ],
+          effects: [{ add: "ecoute", by: 1 }],
+        },
+      },
+      {
+        id: "rosee",
+        label: "Une rosée qui ne sèche pas",
+        at: { x: 6, y: 5 },
+        obstacle: {
+          influence: "timeWarp",
+          before: [
+            {
+              style: "stage",
+              text: "Une perle de rosée tremble sur une feuille grise. Elle est là depuis toujours, et attend un matin qui ne vient pas.",
+            },
+          ],
+          after: [
+            {
+              style: "stage",
+              text: "Le temps glisse d'un cran sur la feuille. La perle roule, tombe, disparaît : pour la première fois ici, quelque chose est arrivé.",
             },
           ],
           effects: [{ add: "ecoute", by: 1 }],

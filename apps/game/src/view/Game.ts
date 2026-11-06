@@ -254,7 +254,7 @@ export default class Game extends ViewChip {
   /** A fight played on the island, over the exploration (no screen change). */
   private _siteFight(spec: FightSpec, run: Run): FightScene {
     const scene = new FightScene(this._fightOptions(spec, run, randomSeed()))
-    startEnergy(spec, scene.combat)
+    startEnergy(spec, scene.combat, run.elan ?? 0)
     return scene
   }
 

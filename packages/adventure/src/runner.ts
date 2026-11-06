@@ -33,6 +33,8 @@ export interface Run extends Carry {
   entry?: string
   /** Optional things already examined or overcome (encounter ids). */
   seen?: string[]
+  /** The Ghom's Élan, carried between the island and the fights. */
+  elan?: number
 }
 
 export type Frame =
