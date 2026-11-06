@@ -92,7 +92,7 @@ export default class Chronicles extends ViewChip<ChroniclesEvents> {
     body.addChild(heading)
     y += 50
     const sub = text(
-      `Ère ${romanOf(era.id)} · ${era.title}  —  ${era.question}`,
+      `Ère ${romanOf(era.id)} · ${era.title}  —  ${era.question.replace(/ ([?!:;»])/g, "\u00a0$1")}`,
       15,
       COLORS.muted,
       { wordWrap: true, wordWrapWidth: WIDTH - 48 },

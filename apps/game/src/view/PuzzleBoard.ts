@@ -189,6 +189,32 @@ export default class PuzzleBoard extends Container {
     head.position.set(0, y)
     this._body.addChild(head)
     y += 26
+    // the two crystals being struck: grey until a stroke, then the color
+    // each of the two girls sees (blue or green) at the last stroke
+    const last = s.strokes[s.strokes.length - 1]
+    const tint = (c?: string) =>
+      c === "blue" ? 0x6ea8ff : c === "green" ? 0x8ce99a : 0x9aa0b8
+    ;(
+      [
+        ["Eva", tint(last?.evaShine)],
+        ["Néréa", tint(last?.nereaShine)],
+      ] as const
+    ).forEach(([who, color], i) => {
+      const x = i * 160 + 75
+      const gem = new Graphics()
+        .poly([0, -26, 17, -6, 0, 26, -17, -6])
+        .fill({ color })
+        .stroke({ width: 2, color: 0x1b1424 })
+        .poly([0, -26, 17, -6, 0, -2, -17, -6])
+        .fill({ color: 0xffffff, alpha: 0.28 })
+      gem.position.set(x, y + 30)
+      this._body.addChild(gem)
+      const tag = text(who, 12, COLORS.muted)
+      tag.anchor.set(0.5, 0)
+      tag.position.set(x, y + 60)
+      this._body.addChild(tag)
+    })
+    y += 82
     if (!s.done)
       (["bone", "wood"] as const).forEach((w, i) => {
         const b = button({

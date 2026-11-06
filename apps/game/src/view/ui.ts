@@ -171,7 +171,7 @@ export function button(options: {
         width: 2,
         color: selected ? 0xffe066 : (options.accent ?? COLORS.panelBorder),
       })
-    view.alpha = enabled ? 1 : 0.4
+    view.alpha = enabled ? 1 : 0.58
   }
 
   view.on("pointertap", () => enabled && options.onTap())

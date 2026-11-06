@@ -81,6 +81,9 @@ export default class WorldMap extends ViewChip<WorldMapEvents> {
         align: "center",
       })
       name.label = "name"
+      // the places still shut keep their secret (their names are long and
+      // would pile up over their neighbours)
+      name.visible = data.enabled
       name.anchor.set(0.5, 0)
       node.addChild(name)
       this._container.addChild(node)
@@ -135,11 +138,11 @@ export default class WorldMap extends ViewChip<WorldMapEvents> {
     // islands apart); everything shrinks to fit the screen.
     const cols = ERAS.length
     const cellW = width / cols
-    const top = 70
+    const top = 120
     const cellH = Math.max(40, (height - top - 90 * settings().uiSize) / ROWS)
     const k = Math.max(0.2, Math.min(0.7, cellW / 200, cellH / 130))
     this._heads.forEach((h, c) => {
-      h.position.set(cellW * (c + 0.5), 52)
+      h.position.set(cellW * (c + 0.5), 62)
     })
     this._islands.forEach((it) => {
       const chapter = CHAPTERS.find((c) => c.id === it.data.id)
@@ -155,7 +158,7 @@ export default class WorldMap extends ViewChip<WorldMapEvents> {
       )
       it.node.getChildByLabel("art")?.scale.set(k)
       const name = it.node.getChildByLabel("name")
-      name?.position.set(0, 70 * k)
+      name?.position.set(0, 88 * k)
     })
   }
 }

@@ -1423,12 +1423,15 @@ export default class Hud extends ViewChip<HudEvents> {
     this._logLines.push({ text: line })
     this._logLines = this._logLines.slice(-7)
     clearChildren(this._log)
-    this._log.addChild(
-      richText(this._logLines.map((l) => l.text).join("\n"), 13, {
-        color: COLORS.muted,
-        lineHeight: 17,
-      }),
-    )
+    const body = richText(this._logLines.map((l) => l.text).join("\n"), 13, {
+      color: COLORS.muted,
+      lineHeight: 17,
+    })
+    // a dim backing keeps the lines legible over a distant island
+    const back = new Graphics()
+      .roundRect(-6, -4, body.width + 12, body.height + 8, 6)
+      .fill({ color: 0x0c0a16, alpha: 0.62 })
+    this._log.addChild(back, body)
   }
 
   /** A tooltip of the timeline: under it, never over the axis. */
