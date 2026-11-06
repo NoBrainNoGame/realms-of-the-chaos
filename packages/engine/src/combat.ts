@@ -1548,6 +1548,15 @@ export class Combat {
           this._addStatus(o, effect.status, effect.turns, effect.value ?? 0)
         break
 
+      case "raise": {
+        const cell = this.board.get(target)
+        if (!cell || this.fightersAt(target).length > 0) break
+        cell.elevation = Math.min(MAX_ELEVATION, cell.elevation + effect.height)
+        this._regions.clear()
+        this._emit({ type: "terrainChanged", cell: { ...target } })
+        break
+      }
+
       case "dash": {
         const from = fighter.position
         fighter.position = target

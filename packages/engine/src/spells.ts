@@ -212,6 +212,7 @@ export function effectWorth(
     case "delay":
       return effect.amount * w.delay
     case "dash":
+    case "raise":
     case "vacuumDecay":
       return 0
     case "status": {

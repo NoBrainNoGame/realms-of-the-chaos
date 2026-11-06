@@ -56,6 +56,8 @@ export type Effect =
   | { type: "status"; status: StatusId; turns: number; value?: number }
   /** Moves the launcher onto the aimed cell. */
   | { type: "dash" }
+  /** Raises the aimed (free) cell by `height` steps: an obstacle springs up. */
+  | { type: "raise"; height: number }
   /** Adds time before the next turn of affected fighters. */
   | { type: "delay"; amount: number }
   /** Heals the launcher itself. */

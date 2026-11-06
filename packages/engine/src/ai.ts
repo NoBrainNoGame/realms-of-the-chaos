@@ -112,6 +112,15 @@ export function scoreAction(
         break
       }
 
+      case "raise": {
+        // a wall that springs up between the launcher and its enemies
+        const foes = combat.aliveFighters.filter((o) =>
+          combat.isEnemy(fighter, o),
+        )
+        if (foes.some((o) => manhattan(o.position, target) <= 2)) score += 3
+        break
+      }
+
       case "dash": {
         const enemies = combat.aliveFighters.filter((o) =>
           combat.isEnemy(fighter, o),

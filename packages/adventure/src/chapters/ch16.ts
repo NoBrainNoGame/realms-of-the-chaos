@@ -1,4 +1,4 @@
-import { CHARACTERS } from "@realms/engine"
+import { type ActionDefinition, CHARACTERS } from "@realms/engine"
 import type { ScriptCond } from "@realms/engine/adventure"
 import {
   add,
@@ -35,10 +35,32 @@ import {
 } from "./era3-kit"
 
 const GORR_HP = (CHARACTERS.gorr?.stats.health ?? 10) * 7 * 2
-const GORR = (extraits: boolean) =>
-  kitOf("gorr", extraits ? "gorr16b" : "gorr16", "Gorr", "Golem", {
-    health: (CHARACTERS.gorr?.stats.health ?? 10) * (extraits ? 1.5 : 2),
-  })
+/** Poussée de croissance: crystal springs up on a free cell, a height-2 wall. */
+const GROWTH: ActionDefinition = {
+  id: "growth",
+  name: "Poussée de croissance",
+  description:
+    "Du cristal jaillit sur une case libre et devient un obstacle de hauteur 2.",
+  launch: { shape: "diamond", min: 1, max: 2 },
+  lineOfSight: false,
+  target: "emptyCell",
+  timeCost: 1,
+  cooldown: 2,
+  effects: [{ type: "raise", height: 2 }],
+}
+const GORR = (extraits: boolean) => {
+  const base = kitOf(
+    "gorr",
+    extraits ? "gorr16b" : "gorr16",
+    "Gorr",
+    "Golem",
+    {
+      health: (CHARACTERS.gorr?.stats.health ?? 10) * (extraits ? 1.5 : 2),
+    },
+    [...(CHARACTERS.gorr?.actions ?? []), "growth"],
+  )
+  return { ...base, actionDefs: { ...base.actionDefs, growth: GROWTH } }
+}
 
 const BOARD = [
   "##1.....1##",
@@ -92,10 +114,9 @@ function fonderie(ally: Ally, rallie: boolean, extraits: boolean): FightSpec {
         fighters: [
           // Surexcité = Gorr plays his own way while a pylône beats; Ébranlé =
           // he stands still once both are silent (script `while`).
-          // CUT: Poussée de croissance (a new action: a rising obstacle) and
-          // sharing Gorr's case (an ally standing on an enemy's cell) have no
-          // engine support; the question is asked once the pylônes are silent
-          // and Gorr kept more than 25 % of his health.
+          // Surexcité while a pylône beats; Ébranlé once both are silent: he
+          // stands still and is no one's enemy (an ally may share his cell,
+          // and the combined actions work with him: `truce`).
           {
             preset: GORR(extraits),
             at: { x: 5, y: 3 },
@@ -135,6 +156,7 @@ function fonderie(ally: Ally, rallie: boolean, extraits: boolean): FightSpec {
         ],
       },
       flee: { team: 1, below: 0.25, exits: [{ x: 0, y: 0 }] },
+      truce: [{ team: 1, index: 0, cond: SILENCE }],
       announce: true,
     },
     influences: ["timeWarp", "earthquake"],
@@ -147,8 +169,14 @@ function fonderie(ally: Ally, rallie: boolean, extraits: boolean): FightSpec {
         label: "Tenir : faire taire les pylônes sans abattre Gorr",
         check: (r) => {
           const g = r.fighters.find((f) => f.preset.startsWith("gorr"))
+          // the pylônes are silent, and an ally of flesh shared Gorr's cell
+          // for an Intrication while he kept more than 25 % of his health
           return (
-            r.result !== "defeat" && !!g && g.hp > GORR_HP * 0.25 && silenced(r)
+            r.result !== "defeat" &&
+            !!g &&
+            g.hp > GORR_HP * 0.25 &&
+            silenced(r) &&
+            r.intrications >= 1
           )
         },
         success: "Les pylônes se taisent. Gorr ne frappe plus en rythme.",

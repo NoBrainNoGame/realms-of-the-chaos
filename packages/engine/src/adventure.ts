@@ -56,6 +56,9 @@ export type {
 } from "./debate"
 export { type EnergyRules, HALT_MESSAGE } from "./energy"
 export type { FixationRule } from "./fixation"
+
+import type { ScriptCond } from "./script"
+
 export type {
   RecomposeRule,
   ScriptAct,
@@ -92,6 +95,11 @@ export interface AdventureRules {
   sharedWarm?: boolean
   /** Members that always go for the hottest fighter, of any camp (the last to act). */
   hottest?: { team: number; index: number }[]
+  /**
+   * A member that is no one's enemy while `cond` holds (Gorr, shaken, lets an
+   * ally share its cell: the allies' combined actions then work with it).
+   */
+  truce?: { team: number; index: number; cond: ScriptCond }[]
   /** Members that never strike a fighter of the teams `toward`. */
   peaceful?: { team: number; index: number; toward: number[] }[]
   /** Fighters no weapon can hurt (a Golem too dense to be wounded). */
@@ -654,12 +662,23 @@ export class AdventureTracker {
 
   /** Neutral teams are only enemies of the AI. */
   isEnemy(a: Fighter, b: Fighter) {
+    if (this.rules.truce?.length && this._inTruce(a, b)) return false
     const na = this.isNeutral(a.team)
     const nb = this.isNeutral(b.team)
     if (!na && !nb) return a.team !== b.team
     if (na && nb) return false
     const other = na ? b : a
     return other.controller === "ai"
+  }
+
+  private _inTruce(a: Fighter, b: Fighter) {
+    for (const t of this.rules.truce ?? []) {
+      const who = this._combat.fighters.filter((f) => f.team === t.team)[
+        t.index
+      ]
+      if ((who === a || who === b) && this.script.holds(t.cond)) return true
+    }
+    return false
   }
 
   zoneState(id: string): ZoneState {
