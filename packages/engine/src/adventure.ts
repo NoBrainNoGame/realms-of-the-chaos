@@ -84,6 +84,16 @@ export interface AdventureRules {
   spared?: { team: number; index: number }[]
   /** Fighters that never share a cell: no Intrication with them or by them. */
   solitary?: { team: number; index: number }[]
+  /** Members that sink out of the fight (and are spared) under `below` of their health. */
+  sinks?: { team: number; index: number; below: number }[]
+  /** Members a silent cell does not drain (used to the cold). */
+  coldProof?: { team: number; index: number }[]
+  /** A fighter sharing its cell with another is not drained by a silent cell. */
+  sharedWarm?: boolean
+  /** Members that always go for the hottest fighter, of any camp (the last to act). */
+  hottest?: { team: number; index: number }[]
+  /** Members that never strike a fighter of the teams `toward`. */
+  peaceful?: { team: number; index: number; toward: number[] }[]
   /** Fighters no weapon can hurt (a Golem too dense to be wounded). */
   immune?: { team: number; index: number }[]
   /**
@@ -404,6 +414,8 @@ export interface AdventureReport {
   fixedFleeing: string[]
   /** Fighters that gave up because they were left alone (`flee.alone`). */
   surrendered: string[]
+  /** Fighters that sank out of the fight (`rules.sinks`). */
+  sunk: string[]
   /** Cells where fixed foes set into rocks. */
   fixedAt: Point[]
   /** Cells of the Echo that received each Intrication. */
@@ -474,6 +486,7 @@ export class AdventureTracker {
     fixed: [],
     fixedFleeing: [],
     surrendered: [],
+    sunk: [],
     fixedAt: [],
     intricationAt: [],
     arrived: [],
@@ -733,6 +746,7 @@ export class AdventureTracker {
         if (f) this._mend(f)
         for (const c of [event.target, ...event.cells])
           this._measureCell(c, f?.id ?? null)
+        if (f) this._acted.set(f.id, ++this._actOrder)
         if (event.partnerId) {
           this.report.intrications++
           this.report.intricationAt.push({ ...event.target })
@@ -1196,8 +1210,13 @@ export class AdventureTracker {
     this._leaveByExit(fighter)
     this.debate?.turnStart(fighter)
     this._push(fighter)
+    const sheltered =
+      this._isListed(fighter, this.rules.coldProof) ||
+      (this.rules.sharedWarm === true &&
+        this._combat.fightersAt(fighter.position).length > 1)
     const cold =
-      this.silent.has(keyOf(fighter.position)) || this._inHalo(fighter)
+      !sheltered &&
+      (this.silent.has(keyOf(fighter.position)) || this._inHalo(fighter))
     return (
       (cold ? (this.rules.silentDamage ?? 2) : 0) +
       this.script.drain(fighter) +
@@ -1279,6 +1298,68 @@ export class AdventureTracker {
       const o = team[i]
       return o && o.alive && !this._combat.departed.has(o.id)
     })
+  }
+
+  private readonly _acted = new Map<string, number>()
+  private _actOrder = 0
+
+  /** A turn starts: a fighter under its sinking threshold leaves the fight. */
+  sink(fighter: Fighter): boolean {
+    const rule = this.rules.sinks?.find(
+      (r) =>
+        r.team === fighter.team &&
+        this._combat.fighters.filter((f) => f.team === r.team)[r.index] ===
+          fighter,
+    )
+    if (!rule || !fighter.alive) return false
+    if (fighter.hp / this._combat.maxHp(fighter) >= rule.below) return false
+    this.report.sunk.push(fighter.id)
+    this._combat.depart(fighter)
+    return true
+  }
+
+  /** The living, non neutral fighter that acted last (not `except`). */
+  private _hottest(except: Fighter): Fighter | undefined {
+    let best: Fighter | undefined
+    let order = 0
+    for (const f of this._combat.aliveFighters) {
+      if (f === except || this.isNeutral(f.team)) continue
+      const o = this._acted.get(f.id) ?? 0
+      if (o > order) {
+        order = o
+        best = f
+      }
+    }
+    return best
+  }
+
+  /** May the AI fighter strike the cell? (`hottest`, `peaceful`). */
+  aiMayTarget(fighter: Fighter, cell: Point): boolean {
+    const occupants = this._combat.fightersAt(cell)
+    const peace = this.rules.peaceful?.find(
+      (r) =>
+        r.team === fighter.team &&
+        this._combat.fighters.filter((f) => f.team === r.team)[r.index] ===
+          fighter,
+    )
+    if (
+      peace &&
+      occupants.some((o) => o !== fighter && peace.toward.includes(o.team))
+    )
+      return false
+    if (this._isListed(fighter, this.rules.hottest)) {
+      if (occupants.some((o) => this.isNeutral(o.team))) return false
+      const hot = this._hottest(fighter)
+      if (hot && !occupants.includes(hot)) return false
+    }
+    return true
+  }
+
+  /** The fighter an AI fighter hunts (`hottest`), if any. */
+  hunted(fighter: Fighter): Fighter | undefined {
+    return this._isListed(fighter, this.rules.hottest)
+      ? this._hottest(fighter)
+      : undefined
   }
 
   /** Whether a blow cannot disperse this fighter (`rules.spared`). */

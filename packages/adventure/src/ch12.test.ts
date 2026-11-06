@@ -6,7 +6,10 @@ import type { FightSpec } from "./types"
 const fightsOf = (c: { scenes: Record<string, { beats: unknown[] }> }) => {
   const out: FightSpec[] = []
   const walk = (x: unknown): void => {
-    if (Array.isArray(x)) return x.forEach(walk)
+    if (Array.isArray(x)) {
+      x.forEach(walk)
+      return
+    }
     if (!x || typeof x !== "object") return
     const o = x as { t?: string; fight?: FightSpec }
     if (o.t === "fight" && o.fight) out.push(o.fight)

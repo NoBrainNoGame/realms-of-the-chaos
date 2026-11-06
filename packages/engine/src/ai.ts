@@ -149,6 +149,8 @@ export function bestAction(
     // forbidden: the AI never ends the world
     if (isForbidden(action)) continue
     for (const target of combat.getValidTargets(fighter, action, origin)) {
+      if (combat.adventure && !combat.adventure.aiMayTarget(fighter, target))
+        continue
       const score = scoreAction(combat, fighter, action, target, origin)
       if (score >= MIN_ACTION_SCORE && (!best || score > best.score)) {
         best = { action, target, score }
@@ -223,8 +225,10 @@ export function decide(combat: Combat, fighter: Fighter): AiCommand[] {
   if (now)
     return [{ type: "action", actionId: now.action.id, target: now.target }]
 
-  const enemies = combat.aliveFighters.filter((o) => combat.isEnemy(fighter, o))
+  let enemies = combat.aliveFighters.filter((o) => combat.isEnemy(fighter, o))
   if (enemies.length === 0) return [{ type: "pass" }]
+  const hunted = combat.adventure?.hunted(fighter)
+  if (hunted) enemies = [hunted]
 
   const nodes = [...combat.explore(fighter).values()]
 

@@ -402,6 +402,8 @@ export interface FightReport {
   fixedFleeing?: string[]
   /** Those that gave up because they were left alone (`flee.alone`). */
   surrendered?: string[]
+  /** Those that sank out of the fight (`rules.sinks`). */
+  sunk?: string[]
   fixedAt?: { x: number; y: number }[]
   intricationAt?: { x: number; y: number }[]
   /** Ids of the fighters that entered mid-fight (waves, reinforcements). */

@@ -439,4 +439,26 @@ describe("the tide and the ice", () => {
     c.run()
     expect(c.state).toBe("ended")
   })
+
+  test("a fighter under its threshold sinks out of the fight", () => {
+    const c = fight({
+      sinks: [{ team: 1, index: 0, below: 2 }],
+      noDefeat: [0],
+      clock: { period: 10, limit: 40 },
+    })
+    c.run()
+    expect(c.departed.has("merlin-1-0")).toBe(true)
+    expect(c.adventure?.report.sunk).toContain("merlin-1-0")
+  })
+
+  test("a peaceful fighter never strikes the teams it spares", () => {
+    const c = fight({
+      peaceful: [{ team: 1, index: 0, toward: [0] }],
+      noDefeat: [0],
+      clock: { period: 10, limit: 20 },
+    })
+    c.run()
+    const lyra = c.getFighter("lyra-0-0")!
+    expect(lyra.hp).toBe(c.maxHp(lyra))
+  })
 })

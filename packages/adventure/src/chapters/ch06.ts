@@ -126,9 +126,26 @@ const lastFold: FightSpec = {
     },
   ],
   rules: {
-    // SIMPLIFIED: the Frange timeline (the "lentille" relaxing, the "pli" of
-    // turn 1) is only a clock here; the zones are the three living places.
+    // The Frange as a clock: turn 1 a "pli" lifts a whole row by one step,
+    // turn 2 the push stops and the row settles back; the lens fades on the
+    // way (the zones go silent from the idle ticks).
     clock: { period: 10, limit: 6, winner: 0 },
+    scripted: [
+      {
+        tick: 1,
+        kind: "reshape",
+        cells: Array.from({ length: 9 }, (_, x) => ({ x, y: 4, level: 1 })),
+      },
+      {
+        tick: 2,
+        kind: "reshape",
+        cells: Array.from({ length: 9 }, (_, x) => ({ x, y: 4, level: 0 })),
+      },
+    ],
+    // The east bank, where the hearths move at turn 6.
+    regions: {
+      est: Array.from({ length: 9 }, (_, y) => ({ x: 8, y })),
+    },
     zones: [
       zone("champ", 0, 0, 2, 2),
       zone("hameau", 6, 0, 8, 2),
@@ -144,12 +161,18 @@ const lastFold: FightSpec = {
     {
       id: "ne-pas-reecrire",
       mark: "★",
-      label: "Ne pas réécrire : au moins deux zones silencieuses ou perdues",
-      // SIMPLIFIED: only the zones are scored; "all four Echos on the east
-      // edge at turn 6" and the "failure by excess" retry are CUT.
+      label:
+        "Ne pas réécrire : deux zones au moins silencieuses ou perdues, et les quatre Échos au bord est au tour 6",
+      // Failure by excess (three zones still active, or an Écho left in the
+      // middle at the end) is simply a failed check: the objective is missed.
       check: (r: FightReport) =>
         r.result !== "defeat" &&
-        Object.values(r.zoneStates).filter((s) => s !== "active").length >= 2,
+        Object.values(r.zoneStates).filter((s) => s !== "active").length >= 2 &&
+        ANCIENS.every((_, i) => {
+          const visited = r.trace?.visited[`${ANCIENS[i].id}-0-${i}`]
+          const last = visited?.[visited.length - 1]
+          return !!last && Number(last.split(",")[0]) >= 7
+        }),
       success: "Les traces concordent : tu n'as rien réécrit.",
       failure: "L'image se fissure : les couches ne disent pas ça.",
     },
@@ -202,7 +225,8 @@ type VesceMode = "none" | "fuie" | "rendue"
 
 const giantOf = (r: FightReport) =>
   r.fighters.find((f) => f.preset === GIANT.id)
-const giantGone = (r: FightReport) => (giantOf(r)?.hp ?? 1) <= 0
+const giantGone = (r: FightReport) =>
+  (giantOf(r)?.hp ?? 1) <= 0 || (giantOf(r)?.fled ?? false)
 
 function giantFight(nyx: NyxMode, vesce: VesceMode, fewer: boolean): FightSpec {
   const derive: FighterSpec[] = [
@@ -211,12 +235,19 @@ function giantFight(nyx: NyxMode, vesce: VesceMode, fewer: boolean): FightSpec {
     { preset: OMBRE, at: { x: 9, y: 6 } },
   ]
   if (vesce === "fuie") derive.push({ preset: VESCE, at: { x: 8, y: 4 } })
-  // lacunaires.epargnes >= 4: only one unstable Lacunaire instead of two.
+  // Unstable Lacunaires are born on the Lacune: turn 2 and turn 5 (only one
+  // each time if lacunaires.epargnes >= 4).
   const lacunaires: FighterSpec[] = [
     { preset: GIANT, at: { x: 5, y: 4 }, hp: 30 },
-    { preset: UNSTABLE, at: { x: 4, y: 5 } },
+    { preset: UNSTABLE, at: { x: 4, y: 5 }, arrives: { tick: 2 } },
+    { preset: UNSTABLE, at: { x: 4, y: 3 }, arrives: { tick: 5 } },
   ]
-  if (!fewer) lacunaires.push({ preset: UNSTABLE, at: { x: 6, y: 3 } })
+  if (!fewer) {
+    lacunaires.push(
+      { preset: UNSTABLE, at: { x: 6, y: 3 }, arrives: { tick: 2 } },
+      { preset: UNSTABLE, at: { x: 6, y: 5 }, arrives: { tick: 5 } },
+    )
+  }
   const neutral: FighterSpec[] = []
   if (nyx !== "none") neutral.push({ preset: "nyx", at: { x: 5, y: 2 } })
   if (vesce === "rendue") neutral.push({ preset: VESCE, at: { x: 8, y: 4 } })
@@ -255,8 +286,7 @@ function giantFight(nyx: NyxMode, vesce: VesceMode, fewer: boolean): FightSpec {
       mark: "★",
       label: "Habiter la Lacune à deux, au lieu de la combattre",
       // Two Intrications and the heart held a full turn once the giant is
-      // gone (it can only be beaten and fixed; the engine has no giant
-      // sinking into the Clair).
+      // gone (fixed, or sunk into the Clair under half its health).
       check: (r) => giantGone(r) && r.intrications >= 2,
       when: { held: { region: "coeur", who: { team: 0 }, ticks: 1 } },
       success: "Deux Échos sur la même case : le gris s'éclaircit.",
@@ -278,6 +308,33 @@ function giantFight(nyx: NyxMode, vesce: VesceMode, fewer: boolean): FightSpec {
       onSuccess: [add("confiance.nyx"), add("confiance.merlin")],
     },
   ]
+  const giantId = `${GIANT.id}-2-0`
+  objectives.push(
+    {
+      id: "laisser-partir",
+      mark: "◆",
+      label: "Laisser le géant partir",
+      // It sinks under 50 % instead of being fixed.
+      check: (r) => r.sunk?.includes(giantId) ?? false,
+      success:
+        "Il est rentré. Je me demande ce qu'il y a, en bas, sous le gris.",
+      onSuccess: [add("lacunaires.epargnes")],
+    },
+    {
+      id: "proteger-derive",
+      mark: "◆",
+      label: "Protéger ceux d'en face",
+      // No Ombre of the Dérive dispersed by the giant.
+      check: (r) =>
+        !r.fighters.some(
+          (f) =>
+            f.team === 1 &&
+            f.hp <= 0 &&
+            r.trace?.finalBlows[f.id]?.by === giantId,
+        ),
+      onSuccess: [add("confiance.merlin"), set("derive_protegee")],
+    },
+  )
   if (nyx === "accept")
     objectives.push({
       id: "habiter-nyx",
@@ -319,6 +376,25 @@ function giantFight(nyx: NyxMode, vesce: VesceMode, fewer: boolean): FightSpec {
         ],
       },
       fixOnDeath: [2],
+      // The giant: hunts the hottest Echo of any camp, sinks into the Clair
+      // under half its health; Merlin cannot be dispersed.
+      hottest: [{ team: 2, index: 0 }],
+      sinks: [{ team: 2, index: 0, below: 0.5 }],
+      spared: [{ team: 1, index: 0 }],
+      // Used to the cold: Nyx; two Echos on one cell shelter each other.
+      sharedWarm: true,
+      ...(nyx !== "none"
+        ? {
+            coldProof: [{ team: 3, index: 0 }],
+            immune: [{ team: 3, index: 0 }],
+          }
+        : {}),
+      // Vesce, once given up, never strikes the Dérive.
+      ...(vesce === "rendue"
+        ? {
+            peaceful: [{ team: 3, index: nyx !== "none" ? 1 : 0, toward: [1] }],
+          }
+        : {}),
       ...(neutral.length ? { neutral: [3] } : {}),
       announce: true,
     },
@@ -338,6 +414,26 @@ function giantFight(nyx: NyxMode, vesce: VesceMode, fewer: boolean): FightSpec {
         text: "Il ne fait pas de différence, lui.",
       },
       {
+        when: "hurt:ombre_derive",
+        who: "brutus",
+        text: "… Il a froid pareil, le leur.",
+      },
+      {
+        when: "cast:blessing",
+        who: "lyra",
+        text: "La vapeur, là-bas, sur la Dérive.",
+      },
+      {
+        when: "cast:blessing",
+        who: "merlin",
+        text: "Votre Ghom chauffe chez nous pour réparer chez vous. Charmant.",
+      },
+      {
+        when: `fled:${GIANT.id}`,
+        who: "nerea",
+        text: "Il est rentré. Je me demande ce qu'il y a, en bas, sous le gris.",
+      },
+      {
         when: "end",
         who: "merlin",
         text: "Midi. Bon. Voyons qui a raison.",
@@ -346,13 +442,6 @@ function giantFight(nyx: NyxMode, vesce: VesceMode, fewer: boolean): FightSpec {
   }
 }
 
-// CUT: the giant's behaviour (targets the hottest Echo of any camp, sinks into
-// the Clair under 50 %, ice block that melts), the unstable Lacunaires born on
-// the Lacune at turns 2 and 5, Nyx untargetable, Vesce allied AI that never
-// attacks the Dérive, Merlin that cannot be dispersed, the energy damage
-// exemption of Nyx and of intricated Echos, the moving crystals and the
-// "Laisser le géant partir" / "Protéger ceux d'en face" objectives, and the
-// Réparation line of Lyra/Merlin: the engine has no such rules or triggers.
 function giantFightBeat(): Beat {
   const entries: { cond: Cond; fight: FightSpec }[] = []
   const nyxCond: Record<NyxMode, Cond> = {
@@ -1026,8 +1115,12 @@ export const ch06: Chapter = {
             fx(set("carnet.Q05", "repondue"), add("confiance.brutus", 2)),
           ]),
         ]),
-        // CUT: Merlin's extra line if "Protéger ceux d'en face" was met (the
-        // objective itself is cut: no per-target damage data in the report).
+        when(is("derive_protegee"), [
+          say(
+            "merlin",
+            "Vous vous êtes mis entre lui et les nôtres. Je n'ai pas de colonne pour ça.",
+          ),
+        ]),
 
         // Q06 : the question
         stage(

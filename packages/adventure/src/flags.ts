@@ -67,6 +67,7 @@ export const FLAGS: Record<string, FlagSpec> = {
   objet_de_nyx: bool,
   fragments: text("aucun", "fusion", "separation"),
   lacune_geante_habitee: bool,
+  derive_protegee: bool,
   lacune_issue: text("aucune", "habitee", "recousue", "elargie"),
   dispersion_ere1: bool,
   intrications: count(99),

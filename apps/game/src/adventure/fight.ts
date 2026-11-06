@@ -140,6 +140,7 @@ export function reportOf(spec: FightSpec, combat: Combat): FightReport {
     fixed: [...(tracker?.fixed ?? [])],
     fixedFleeing: [...(tracker?.fixedFleeing ?? [])],
     surrendered: [...(tracker?.surrendered ?? [])],
+    sunk: [...(tracker?.sunk ?? [])],
     fixedAt: [...(tracker?.fixedAt ?? [])],
     intricationAt: [...(tracker?.intricationAt ?? [])],
     arrived: [...(tracker?.arrived ?? [])],

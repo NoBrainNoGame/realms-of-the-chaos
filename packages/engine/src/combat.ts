@@ -880,6 +880,7 @@ export class Combat {
       }
       return this._pass(fighter)
     }
+    if (this.adventure?.sink(fighter)) return
     this.adventure?.breakOff(fighter)
     if (this.adventure?.fleeing.has(fighter.id)) {
       this.adventure.playFlee(fighter)
