@@ -156,6 +156,8 @@ x·······x
 - **Gorr** — « Trou qui mange le trou. Pas toucher. »
 - Le héros obtient le **sort interdit « Vacuum decay »** (drapeau `vacuum_decay`, ajouté à la liste `unlocks` de la sauvegarde). Il n'est jamais nécessaire : un parcours entier peut l'ignorer.
 
+> **Règle de jeu (décisions v2, voir [`decisions-jeu.md`](../decisions-jeu.md)).** Le sort n'existe que dans l'Aventure (le héros de l'Aventure, jamais l'Atelier). Lancé dans n'importe quel combat de l'Aventure **sauf** la scène finale du ch. 28, il **efface toute la sauvegarde** (plus une cicatrice, sans félicitation, sans reprise du combat). Seule la scène finale du ch. 28 mène à **La Bascule**, avec sa félicitation.
+
 **Défaite :** le héros tombe, ou tous les alliés tombent. (Le porteur qui tombe n'est **pas** une défaite.)
 
 **Événements scriptés :**

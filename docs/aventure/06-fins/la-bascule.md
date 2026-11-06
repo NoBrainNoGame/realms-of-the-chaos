@@ -5,6 +5,8 @@
 
 **Première fin secrète.** Le héros menace le Ghom avec le sort interdit **Vacuum decay**. Le Ghom ne se retire pas. Alors le sort est lancé, pour de bon. Le Ghom tente de contenir la bulle de vide « vrai » en réimposant, de l'intérieur, l'ancien vide, et cet effort montre ce qu'il veut : **garder l'univers tel qu'il est**. Il échoue. La bulle se répand et réécrit tout sur son passage.
 
+> **Règle de jeu (décisions v2, voir [`decisions-jeu.md`](../decisions-jeu.md)).** Le sort n'existe que dans l'Aventure (le héros de l'Aventure, jamais l'Atelier). Lancé dans n'importe quel combat de l'Aventure **sauf** la scène finale du ch. 28, il **efface toute la sauvegarde** (plus une cicatrice, sans félicitation, sans reprise du combat). Seule la scène finale du ch. 28 mène à **La Bascule**, avec sa félicitation.
+
 C'est la seule fin de l'Aventure qui **efface la sauvegarde** (la vraie). Elle ne se joue qu'une fois par sauvegarde, et c'est pourquoi elle ouvre une fin de plus.
 
 **Nom :** une bascule, en physique, est le passage d'un état à un autre au-delà d'un seuil. Même famille de noms que *La Dispersion* et *Le Découplage* : un nom de processus, jamais un jugement. Identifiant : `bascule`.

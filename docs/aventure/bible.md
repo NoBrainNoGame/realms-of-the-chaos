@@ -55,6 +55,9 @@ Ce qui suit est le résumé du lore. Le détail et les statuts (Établi, Hypoth�
 | **`bascule_vue`** | Drapeau méta (clé `realms.endings`) : la Bascule a été atteinte. Survit à tous les effacements. Ouvre le geste de la négociation. |
 | **Ordre et Chaos** | Les deux philosophies, *tout figer* contre *tout ouvrir*. La vie existe **entre** les deux. |
 
+> **Règle de jeu (décisions v2, voir [`decisions-jeu.md`](decisions-jeu.md)).** Vacuum decay n'existe que dans l'Aventure. Lancé dans un combat de l'Aventure autre que la scène finale du ch. 28, il efface toute la sauvegarde (cicatrice, sans félicitation). Seule la scène finale mène à La Bascule.
+
+
 ### Les Ghoms
 
 - Les Échos les nomment **Ghoms**, sans savoir ce qu'ils sont.

@@ -17,6 +17,8 @@
 
 **Le sort interdit n'est pas une variante.** Si le héros possède **Vacuum decay** (obtenu, caché, au ch. 26), il peut le brandir au dernier geste, mais c'est un **autre geste** (la menace) et une **autre fin** : [`La Bascule`](la-bascule.md). Le Ghom ne se retire jamais devant la menace : il n'a pas peur de ce qui défait « sa place », il **s'y oppose**. Le Découplage ne s'obtient que par le vrai geste, une demande.
 
+> **Règle de jeu (décisions v2, voir [`decisions-jeu.md`](../decisions-jeu.md)).** Le sort n'existe que dans l'Aventure (le héros de l'Aventure, jamais l'Atelier). Lancé dans n'importe quel combat de l'Aventure **sauf** la scène finale du ch. 28, il **efface toute la sauvegarde** (plus une cicatrice, sans félicitation, sans reprise du combat). Seule la scène finale du ch. 28 mène à **La Bascule**, avec sa félicitation.
+
 Le jeu ne prévient jamais de l'existence de cette fin. Aucun texte ne s'adresse au joueur : seul le héros parle, au Ghom, comme à une présence du monde.
 
 Variantes principales : `ghom_dechu.issue`, `combat_final_libre`, `derniere_reponse` (`ne_sait_pas`, `liens` ou `silence`), `double_epargne`, `paix_des_lacunes`.

@@ -138,6 +138,9 @@ fin.monde = ouvert     si couplage_ghom_dechu et habitees_majoritaires et confia
 | `ghom_dechu.issue = couple` mais Confiance < 5 | Pas d'Intrication ; fin par défaut. | Les deux Ghoms sont liés, mais les Échos ne suivent pas. L'épilogue de la fin par défaut mentionne les deux pressions. |
 | Usure ≥ 8, héros jamais tombé | Pas de Dispersion. | Le risque n'est pas la sanction. Les épilogues montrent les cicatrices. |
 
+> **Règle de jeu (décisions v2, voir [`../decisions-jeu.md`](../decisions-jeu.md)).** Vacuum decay n'existe que dans l'Aventure. Lancé dans un combat de l'Aventure autre que la scène finale du ch. 28, il efface toute la sauvegarde (cicatrice, sans félicitation). Seule la scène finale mène à La Bascule.
+
+
 ## 5. Ce que chaque fin affiche
 
 Chaque fichier de fin suit le même plan :
