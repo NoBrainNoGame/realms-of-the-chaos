@@ -9,13 +9,9 @@ import {
 } from "./crystals"
 import { equals, keyOf, manhattan, type Point } from "./geometry"
 import { createRng, type Rng } from "./random"
+import { emptyTrace, TraceKit, type TraceReport } from "./trace"
 import type { FightEvent, Fighter, RefusalReason } from "./types"
 
-/**
- * Opt-in combat rules of the Adventure ("Chroniques"). Every field is off by
- * default: skirmish, duel, arcade and the balance tests never set them, so
- * their fights are exactly what they were.
- */
 export {
   CRYSTAL_OPS,
   type CrystalGain,
@@ -26,6 +22,12 @@ export {
   type CrystalState,
   type GelRules,
 } from "./crystals"
+/**
+ * Opt-in combat rules of the Adventure ("Chroniques"). Every field is off by
+ * default: skirmish, duel, arcade and the balance tests never set them, so
+ * their fights are exactly what they were.
+ */
+export type { FinalBlow, Strike, TraceReport } from "./trace"
 
 export interface AdventureRules {
   /** The final scene (ch. 28): a vacuum decay there is the La Bascule ending. */
@@ -96,6 +98,11 @@ export interface AdventureRules {
   glass?: Point[]
   /** Cold: freeze a fighter or a water cell, thaw them (see `GelRules`). */
   gel?: GelRules
+  /**
+   * Named regions of the board. The report tells how long each team and
+   * fighter stood in them (per clock tick), who struck there, who came.
+   */
+  regions?: Record<string, Point[]>
 }
 
 /**
@@ -295,6 +302,8 @@ export interface AdventureReport {
   /** Cells a crystal bridge made walkable. */
   bridged: Point[]
   gel: GelReport
+  /** Final blows, strikes, cells stood on, regions held. */
+  trace: TraceReport
 }
 
 /** Rule state of one fight; owned by a `Combat`. */
@@ -342,7 +351,10 @@ export class AdventureTracker {
     },
     bridged: [],
     gel: { frozen: [], iced: [], thawed: [] },
+    trace: emptyTrace(),
   }
+  /** Where and by whom things happened. */
+  readonly trace: TraceKit
   /** Crystals, glass, bridges and ice (null without those rules). */
   readonly crystals: CrystalKit | null = null
   /** The order the active ally refused, waiting for Respecter / Insister. */
@@ -370,6 +382,8 @@ export class AdventureTracker {
     rules: AdventureRules,
   ) {
     this.rules = rules
+    this.trace = new TraceKit(_combat, rules.regions, () => this.report.ticks)
+    this.report.trace = this.trace.report
     this.locked = new Set(rules.lockedDivine)
     this._nextTick = rules.clock?.period ?? Infinity
     const member = (team: number, index: number) => {
@@ -458,6 +472,7 @@ export class AdventureTracker {
   /** Called for every event the combat emits. */
   observe(event: FightEvent) {
     const combat = this._combat
+    this.trace.observe(event)
     switch (event.type) {
       case "moved": {
         const f = combat.getFighter(event.fighterId)

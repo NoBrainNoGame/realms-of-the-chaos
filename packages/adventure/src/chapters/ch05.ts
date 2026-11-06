@@ -77,6 +77,7 @@ const jointure: FightSpec = {
     // The seam: column 4 hurts whoever starts a turn on it.
     silent: Array.from({ length: 9 }, (_, y) => ({ x: 4, y })),
     silentDamage: 2,
+    regions: { jointure: Array.from({ length: 9 }, (_, y) => ({ x: 4, y })) },
     // SIMPLIFIED: one rule for the three of them. Nyx flees under 25 % (Bond
     // toward the wall of the Dérive); Merlin "withdraws" and Vesce gives up by
     // leaving the same way (the doc's three distinct behaviours, withdrawal
@@ -130,8 +131,14 @@ const jointure: FightSpec = {
         set("aucune_dispersion"),
       ],
     },
-    // CUT: "Ne pas toucher la jointure" (the report does not give where the
-    // allies end their turns; its only effect was a line from Merlin).
+    {
+      id: "ne-pas-toucher-la-jointure",
+      mark: "◆",
+      label: "Ne pas toucher la jointure",
+      // No ally ever started a turn on the seam (column 4).
+      when: { nothingOn: { region: "jointure", of: "stand", by: { team: 0 } } },
+      success: "Merlin : « Personne n'a posé le pied sur la couture. Noté. »",
+    },
     {
       id: "ghom-tranquille",
       mark: "◆",

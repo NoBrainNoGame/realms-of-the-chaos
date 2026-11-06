@@ -47,8 +47,9 @@ const objectives: ObjectiveSpec[] = [
     id: "garder-la-chaleur",
     mark: "◆",
     label: "Garder la chaleur",
-    // SIMPLIFIED: no heat data; read as « no Séisme » (nothing broke).
-    check: (r) => (r.divineUsed.earthquake ?? 0) === 0,
+    // The warmth is the gradient between the team's cells: no Séisme was cast
+    // on or next to any of them (nothing broke the ground they stand on).
+    when: { not: { castOn: { divine: "earthquake", near: { team: 0 } } } },
     onSuccess: [add("confiance")],
   },
   {

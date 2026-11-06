@@ -1,6 +1,7 @@
 import { compile } from "./compile"
 import { entryProblems } from "./entries"
 import { flagSpec } from "./flags"
+import { traceProblems } from "./trace"
 import { type Chapter, type Cond, type Effect, END } from "./types"
 
 /** Static checks of a chapter. Returns the list of problems (empty: valid). */
@@ -64,6 +65,7 @@ export function validateChapter(chapter: Chapter): string[] {
           break
         case "fight":
           for (const m of entryProblems(op.fight)) err(`${where}: ${m}`)
+          for (const m of traceProblems(op.fight)) err(`${where}: ${m}`)
           for (const o of op.fight.objectives) {
             effects(o.onSuccess ?? [], `${where} fight ${op.fight.id}`)
             effects(o.onFailure ?? [], `${where} fight ${op.fight.id}`)

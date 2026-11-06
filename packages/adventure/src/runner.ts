@@ -1,6 +1,7 @@
 import { compile, type Op } from "./compile"
 import { autonomyEffects } from "./entries"
 import { clampFlag, defaultFlag, flagSpec } from "./flags"
+import { objectiveOutcome } from "./trace"
 import type {
   Chapter,
   Cond,
@@ -312,7 +313,9 @@ export function finishFight(
   )
   const debrief: ObjectiveResult[] = []
   for (const o of op.fight.objectives) {
-    const out = lost ? { ok: false, n: 0 } : o.check(report)
+    const out = lost
+      ? { ok: false, n: 0 }
+      : objectiveOutcome(o, report, op.fight)
     const ok = typeof out === "boolean" ? out : out.ok
     const n = typeof out === "boolean" ? 1 : out.n
     applyEffects(r, ok ? (o.onSuccess ?? []) : (o.onFailure ?? []), n)

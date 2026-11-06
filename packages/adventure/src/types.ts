@@ -3,7 +3,10 @@ import type {
   AdventureRules,
   AutonomyReport,
   AutonomyTier,
+  TraceReport,
 } from "@realms/engine/adventure"
+
+import type { TraceCond } from "./trace"
 
 // ─── Flags, conditions, effects ─────────────────────────────────────────────
 
@@ -134,7 +137,9 @@ export interface ObjectiveSpec {
   mark: "★" | "◆"
   label: string
   /** Reads the fight's report: met or not, with a count for `perUnit` effects. */
-  check: (report: FightReport) => boolean | { ok: boolean; n: number }
+  check?: (report: FightReport) => boolean | { ok: boolean; n: number }
+  /** Conditions on where / by whom things happened (all must hold, see `trace.ts`). */
+  when?: TraceCond | TraceCond[]
   /** Line of the debrief when it is met / missed. */
   success?: string
   failure?: string
@@ -344,6 +349,8 @@ export interface FightReport {
   }
   /** Cells a crystal bridge made walkable. */
   bridged?: { x: number; y: number }[]
+  /** Final blows, strikes, regions held (see `trace.ts` conditions). */
+  trace?: TraceReport
   /** Cold: fighters frozen, cells iced, what thawed. */
   gel?: {
     frozen: { fighterId: string; by: string | null; until: number }[]

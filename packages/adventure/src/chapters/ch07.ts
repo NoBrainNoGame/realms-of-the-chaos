@@ -85,9 +85,8 @@ const maree: FightSpec = {
       id: "ne-pas-combattre",
       mark: "★",
       label: "Ne pas combattre",
-      // SIMPLIFIED: no Lacunaire dispersed stands for "no blow struck".
-      check: (r) =>
-        r.fighters.filter((f) => f.team === 1).every((f) => f.hp > 0),
+      // Not a single blow landed, on anyone.
+      when: { not: { struckOn: {} } },
       success: "Personne n'a frappé. La Marée est passée sans prendre.",
       failure:
         "Un coup a été porté : la Marée a pris, de la glace reste sur les pilotis.",

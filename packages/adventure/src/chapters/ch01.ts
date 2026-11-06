@@ -116,6 +116,7 @@ const tenirLesBords: FightSpec = {
       { id: "semis", cells: cells(5, 6, 7, 8) },
     ],
     zoneTeams: [0],
+    regions: { foyer: [{ x: 2, y: 2 }] },
     fixOnDeath: [1],
     // Réparation stays greyed out ("Pas encore.").
     lockedDivine: ["blessing"],
@@ -159,9 +160,8 @@ const tenirLesBords: FightSpec = {
       id: "feu_tenu",
       mark: "◆",
       label: "Le feu ne s'éteint pas",
-      // SIMPLIFIED: "no Lacunaire reaches the hearth (2,2)" is approximated by
-      // "the Feu zone was never lost".
-      check: (r) => r.zoneStates.feu !== "lost",
+      // No Lacunaire ever stepped on the hearth (2,2).
+      when: { not: { visited: { region: "foyer", who: { team: 1 } } } },
       success: "Le foyer n'a jamais été atteint.",
       onSuccess: [{ set: "feu_tenu", value: true }],
     },

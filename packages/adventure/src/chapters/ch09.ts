@@ -134,8 +134,8 @@ const faim: FightSpec = {
     },
   ],
   rules: {
-    // SIMPLIFIED: the final-blow attribution and the fight ending on
-    // "Squalor kills a Lacunaire" do not exist. Squalor flees
+    // SIMPLIFIED: the fight does not end on "Squalor kills a Lacunaire" (the
+    // objective reads the final blow instead). Squalor flees
     // under a quarter of his hit points (as in the doc); the clock bounds it.
     flee: { team: 1, below: 0.25, exits: [{ x: 1, y: 7 }] },
     clock: { period: 1, limit: 16, winner: 0 },
@@ -149,12 +149,11 @@ const faim: FightSpec = {
       id: "le-nourrir",
       mark: "★",
       label: "Le nourrir plutôt que le vaincre",
-      // SIMPLIFIED: Squalor still stands (or has left on his own) and at least
-      // one Lacunaire is gone: he ate. The last blow cannot be attributed.
+      // Squalor still stands (or has left on his own) and he dealt the last
+      // blow to a Lacunaire: he ate.
       check: (r) =>
-        r.fighters.some(
-          (f) => f.preset === "squalor" && (f.fled || f.hp > 0),
-        ) && r.fighters.some((f) => f.team === 2 && f.hp === 0),
+        r.fighters.some((f) => f.preset === "squalor" && (f.fled || f.hp > 0)),
+      when: { finalBlowBy: { by: "squalor", target: { team: 2 } } },
       success:
         "Squalor, la bouche pleine : « … Bon. Bon, bon, bon. On peut parler, maintenant. »",
       failure: "Squalor est vaincu. Il s'en va sans un mot, la faim intacte.",

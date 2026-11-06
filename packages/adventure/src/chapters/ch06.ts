@@ -244,27 +244,21 @@ function giantFight(nyx: NyxMode, vesce: VesceMode, fewer: boolean): FightSpec {
       id: "recoudre",
       mark: "◆",
       label: "Recoudre la Lacune",
-      // SIMPLIFIED: the report has no cell data. "Held the heart for 3 turns
-      // and Réparation twice" is read as Réparation x2 with the giant gone,
-      // or the giant fixed into a rock.
-      check: (r) => {
-        const g = giantOf(r)
-        return (
-          giantGone(r) &&
-          ((r.divineUsed.blessing ?? 0) >= 2 ||
-            (g !== undefined && r.fixed.includes(g.id)))
-        )
-      },
+      // Held the heart for 3 turns (clock ticks) and Réparation twice, the
+      // giant gone.
+      check: (r) => giantGone(r) && (r.divineUsed.blessing ?? 0) >= 2,
+      when: { held: { region: "coeur", who: { team: 0 }, ticks: 3 } },
       onSuccess: [set("lacune_issue", "recousue")],
     },
     {
       id: "habiter",
       mark: "★",
       label: "Habiter la Lacune à deux, au lieu de la combattre",
-      // SIMPLIFIED: "two intricated allies held the heart a full turn" is read
-      // as two Intrications once the giant has left the heart (it can only be
-      // beaten and fixed; the engine has no giant sinking into the Clair).
+      // Two Intrications and the heart held a full turn once the giant is
+      // gone (it can only be beaten and fixed; the engine has no giant
+      // sinking into the Clair).
       check: (r) => giantGone(r) && r.intrications >= 2,
+      when: { held: { region: "coeur", who: { team: 0 }, ticks: 1 } },
       success: "Deux Échos sur la même case : le gris s'éclaircit.",
       onSuccess: [
         set("lacune_issue", "habitee"),
@@ -276,11 +270,11 @@ function giantFight(nyx: NyxMode, vesce: VesceMode, fewer: boolean): FightSpec {
       id: "ghom-ne-touche-pas",
       mark: "◆",
       label: "Le Ghom ne touche pas la Dérive",
-      // SIMPLIFIED: no cell or target data in the report, so no Séisme and no
-      // Distorsion at all.
-      check: (r) =>
-        (r.divineUsed.earthquake ?? 0) === 0 &&
-        (r.divineUsed.timeWarp ?? 0) === 0,
+      // No Séisme and no Distorsion cast on or next to a fighter of the Dérive.
+      when: [
+        { not: { castOn: { divine: "earthquake", near: { team: 1 } } } },
+        { not: { castOn: { divine: "timeWarp", near: { team: 1 } } } },
+      ],
       onSuccess: [add("confiance.nyx"), add("confiance.merlin")],
     },
   ]
@@ -289,8 +283,9 @@ function giantFight(nyx: NyxMode, vesce: VesceMode, fewer: boolean): FightSpec {
       id: "habiter-nyx",
       mark: "◆",
       label: "Habiter avec Nyx",
-      // SIMPLIFIED: "the hero joins Nyx's cell then walks to the heart" is read
-      // as two Intrications with Nyx still on the map.
+      // The hero and Nyx are intricated, Nyx still on the map, and the hero
+      // walks to the heart.
+      when: { visited: { region: "coeur", who: "@hero" } },
       check: (r) => {
         const n = r.fighters.find((f) => f.preset === "nyx")
         return r.intrications >= 2 && !!n && n.hp > 0 && !n.fled
@@ -311,6 +306,7 @@ function giantFight(nyx: NyxMode, vesce: VesceMode, fewer: boolean): FightSpec {
     teams,
     rules: {
       clock: { period: 1, limit: 8, winner: 0 },
+      regions: { coeur: [{ x: 5, y: 4 }] },
       silent: LACUNE,
       silentDamage: 3,
       flee: {
