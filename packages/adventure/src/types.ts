@@ -404,6 +404,12 @@ export interface FightReport {
   surrendered?: string[]
   /** Those that sank out of the fight (`rules.sinks`). */
   sunk?: string[]
+  /** Fighters carried off the map (Sel, taken by the giant). */
+  snatched?: string[]
+  /** An Intrication between the two camps of a ceasefire was made. */
+  peace?: boolean
+  /** Distorsions of the bodiless Ghom: ids of the fighters hit. */
+  distorted?: string[]
   fixedAt?: { x: number; y: number }[]
   intricationAt?: { x: number; y: number }[]
   /** Ids of the fighters that entered mid-fight (waves, reinforcements). */

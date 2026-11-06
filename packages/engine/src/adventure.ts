@@ -100,6 +100,36 @@ export interface AdventureRules {
    * ally share its cell: the allies' combined actions then work with it).
    */
   truce?: { team: number; index: number; cond: ScriptCond }[]
+  /**
+   * A ceasefire between two camps (teams `a` and `b`): once team `a` dealt no
+   * damage to team `b` for `after` consecutive ticks, they are no one's enemy
+   * and may share a cell (Habiter). Damage to `b`, an Influence on one of its
+   * fighters or an Insistence breaks it: `revoked` ticks are then needed. The
+   * first Intrication between the camps on a silent cell makes the peace for
+   * good. `except` lists members of `a` that `b` never trusts (indexes).
+   */
+  ceasefire?: {
+    a: number
+    b: number
+    after: number
+    revoked?: number
+    except?: number[]
+  }
+  /**
+   * A Distorsion of an enemy Ghom without a body: every `every` ticks the
+   * next turn of a fighter of `teams` that stands off the silent cells is
+   * pushed back.
+   */
+  distort?: { every: number; teams: number[]; amount?: number }
+  /**
+   * A fighter carried off the map: when `by` ends a move or an action next to
+   * `victim`, from tick `from`, `victim` leaves the fight.
+   */
+  snatch?: {
+    victim: { team: number; index: number }
+    by: { team: number; index: number }
+    from: number
+  }[]
   /** Members that never strike a fighter of the teams `toward`. */
   peaceful?: { team: number; index: number; toward: number[] }[]
   /** Fighters no weapon can hurt (a Golem too dense to be wounded). */
@@ -424,6 +454,14 @@ export interface AdventureReport {
   surrendered: string[]
   /** Fighters that sank out of the fight (`rules.sinks`). */
   sunk: string[]
+  /** Fighters carried off the map (`rules.snatch`). */
+  snatched: string[]
+  /** An Intrication between the two camps of `rules.ceasefire` was made. */
+  peace: boolean
+  /** Whether the ceasefire was broken at some point. */
+  ceasefireBroken: boolean
+  /** Distorsions of the bodiless Ghom (`rules.distort`): fighters hit. */
+  distorted: string[]
   /** Cells where fixed foes set into rocks. */
   fixedAt: Point[]
   /** Cells of the Echo that received each Intrication. */
@@ -495,6 +533,10 @@ export class AdventureTracker {
     fixedFleeing: [],
     surrendered: [],
     sunk: [],
+    snatched: [],
+    peace: false,
+    ceasefireBroken: false,
+    distorted: [],
     fixedAt: [],
     intricationAt: [],
     arrived: [],
@@ -663,12 +705,76 @@ export class AdventureTracker {
   /** Neutral teams are only enemies of the AI. */
   isEnemy(a: Fighter, b: Fighter) {
     if (this.rules.truce?.length && this._inTruce(a, b)) return false
+    if (this.rules.ceasefire && this._calm(a, b)) return false
     const na = this.isNeutral(a.team)
     const nb = this.isNeutral(b.team)
     if (!na && !nb) return a.team !== b.team
     if (na && nb) return false
     const other = na ? b : a
     return other.controller === "ai"
+  }
+
+  private _ceasefireCalm = 0
+  private _ceasefireRevoked = false
+
+  /** Do the ceasefire and its peace hold between these two fighters? */
+  private _calm(a: Fighter, b: Fighter) {
+    const c = this.rules.ceasefire
+    if (!c) return false
+    const [x, y] = a.team === c.a ? [a, b] : [b, a]
+    if (x.team !== c.a || y.team !== c.b) return false
+    if (c.except?.length) {
+      const members = this._combat.fighters.filter((f) => f.team === c.a)
+      if (c.except.includes(members.indexOf(x))) return false
+    }
+    if (this.report.peace) return true
+    const need = this._ceasefireRevoked ? (c.revoked ?? c.after) : c.after
+    return this._ceasefireCalm >= need
+  }
+
+  private _breakCeasefire() {
+    this._ceasefireCalm = 0
+    this._ceasefireRevoked = true
+    this.report.ceasefireBroken = true
+  }
+
+  /** The Distorsion of the bodiless Ghom, at the end of a tick. */
+  private _distort() {
+    const d = this.rules.distort
+    if (!d || this.report.ticks % d.every !== 0) return
+    const combat = this._combat
+    const free = combat.aliveFighters.filter(
+      (f) =>
+        d.teams.includes(f.team) &&
+        !combat.departed.has(f.id) &&
+        !this.silent.has(keyOf(f.position)),
+    )
+    if (free.length === 0) return
+    // the one about to act is the one whose time is bent
+    const target = free.reduce((x, y) =>
+      y.nextActionAt < x.nextActionAt ? y : x,
+    )
+    const amount = d.amount ?? 25
+    target.nextActionAt += amount
+    this.report.distorted.push(target.id)
+    combat.emitEvent({ type: "delayed", fighterId: target.id, amount })
+  }
+
+  /** `by` stands next to its victim: carried off the map. */
+  private _snatch(mover: Fighter) {
+    const combat = this._combat
+    for (const s of this.rules.snatch ?? []) {
+      if (this.report.ticks < s.from) continue
+      const by = combat.fighters.filter((f) => f.team === s.by.team)[s.by.index]
+      const victim = combat.fighters.filter((f) => f.team === s.victim.team)[
+        s.victim.index
+      ]
+      if (by !== mover || !victim?.alive || combat.departed.has(victim.id))
+        continue
+      if (manhattan(by.position, victim.position) > 1) continue
+      this.report.snatched.push(victim.id)
+      combat.depart(victim)
+    }
   }
 
   private _inTruce(a: Fighter, b: Fighter) {
@@ -745,12 +851,21 @@ export class AdventureTracker {
       case "moved": {
         const f = combat.getFighter(event.fighterId)
         if (f) this._work(f, event.to)
+        if (f && this.rules.snatch) this._snatch(f)
         this._measureAround(event.to, event.fighterId)
         break
       }
-      case "damaged":
+      case "damaged": {
+        const c = this.rules.ceasefire
+        if (c && event.sourceId) {
+          const hit = combat.getFighter(event.fighterId)
+          const by = combat.getFighter(event.sourceId)
+          if (hit?.team === c.b && by?.team === c.a && !this.report.peace)
+            this._breakCeasefire()
+        }
         this._strike(event.fighterId, event.sourceId)
         break
+      }
       case "died":
       case "fled":
       case "dissolved":
@@ -766,9 +881,21 @@ export class AdventureTracker {
         for (const c of [event.target, ...event.cells])
           this._measureCell(c, f?.id ?? null)
         if (f) this._acted.set(f.id, ++this._actOrder)
+        if (f && this.rules.snatch) this._snatch(f)
         if (event.partnerId) {
           this.report.intrications++
           this.report.intricationAt.push({ ...event.target })
+          const c = this.rules.ceasefire
+          const partner = combat.getFighter(event.partnerId)
+          if (
+            c &&
+            f &&
+            partner &&
+            ((f.team === c.a && partner.team === c.b) ||
+              (f.team === c.b && partner.team === c.a)) &&
+            this.silent.has(keyOf(f.position))
+          )
+            this.report.peace = true
         }
         break
       }
@@ -783,6 +910,14 @@ export class AdventureTracker {
           manhattan(active.position, event.target) <= 1
         )
           this._influenced.add(active.id)
+        const cf = this.rules.ceasefire
+        if (cf && event.target && !r.peace) {
+          if (
+            combat.fightersAt(event.target).some((f) => f.team === cf.b) &&
+            event.divineId !== "blessing"
+          )
+            this._breakCeasefire()
+        }
         if (event.target) {
           for (const f of combat.aliveFighters) {
             if (
@@ -1083,6 +1218,12 @@ export class AdventureTracker {
       this._decohere()
       this._recohere()
       this._warm()
+      this._distort()
+      if (this.rules.ceasefire) {
+        if (this.report.autonomy.insisted.length > 0 && !this._ceasefireRevoked)
+          this._breakCeasefire()
+        else this._ceasefireCalm++
+      }
       this._combat.emitEvent({ type: "clockTick", tick: this.report.ticks })
       this._release(time)
       if (clock.limit !== undefined && this.report.ticks >= clock.limit) {

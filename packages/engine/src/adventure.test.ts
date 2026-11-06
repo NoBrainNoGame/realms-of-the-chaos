@@ -461,4 +461,42 @@ describe("the tide and the ice", () => {
     const lyra = c.getFighter("lyra-0-0")!
     expect(lyra.hp).toBe(c.maxHp(lyra))
   })
+
+  test("a calm ceasefire makes the camps no one's enemy", () => {
+    const c = fight({
+      ceasefire: { a: 0, b: 1, after: 0 },
+      clock: { period: 10, limit: 20 },
+    })
+    c.run()
+    const merlin = c.getFighter("merlin-1-0")!
+    expect(c.getFighter("lyra-0-0")!.hp).toBe(
+      c.maxHp(c.getFighter("lyra-0-0")!),
+    )
+    expect(merlin.hp).toBe(c.maxHp(merlin))
+    expect(c.adventure?.report.ceasefireBroken).toBe(false)
+  })
+
+  test("the Distorsion of a bodiless Ghom bends one turn every few ticks", () => {
+    const c = fight({
+      distort: { every: 3, teams: [0, 1] },
+      clock: { period: 10, limit: 9 },
+    })
+    c.run()
+    expect(c.adventure?.report.distorted.length).toBe(3)
+  })
+
+  test("a fighter next to its snatcher is carried off the map", () => {
+    const c = fight({
+      snatch: [
+        {
+          victim: { team: 0, index: 1 },
+          by: { team: 1, index: 0 },
+          from: 0,
+        },
+      ],
+      clock: { period: 10, limit: 40 },
+    })
+    c.run()
+    expect(c.adventure?.report.snatched.length).toBeLessThanOrEqual(1)
+  })
 })

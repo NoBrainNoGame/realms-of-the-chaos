@@ -17,7 +17,14 @@ import {
   stage,
   when,
 } from "../dsl"
-import type { Beat, Chapter, Cond, FightReport, FightSpec } from "../types"
+import type {
+  Beat,
+  Chapter,
+  Cond,
+  FightLine,
+  FightReport,
+  FightSpec,
+} from "../types"
 import { END } from "../types"
 import {
   BRUTUS4,
@@ -28,7 +35,9 @@ import {
   LYRA4,
   lacuneBoard,
   MERLIN4,
+  NEREA4,
   NYX4,
+  SEL,
   SQUALOR4,
   UNSTABLE,
   WILL,
@@ -72,7 +81,7 @@ const deadDeliés = (r: FightReport) =>
 const nbNear = (r: FightReport) => r.divineNearAlly.length
 /** Peace: an Intrication was made and no Délié was dispersed. */
 const paix = (r: FightReport) =>
-  r.result !== "defeat" && r.intrications >= 1 && deadDeliés(r) === 0
+  r.result !== "defeat" && r.peace === true && deadDeliés(r) === 0
 
 interface Bits {
   alliance: boolean
@@ -98,40 +107,98 @@ function bord(b: Bits): FightSpec {
         side: "allies",
         fighters: [
           { preset: "@hero", at: { x: 5, y: 1 } },
-          { preset: BRUTUS4, autonomy: WILL.brutus, at: { x: 4, y: 2 } },
-          { preset: LYRA4, autonomy: WILL.lyra, at: { x: 6, y: 2 } },
-          { preset: "gorr", at: { x: 5, y: 2 }, autonomy: WILL.gorr },
-          // SIMPLIFIED: the fourth ally is the Lacunaire IV if he joined, else
-          // Eva IV; the others (Néréa, Squalor, Merlin) are not in the fight.
-          b.lacunaire
-            ? { preset: LACUNAIRE4, at: { x: 3, y: 1 } }
-            : { preset: EVA4, autonomy: WILL.eva, at: { x: 3, y: 1 } },
+          // up to four Échos (the Lacunaire IV counts): who stayed, in order
+          ...(b.lacunaire ? [{ preset: LACUNAIRE4, at: { x: 3, y: 1 } }] : []),
+          {
+            preset: BRUTUS4,
+            autonomy: WILL.brutus,
+            at: { x: 4, y: 2 },
+            needs: "camp.brutus=heros",
+          },
+          {
+            preset: LYRA4,
+            autonomy: WILL.lyra,
+            at: { x: 6, y: 2 },
+            needs: "camp.lyra=heros",
+          },
+          {
+            preset: "gorr",
+            at: { x: 5, y: 2 },
+            autonomy: WILL.gorr,
+            needs: "camp.gorr=heros",
+          },
+          {
+            preset: SQUALOR4,
+            at: { x: 6, y: 1 },
+            needs: "camp.squalor=heros",
+          },
+          { preset: MERLIN4, at: { x: 4, y: 1 }, needs: "camp.merlin=heros" },
+          {
+            preset: EVA4,
+            autonomy: WILL.eva,
+            at: { x: 3, y: 2 },
+            needs: "camp.eva=heros",
+          },
+          { preset: NEREA4, at: { x: 7, y: 1 }, needs: "camp.nerea=heros" },
         ],
       },
       {
         name: "Les Déliés",
-        side: b.alliance ? "neutral" : "enemies",
+        side: "enemies",
         fighters: [
           { preset: NYX4, at: { x: 1, y: 4 } },
-          // SIMPLIFIED: the Echos who left in ch. 21 are Guetteurs here (five
-          // Déliés in all, whatever the number of leavers).
-          { preset: GUETTEUR, at: { x: 0, y: 3 } },
-          { preset: GUETTEUR, at: { x: 1, y: 3 } },
-          { preset: GUETTEUR, at: { x: 2, y: 4 } },
-          { preset: GUETTEUR, at: { x: 2, y: 5 } },
+          // the Échos who left in ch. 21 fight here with their usual kit
+          { preset: BRUTUS4, at: { x: 0, y: 3 }, needs: "camp.brutus=delie" },
+          { preset: LYRA4, at: { x: 1, y: 3 }, needs: "camp.lyra=delie" },
+          { preset: "gorr", at: { x: 0, y: 4 }, needs: "camp.gorr=delie" },
+          { preset: EVA4, at: { x: 2, y: 4 }, needs: "camp.eva=delie" },
+          { preset: NEREA4, at: { x: 2, y: 5 }, needs: "camp.nerea=delie" },
+          // 2 to 4 Guetteurs, five Déliés in all
+          { preset: GUETTEUR, at: { x: 0, y: 5 } },
+          { preset: GUETTEUR, at: { x: 1, y: 5 } },
+          { preset: GUETTEUR, at: { x: 0, y: 6 }, needs: "camp.guetteurs>=3" },
+          { preset: GUETTEUR, at: { x: 1, y: 6 }, needs: "camp.guetteurs>=4" },
         ],
       },
       {
         name: "Ce qui reste au Ghom du Chaos",
         side: "enemies",
         fighters: [
-          { preset: GIANT, at: { x: 9, y: 5 } },
+          {
+            // enters the grey on the side of the Déliés at the fourth tick,
+            // and goes for Sel when she is there
+            preset: GIANT,
+            at: { x: 4, y: 6 },
+            arrives: { tick: 4 },
+            scriptIf: {
+              flag: "confiance.nyx",
+              atLeast: 0,
+              script: [{ from: 4, act: { do: "follow", team: 3, index: 0 } }],
+            },
+          },
           { preset: EFFILOCHEUR, at: { x: 10, y: 4 } },
           { preset: EFFILOCHEUR, at: { x: 10, y: 5 } },
           { preset: UNSTABLE, at: { x: 9, y: 6 } },
           { preset: UNSTABLE, at: { x: 10, y: 6 } },
           ...(b.squalor ? [{ preset: SQUALOR4, at: { x: 10, y: 7 } }] : []),
-          ...(b.merlin ? [{ preset: MERLIN4, at: { x: 9, y: 7 } }] : []),
+          ...(b.merlin
+            ? [
+                {
+                  preset: MERLIN4,
+                  at: { x: 9, y: 7 },
+                  // he stops to measure from the sixth tick
+                  script: [{ from: 6, act: { do: "stand" as const } }],
+                },
+              ]
+            : []),
+        ],
+      },
+      {
+        name: "Sel",
+        side: "neutral",
+        // a bystander on a grey cell in the west, if Nyx still trusts the hero
+        fighters: [
+          { preset: SEL, at: { x: 1, y: 5 }, needs: "confiance.nyx>=0" },
         ],
       },
     ],
@@ -141,35 +208,38 @@ function bord(b: Bits): FightSpec {
       // "Le Bord grandit": every two turns two cells next to the grey go out
       // for good; an action of the Ghom's side next to a hole mends it.
       lacunes: { cells: [], edge: silent, every: 2, spread: 2 },
-      // SIMPLIFIED: two strips of ground that must stay worked, else they go
-      // silent (the doc's other half of the Bord); the Ghom du Chaos has no
-      // body and no Distorsion.
-      zones: [
+      // The Ghom du Chaos has no body: a Distorsion every three turns on an
+      // Écho of camp 1 or 2 that stands off the grey.
+      distort: { every: 3, teams: [0, 1] },
+      // The giant carries Sel off the map if it ends a move next to her.
+      snatch: [
         {
-          id: "ouest",
-          cells: [
-            { x: 2, y: 3 },
-            { x: 3, y: 3 },
-          ],
-        },
-        {
-          id: "est",
-          cells: [
-            { x: 7, y: 3 },
-            { x: 8, y: 3 },
-          ],
+          victim: { team: 3, index: 0 },
+          by: { team: 2, index: 0 },
+          from: 4,
         },
       ],
-      // SIMPLIFIED: with the alliance the Déliés hold their ground (neutral)
-      // and attacking one revokes it (the objective below); the doc's
-      // ceasefire counters and the Habiter action do not exist.
-      ...(b.alliance ? { neutral: [1] } : {}),
+      neutral: [3],
+      // The Déliés share a cell (Habiter) after a ceasefire; see `rulesIf`.
       // A Lacunaire of the Chaos "fixes" instead of dying: brought to a stable
-      // form, it stops (SIMPLIFIED stand-in for the peace of three).
+      // form, it stops.
       fixOnDeath: [2],
       clock: { period: 10, limit: 10, winner: 0 },
       announce: true,
     },
+    rulesIf: (["0", "1", "3"] as const).map((n) => ({
+      needs: `cessez=${n}`,
+      rules: {
+        ceasefire: {
+          a: 0,
+          b: 1,
+          after: Number(n),
+          revoked: 3,
+          // without the alliance, Nyx IV refuses to share the hero's cell
+          ...(b.alliance ? {} : { except: [0] }),
+        },
+      },
+    })),
     influences: ["earthquake", "timeWarp", "blessing"],
     startEnergy: 3,
     defeat: [
@@ -213,6 +283,13 @@ function bord(b: Bits): FightSpec {
         onFailure: [set("alliance_nyx", false)],
       },
       {
+        id: "sel",
+        mark: "◆",
+        label: "Sel n'est pas emportée par le Lacunaire géant",
+        check: (r) => (r.snatched ?? []).length === 0,
+        onFailure: [set("sel_emportee"), add("confiance.nyx", -2)],
+      },
+      {
         id: "aucune-insistance",
         mark: "◆",
         label: "Aucune Influence près d'un allié de tout le combat",
@@ -220,7 +297,7 @@ function bord(b: Bits): FightSpec {
         onSuccess: [add("confiance")],
       },
     ],
-    lines: [
+    lines: <FightLine[]>[
       {
         when: "start",
         who: "nyx",
@@ -231,11 +308,34 @@ function bord(b: Bits): FightSpec {
         who: "brutus",
         text: "Demain, je ne garde pas un mur. Je garde un bord. Ça bouge, un bord.",
       },
+      ...(b.alliance
+        ? []
+        : [
+            {
+              when: "tick:3",
+              who: "nyx",
+              text: "Je ne sais même plus contre qui je me bats.",
+            },
+          ]),
       {
         when: "tick:3",
         who: "lyra",
         text: "Je soignerai qui tombera près de moi, quel que soit son camp.",
       },
+      {
+        when: "tick:4",
+        who: "nyx",
+        text: "Il va sur Sel !",
+      },
+      ...(b.merlin
+        ? [
+            {
+              when: "tick:6",
+              who: "merlin",
+              text: "Je mesure. Je ne prends pas part. … Non. Mesurer, c'est déjà prendre part. Mon ancêtre l'avait compris. Pas moi.",
+            },
+          ]
+        : []),
       {
         when: "tick:5",
         who: "gorr",
@@ -525,6 +625,48 @@ export const ch24: Chapter = {
           ),
           fx(add("confiance.squalor")),
         ]),
+        // Who stands where on the Bord: up to four Échos with the hero (the
+        // Lacunaire IV counts), the ones who left fight with the Déliés, and
+        // the Guetteurs make the Déliés five.
+        fx(set("camp.allies", 0), set("camp.guetteurs", 4)),
+        when(gte("confiance.lacunaire", 2), [fx(add("camp.allies"))]),
+        ...(
+          [
+            ["brutus", reste("brutus")],
+            ["lyra", reste("lyra")],
+            ["gorr", reste("gorr")],
+            ["squalor", all(is("squalor_rejoint"), reste("squalor"))],
+            ["merlin", is("merlin_convaincu")],
+            ["eva", any(reste("eva"), is("eva_pretee"))],
+            ["nerea", all(is("nerea_retrouvee"), reste("nerea"))],
+          ] as [string, Cond][]
+        ).flatMap(([l, here]): Beat[] => [
+          when(
+            all(here, { not: gte("camp.allies", 4) }),
+            [fx(set(`camp.${l}`, "heros"), add("camp.allies"))],
+            ["brutus", "lyra", "gorr", "eva", "nerea"].includes(l)
+              ? [
+                  when(parti(l as Id), [
+                    fx(set(`camp.${l}`, "delie")),
+                    when(gte("camp.guetteurs", 3), [
+                      fx(add("camp.guetteurs", -1)),
+                    ]),
+                  ]),
+                ]
+              : [],
+          ),
+        ]),
+        // How long the Déliés ask for a ceasefire before sharing a cell.
+        fx(set("cessez", "3")),
+        when(
+          any(
+            is("objet_de_nyx", "nyx_iv"),
+            ...LIGNEES.map((l) => is(`depart.${l}`, "paix")),
+            all(is("eva_pretee"), is("carnet.Q22", "repondue")),
+          ),
+          [fx(set("cessez", "1"))],
+        ),
+        when(is("alliance_nyx"), [fx(set("cessez", "0"))]),
         go("2"),
       ],
     },
@@ -629,13 +771,10 @@ export const ch24: Chapter = {
             ),
             stage("Q20 : réponse trouvée, version amère."),
             fx(set("carnet.Q20", "repondue")),
-            // SIMPLIFIED: the giant carries Sel off only if the hero knew her
-            // (visite_sel), the engine has no abduction in the fight.
-            when(is("visite_sel"), [
+            when(is("sel_emportee"), [
               stage(
                 "Dans le fracas, le Lacunaire géant a emporté Sel dans le gris. Personne ne l'a vu partir.",
               ),
-              fx(set("sel_emportee"), add("confiance.nyx", -2)),
             ]),
           ],
         ),

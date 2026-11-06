@@ -86,7 +86,13 @@ for (const l of [
   ERA4_FLAGS[`retour.${l}`] = bool
   ERA4_FLAGS[`tente.${l}`] = bool
   ERA4_FLAGS[`statut.${l}`] = text("absent", "reste", "hesite", "part")
+  // ch. 24: the camp each lineage takes on the Bord
+  ERA4_FLAGS[`camp.${l}`] = text("absent", "heros", "delie")
 }
+ERA4_FLAGS["camp.allies"] = count(8)
+ERA4_FLAGS["camp.guetteurs"] = count(4)
+/** Ticks of ceasefire the Déliés ask before they share a cell (ch. 24). */
+ERA4_FLAGS.cessez = text("3", "1", "0")
 
 registerFlags(ERA4_FLAGS)
 
