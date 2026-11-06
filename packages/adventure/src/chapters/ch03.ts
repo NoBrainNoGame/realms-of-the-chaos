@@ -147,14 +147,15 @@ const fightNuit: FightSpec = {
   ],
   rules: {
     neutral: [2],
-    // The two doors; SIMPLIFIED: not "every cell of the map border" (the wall
-    // is impassable anyway).
+    // The two doors and every cell of the map border.
     flee: {
       team: 1,
       below: 0.5,
       exits: [
-        { x: 3, y: 0 },
-        { x: 4, y: 8 },
+        ...Array.from({ length: 9 }, (_, x) => ({ x, y: 0 })),
+        ...Array.from({ length: 9 }, (_, x) => ({ x, y: 8 })),
+        ...Array.from({ length: 7 }, (_, i) => ({ x: 0, y: i + 1 })),
+        ...Array.from({ length: 7 }, (_, i) => ({ x: 8, y: i + 1 })),
       ],
     },
     fixOnDeath: [1],
@@ -186,14 +187,21 @@ const fightNuit: FightSpec = {
       id: "laisser-partir",
       mark: "★",
       label: "Laisser partir ceux qui fuient",
-      // SIMPLIFIED: the report cannot tell a fixed fugitive from a fixed
-      // fighter: we count the Lacunaires that fled (n), the bonus asks for two.
+      // No fugitive set into a rock: the ones that fell while fleeing are
+      // told apart in the report.
+      check: (r) => (r.fixedFleeing ?? []).length === 0,
+      success: "Ceux qui partaient sont partis.",
+      failure: "Un de ceux qui partaient s'est fixé.",
+      onSuccess: [add("confiance", 1), add("confiance.lyra", 1)],
+    },
+    {
+      id: "epargnes",
+      mark: "•",
+      label: "Les Lacunaires enfuis",
       check: (r) => {
         const n = r.fighters.filter((f) => f.team === 1 && f.fled).length
         return { ok: n >= 1, n }
       },
-      success: "Ceux qui partaient sont partis.",
-      failure: "Personne n'a pu s'en aller.",
       onSuccess: [{ add: "lacunaires.epargnes", by: 1, perUnit: true }],
     },
     {
@@ -515,12 +523,21 @@ export const ch03: Chapter = {
         narr(
           "Il y a quelque chose d'étrange. Tout le village est immobile, sauf lui. Il est le seul à bouger, et il bouge pour que rien ne bouge.",
         ),
+        say(
+          "brutus",
+          "La Doyenne est sur la place. L'enfant traîne derrière la maison commune. Passez par où vous voulez.",
+        ),
+        choice("ordre", [
+          opt("place-d-abord", "Aller à la place, voir la Doyenne.", []),
+          opt("pim-d-abord", "Aller derrière la maison commune.", [
+            fx(set("pim_avant_doyenne")),
+          ]),
+        ]),
+        when(is("pim_avant_doyenne"), [go("pim")]),
       ],
       next: "doyenne",
     },
 
-    // SIMPLIFIED: nodes 2 and 3 are played in this order only (the doc allows
-    // the reverse).
     doyenne: {
       id: "doyenne",
       title: "La Doyenne",
@@ -600,6 +617,7 @@ export const ch03: Chapter = {
           ]),
           opt("partir", "Rien d'autre."),
         ]),
+        when(is("pim_avant_doyenne"), [go("surmur")]),
       ],
       next: "pim",
     },
@@ -655,6 +673,7 @@ export const ch03: Chapter = {
           opt("promis", "Promis.", [fx(set("pim_promesse"))]),
           opt("si-trouve", "Si je trouve."),
         ]),
+        when(is("pim_avant_doyenne"), [go("doyenne")]),
       ],
       next: "surmur",
     },

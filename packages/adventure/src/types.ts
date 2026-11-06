@@ -382,6 +382,8 @@ export interface FightReport {
   zonesLost: string[]
   zoneStates: Record<string, "active" | "silent" | "lost">
   fixed: string[]
+  /** Those of them that were fleeing when they fell. */
+  fixedFleeing?: string[]
   /** Ids of the fighters that entered mid-fight (waves, reinforcements). */
   arrived?: string[]
   /** Fighters that changed sides, with the team they went to. */

@@ -390,6 +390,8 @@ export interface AdventureReport {
   intrications: number
   fled: string[]
   fixed: string[]
+  /** Fighters that were fleeing when they fell and set into a rock. */
+  fixedFleeing: string[]
   /** Ids of the fighters that entered mid-fight, in order. */
   arrived: string[]
   /** Fighters that changed sides, in order. */
@@ -454,6 +456,7 @@ export class AdventureTracker {
     intrications: 0,
     fled: [],
     fixed: [],
+    fixedFleeing: [],
     arrived: [],
     switched: [],
     zonesLost: [],
@@ -1286,6 +1289,7 @@ export class AdventureTracker {
 
   fixed(fighter: Fighter) {
     this.report.fixed.push(fighter.id)
+    if (this.fleeing.has(fighter.id)) this.report.fixedFleeing.push(fighter.id)
     this._combat.emitEvent({
       type: "fixed",
       fighterId: fighter.id,

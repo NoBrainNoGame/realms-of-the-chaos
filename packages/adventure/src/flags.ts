@@ -54,6 +54,7 @@ export const FLAGS: Record<string, FlagSpec> = {
   "demeure.graine": bool,
   pim_graine: bool,
   pim_promesse: bool,
+  pim_avant_doyenne: bool,
   archive_derive: text("aucune", "disponible", "lue"),
   merlin_mesure: bool,
   vesce_dispersee: bool,
