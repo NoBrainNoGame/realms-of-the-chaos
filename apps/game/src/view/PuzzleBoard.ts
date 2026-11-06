@@ -1,6 +1,7 @@
 import {
   GridSession,
   OrderSession,
+  PairsSession,
   type PuzzleCell,
   type PuzzleSpec,
   sessionOf,
@@ -19,7 +20,7 @@ const ORDER_TRIES = 3
  * `onDone` receives the ids of the rules that hold (see the adventure).
  */
 export default class PuzzleBoard extends Container {
-  readonly session: GridSession | OrderSession
+  readonly session: GridSession | OrderSession | PairsSession
   private readonly _body = new Container()
   private _note = ""
   private _finished = false
@@ -58,6 +59,14 @@ export default class PuzzleBoard extends Container {
   finish() {
     if (this._finished) return
     const s = this.session
+    if (s instanceof PairsSession) {
+      if (!s.done) {
+        this._note = `Encore ${s.spec.strokes - s.strokes.length} coup(s) à frapper.`
+        this._draw()
+        return
+      }
+      s.simulate()
+    }
     if (s instanceof OrderSession) {
       const c = s.check()
       if (!c.ok) {
@@ -79,6 +88,7 @@ export default class PuzzleBoard extends Container {
     const s = this.session
     if (s instanceof GridSession) y = this._drawGrid(s)
     else if (s instanceof OrderSession) y = this._drawOrder(s)
+    else if (s instanceof PairsSession) y = this._drawPairs(s)
     if (this._note) {
       const n = text(this._note, 14, COLORS.muted, {
         wordWrap: true,
@@ -92,6 +102,7 @@ export default class PuzzleBoard extends Container {
       width: 150,
       height: 32,
       label: s instanceof OrderSession ? "Vérifier" : "Terminer",
+      // pairs: the button reads the slates once the strokes are struck
       onTap: () => this.finish(),
     })
     done.view.position.set(0, y)
@@ -148,6 +159,65 @@ export default class PuzzleBoard extends Container {
     this._body.addChild(legend)
     y += legend.height + 8
     return y
+  }
+
+  /** A tap on a wand: Eva strikes her crystal. */
+  strike(wand: "bone" | "wood") {
+    if (this._finished || !(this.session instanceof PairsSession)) return
+    this.session.strike(wand)
+    this._note = ""
+    this._draw()
+  }
+
+  private _drawPairs(s: PairsSession) {
+    let y = 0
+    const shine = (c: string) => (c === "blue" ? "bleu" : "vert")
+    const wand = (w: string) => (w === "bone" ? "os" : "bois")
+    const head = text(
+      s.done
+        ? "Les ardoises sont pleines."
+        : `Coup ${s.strokes.length + 1} sur ${s.spec.strokes} : quelle baguette ?`,
+      14,
+      COLORS.text,
+    )
+    head.position.set(0, y)
+    this._body.addChild(head)
+    y += 26
+    if (!s.done)
+      (["bone", "wood"] as const).forEach((w, i) => {
+        const b = button({
+          width: 150,
+          height: 32,
+          label: w === "bone" ? "Baguette d'os" : "Baguette de bois",
+          onTap: () => this.strike(w),
+        })
+        b.view.position.set(i * 160, y)
+        this._body.addChild(b.view)
+      })
+    if (!s.done) y += 40
+    for (const k of s.strokes) {
+      const row = text(
+        `Eva ${wand(k.eva)} : ${shine(k.evaShine)}   Néréa ${wand(k.nerea)} : ${shine(k.nereaShine)}   ${k.won ? "gagné" : "perdu"}`,
+        13,
+        k.won ? 0x8ce99a : COLORS.muted,
+      )
+      row.position.set(0, y)
+      this._body.addChild(row)
+      y += 20
+    }
+    if (s.simulated) {
+      const pct = (n: number) => Math.round(n * 100)
+      const sum = text(
+        `Cent coups simulés. Seule, Eva voit du bleu ${pct(s.blueShare("eva"))} fois sur 100, Néréa ${pct(s.blueShare("nerea"))}. Comparées, les paires gagnent ${pct(s.rate)} fois sur 100.`,
+        14,
+        0xffe066,
+        { wordWrap: true, wordWrapWidth: this.need },
+      )
+      sum.position.set(0, y + 6)
+      this._body.addChild(sum)
+      y += sum.height + 14
+    }
+    return y + 4
   }
 
   private _drawOrder(s: OrderSession) {

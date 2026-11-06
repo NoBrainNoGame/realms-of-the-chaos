@@ -7,6 +7,7 @@ import {
   narr,
   next,
   OrderSession,
+  PairsSession,
   type PuzzleSpec,
   puzzle,
   puzzleProblems,
@@ -137,5 +138,23 @@ describe("puzzle beat", () => {
 
   test("an unknown rule is refused", () => {
     expect(() => solvePuzzle(startChapter("puz"), ["nope"])).toThrow()
+  })
+})
+
+describe("pairs", () => {
+  test("the simulated pairs beat the 75 % a hidden table allows", () => {
+    const s = new PairsSession({
+      kind: "pairs",
+      strokes: 10,
+      simulated: 2000,
+      seed: 8501,
+    })
+    for (let i = 0; i < 10; i++) s.strike(i % 2 ? "wood" : "bone")
+    expect(s.done).toBe(true)
+    s.simulate()
+    expect(s.rate).toBeGreaterThan(0.8)
+    expect(s.blueShare("eva")).toBeGreaterThan(0.4)
+    expect(s.blueShare("eva")).toBeLessThan(0.6)
+    expect(s.result()).toEqual(["ok"])
   })
 })

@@ -6,6 +6,7 @@ import {
   type EndingResult,
   type FightReport,
   type FightSpec,
+  PairsSession,
 } from "@realms/adventure"
 import { parseParams } from "../params"
 import { resetSettings } from "../settings"
@@ -52,8 +53,14 @@ function walk(g: Game): ExplorationScene {
       ;(island as any)._leaveFight(victory, f.fight as FightSpec)
     } else if (f.kind === "choice") island.pick(f.options[0].id)
     else if (f.kind === "hub") island.pick(f.topics[0].id)
-    else if (f.kind === "puzzle") island.puzzle?.finish()
-    else island.advance()
+    else if (f.kind === "puzzle") {
+      while (
+        island.puzzle?.session instanceof PairsSession &&
+        !island.puzzle.session.done
+      )
+        island.puzzle.strike("bone")
+      island.puzzle?.finish()
+    } else island.advance()
   }
   throw new Error("chapter did not end")
 }

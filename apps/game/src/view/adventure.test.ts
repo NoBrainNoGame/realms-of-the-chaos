@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from "bun:test"
-import { CHAPTERS, type Run } from "@realms/adventure"
+import { CHAPTERS, PairsSession, type Run } from "@realms/adventure"
 import { startEnergy } from "../adventure/fight"
 import { STARTING_LOOK } from "../adventure/hero"
 import { newGame, saveRun, unlockedChapters } from "../adventure/progress"
@@ -41,8 +41,14 @@ function toFight(island: ExplorationScene) {
     if (f.kind === "fight" || f.kind === "done") return f
     if (f.kind === "choice") island.pick(f.options[0].id)
     else if (f.kind === "hub") island.pick(f.topics[0].id)
-    else if (f.kind === "puzzle") island.puzzle?.finish()
-    else island.advance()
+    else if (f.kind === "puzzle") {
+      while (
+        island.puzzle?.session instanceof PairsSession &&
+        !island.puzzle.session.done
+      )
+        island.puzzle.strike("bone")
+      island.puzzle?.finish()
+    } else island.advance()
   }
   throw new Error("no fight")
 }

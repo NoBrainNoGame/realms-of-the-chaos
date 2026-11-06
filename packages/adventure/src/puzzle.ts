@@ -70,7 +70,22 @@ export interface OrderPuzzle {
   solution: string[]
 }
 
-export type PuzzleSpec = GridPuzzle | OrderPuzzle
+/**
+ * The twin crystals: each stroke, Eva picks a wand (bone or wood), Nerea's is
+ * drawn at random; each crystal then shines blue or green. Alone, each side is
+ * a fair coin; compared, the pairs win about 85 times in 100 (the quantum
+ * bound cos^2(pi/8)), which no hidden table can beat (75 at most).
+ */
+export interface PairsPuzzle {
+  kind: "pairs"
+  /** Strokes played by hand. */
+  strokes: number
+  /** Strokes simulated after them. */
+  simulated: number
+  seed: number
+}
+
+export type PuzzleSpec = GridPuzzle | OrderPuzzle | PairsPuzzle
 
 const same = (a: PuzzleCell, b: PuzzleCell) => a.x === b.x && a.y === b.y
 const key = (c: PuzzleCell) => `${c.x},${c.y}`
@@ -238,10 +253,97 @@ export class OrderSession {
   }
 }
 
-export type PuzzleSession = GridSession | OrderSession
+export type Wand = "bone" | "wood"
+export type Shine = "blue" | "green"
+export interface Stroke {
+  eva: Wand
+  nerea: Wand
+  evaShine: Shine
+  nereaShine: Shine
+  won: boolean
+}
+
+/** P(the two shine alike) when the rule wants alike; 1 - it when it wants unlike. */
+const WIN = Math.cos(Math.PI / 8) ** 2
+
+export class PairsSession {
+  readonly spec: PairsPuzzle
+  readonly strokes: Stroke[] = []
+  simulated: Stroke[] | null = null
+  private _state: number
+
+  constructor(spec: PairsPuzzle) {
+    this.spec = spec
+    this._state = spec.seed >>> 0 || 1
+  }
+
+  private _rand() {
+    // mulberry32
+    this._state = (this._state + 0x6d2b79f5) >>> 0
+    let t = this._state
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+
+  private _play(eva: Wand): Stroke {
+    const nerea: Wand = this._rand() < 0.5 ? "bone" : "wood"
+    const evaShine: Shine = this._rand() < 0.5 ? "blue" : "green"
+    const unlike = eva === "wood" && nerea === "wood"
+    // the pair wins with probability WIN, whatever the wands
+    const wins = this._rand() < WIN
+    const alike = unlike ? !wins : wins
+    const other = (c: Shine): Shine => (c === "blue" ? "green" : "blue")
+    const nereaShine = alike ? evaShine : other(evaShine)
+    return { eva, nerea, evaShine, nereaShine, won: wins }
+  }
+
+  get done() {
+    return this.strokes.length >= this.spec.strokes
+  }
+
+  /** Eva strikes with a wand (hand-played strokes). */
+  strike(eva: Wand) {
+    if (this.done) return
+    this.strokes.push(this._play(eva))
+  }
+
+  /** Simulates the following strokes (wands drawn at random for both). */
+  simulate() {
+    if (this.simulated || !this.done) return
+    this.simulated = Array.from({ length: this.spec.simulated }, () =>
+      this._play(this._rand() < 0.5 ? "bone" : "wood"),
+    )
+  }
+
+  /** Share of wins among the simulated strokes, 0..1. */
+  get rate() {
+    const s = this.simulated
+    return s && s.length > 0 ? s.filter((x) => x.won).length / s.length : 0
+  }
+
+  /** Share of blue on one side, among the simulated strokes. */
+  blueShare(side: "eva" | "nerea") {
+    const s = this.simulated ?? []
+    return s.length === 0
+      ? 0
+      : s.filter((x) => (side === "eva" ? x.evaShine : x.nereaShine) === "blue")
+          .length / s.length
+  }
+
+  result(): string[] {
+    return this.simulated ? ["ok"] : []
+  }
+}
+
+export type PuzzleSession = GridSession | OrderSession | PairsSession
 
 export const sessionOf = (spec: PuzzleSpec): PuzzleSession =>
-  spec.kind === "grid" ? new GridSession(spec) : new OrderSession(spec)
+  spec.kind === "grid"
+    ? new GridSession(spec)
+    : spec.kind === "order"
+      ? new OrderSession(spec)
+      : new PairsSession(spec)
 
 /** Problems of a puzzle spec, for the chapter validation. */
 export function puzzleProblems(spec: PuzzleSpec): string[] {
@@ -251,6 +353,10 @@ export function puzzleProblems(spec: PuzzleSpec): string[] {
     if (new Set(ids).size !== ids.length) out.push("order: duplicate items")
     if ([...spec.solution].sort().join() !== [...ids].sort().join())
       out.push("order: the solution is not the items")
+    return out
+  }
+  if (spec.kind === "pairs") {
+    if (spec.strokes < 1 || spec.simulated < 1) out.push("pairs: no strokes")
     return out
   }
   const ok = (c: PuzzleCell) =>

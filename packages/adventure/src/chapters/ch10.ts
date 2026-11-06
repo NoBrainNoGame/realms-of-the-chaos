@@ -9,6 +9,7 @@ import {
   join,
   narr,
   opt,
+  puzzle,
   say,
   set,
   stage,
@@ -483,10 +484,14 @@ export const ch10: Chapter = {
         ),
         say("nerea", "Et si ce n'est pas écrit ?"),
         say("eva", "Alors je mange mes ardoises."),
-        // SIMPLIFIED: the playable short scene (ten strokes, then a hundred
-        // simulated) is told, with the doc's figures.
-        narr(
-          "On frappe une dizaine de coups, chacune sa baguette tirée au hasard, puis on simule les cent suivants. De chaque côté, seul, c'est pile ou face : bleu la moitié du temps, vert l'autre moitié. En comparant les ardoises, les paires gagnent environ quatre-vingt-cinq fois sur cent. (La règle : on gagne si les couleurs sont les mêmes, sauf quand les deux ont pris le bois : là, il faut des couleurs différentes.)",
+        puzzle(
+          "paires",
+          { kind: "pairs", strokes: 10, simulated: 100, seed: 8501 },
+          {},
+          {
+            prompt:
+              "Frappe ton cristal : chaque coup, choisis une baguette (os ou bois). Néréa tire la sienne au hasard. La règle : on gagne si les couleurs sont les mêmes, sauf quand les deux ont pris le bois : là, il faut des couleurs différentes.",
+          },
         ),
         say(
           "eva",
