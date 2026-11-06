@@ -27,6 +27,7 @@ import {
   STATUSES,
   TIME_WARP_AMOUNT,
 } from "./content"
+import { HALT_MESSAGE } from "./energy"
 import {
   add,
   dominantDirection,
@@ -1370,6 +1371,8 @@ export class Combat {
       const members = this.fighters.filter((f) => f.team === team.index)
       const fallen = members.filter((f) => !f.alive).length
       if (fallen === members.length) continue
+      if (this.adventure?.energy && !this.adventure.energy.flows(team.index))
+        continue
       if (team.energy >= MAX_ENERGY) {
         team.energyProgress = 0
         continue
@@ -1579,6 +1582,7 @@ export class Combat {
     if (!divine) return "Action divine inconnue"
     if (this.adventure?.locked.has(divineId))
       return "Influence pas encore connue"
+    if (this.adventure?.energy?.halted(team)) return HALT_MESSAGE
     const teamState = this.teams[team]
     if (teamState.energy < divine.cost) return "Pas assez d'énergie divine"
 
@@ -1816,6 +1820,7 @@ export class Combat {
   }
 
   private _gainEnergy(team: number, amount: number) {
+    if (this.adventure?.energy?.halted(team)) return
     const state = this.teams[team]
     const energy = Math.min(MAX_ENERGY, state.energy + amount)
     if (energy !== state.energy) {

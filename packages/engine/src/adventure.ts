@@ -1,4 +1,5 @@
 import { MIN_ELEVATION } from "./board"
+import { IdleFrayKit, type IdleFrayRule } from "./cold"
 import type { Combat } from "./combat"
 import {
   CrystalKit,
@@ -13,6 +14,7 @@ import {
   type DebateRules,
   emptyDebateReport,
 } from "./debate"
+import { EnergyKit, type EnergyRules } from "./energy"
 import { equals, keyOf, manhattan, type Point } from "./geometry"
 import { createRng, type Rng } from "./random"
 import {
@@ -27,6 +29,7 @@ import {
 import { emptyTrace, TraceKit, type TraceReport } from "./trace"
 import type { FightEvent, Fighter, RefusalReason } from "./types"
 
+export type { IdleFrayRule } from "./cold"
 export {
   CRYSTAL_OPS,
   type CrystalGain,
@@ -37,6 +40,7 @@ export {
   type CrystalState,
   type GelRules,
 } from "./crystals"
+export { type EnergyRules, HALT_MESSAGE } from "./energy"
 export type {
   DebateArgument,
   DebateReport,
@@ -166,6 +170,10 @@ export interface AdventureRules {
   debate?: DebateRules
   /** Glass walls: nobody stands in them, nothing is seen or aimed through. */
   glass?: Point[]
+  /** Cells nobody walks on fray into Lacunes (see `IdleFrayRule`). */
+  idleFray?: IdleFrayRule
+  /** The Élan at a perfect cadence, or stopped for good (see `EnergyRules`). */
+  energy?: EnergyRules
   /** Cold: freeze a fighter or a water cell, thaw them (see `GelRules`). */
   gel?: GelRules
   /**
@@ -400,6 +408,9 @@ export class AdventureTracker {
   /** The last fleeing turn found its way shut by an adjacent enemy. */
   fleeBlocked = false
   readonly locked: Set<string>
+  /** The Élan rules (null without them). */
+  readonly energy: EnergyKit | null
+  private _cold: IdleFrayKit | null = null
   readonly report: AdventureReport = {
     ticks: 0,
     divineUsed: {},
@@ -491,6 +502,8 @@ export class AdventureTracker {
       this.report.debate = this.debate.report
     }
     this.locked = new Set(rules.lockedDivine)
+    this.energy = rules.energy ? new EnergyKit(_combat, rules.energy) : null
+    if (rules.idleFray) this._cold = new IdleFrayKit(_combat, rules.idleFray)
     this._nextTick = rules.clock?.period ?? Infinity
     const member = (team: number, index: number) => {
       const found = _combat.fighters.filter((f) => f.team === team)[index]
@@ -872,6 +885,15 @@ export class AdventureTracker {
     combat.dissolve(found ? other : struck)
   }
 
+  private _chill() {
+    const cells = this._cold?.tick(this.report.ticks) ?? []
+    if (cells.length === 0) return
+    this.report.lacune.grown += cells.length
+    this.report.lacune.cells = this._combat.board.voids.size
+    this._combat.refreshTerrain()
+    this._combat.emitEvent({ type: "lacuneGrew", cells })
+  }
+
   private _fray() {
     const rule = this.rules.fraying
     if (!rule) return
@@ -935,6 +957,8 @@ export class AdventureTracker {
       this._grow()
       this._fray()
       this.script.tick(this.report.ticks)
+      this.energy?.tick(this.report.ticks)
+      this._chill()
       this._decohere()
       this._warm()
       this._combat.emitEvent({ type: "clockTick", tick: this.report.ticks })
