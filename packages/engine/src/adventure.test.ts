@@ -77,6 +77,40 @@ describe("adventure rules are opt-in", () => {
     expect(c.adventure?.report.zonesLost).toEqual(["z"])
   })
 
+  test("a lost zone turns its holes into Clair, except under a fighter", () => {
+    const c = new Combat({
+      seed: 3,
+      board: ground(),
+      teams: [
+        { controller: "human", fighters: ["lyra"] },
+        { controller: "ai", fighters: ["merlin"] },
+      ],
+      positions: [[{ x: 0, y: 0 }], [{ x: 7, y: 4 }]],
+      adventure: {
+        clock: { period: 5, limit: 4 },
+        zones: [
+          {
+            id: "z",
+            cells: [{ x: 4, y: 2 }],
+            onLost: {
+              holes: [
+                { x: 7, y: 3 },
+                { x: 7, y: 4 },
+              ],
+            },
+          },
+        ],
+      },
+    })
+    c.holding.add(1)
+    for (let i = 0; i < 200 && c.state !== "ended"; i++) {
+      c.advance()
+      if (c.state === "awaitingInput") c.pass()
+    }
+    expect(c.board.voids.has("7,3")).toBe(true)
+    expect(c.board.voids.has("7,4")).toBe(false)
+  })
+
   test("a locked Influence is refused until unlocked", () => {
     const c = fight({ lockedDivine: ["blessing"] })
     expect(c.adventure?.locked.has("blessing")).toBe(true)

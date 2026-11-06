@@ -83,7 +83,12 @@ export interface AdventureRules {
    * becomes silent, after two idle ticks it is lost. Silent and lost zones
    * hurt whoever starts a turn on them.
    */
-  zones?: { id: string; cells: Point[] }[]
+  zones?: {
+    id: string
+    cells: Point[]
+    /** Cells that turn into a hole (Clair) when the zone is lost; nobody on them is moved. */
+    onLost?: { holes: Point[] }
+  }[]
   /** Teams whose actions keep the zones alive (default: team 0). */
   zoneTeams?: number[]
   /** Cells that are silent for the whole fight (a seam, a joint). */
@@ -924,7 +929,16 @@ export class AdventureTracker {
         if (next === "active") this.silent.delete(keyOf(c))
         else this.silent.add(keyOf(c))
       }
-      if (next === "lost") this.report.zonesLost.push(zone.id)
+      if (next === "lost") {
+        this.report.zonesLost.push(zone.id)
+        for (const h of zone.onLost?.holes ?? []) {
+          const k = keyOf(h)
+          const taken = this._combat.aliveFighters.some(
+            (f) => keyOf(f.position) === k,
+          )
+          if (!taken) this._setVoid(h, true)
+        }
+      }
       this._combat.emitEvent({
         type: "zoneChanged",
         zoneId: zone.id,
@@ -1006,6 +1020,11 @@ export class AdventureTracker {
 
   fixed(fighter: Fighter) {
     this.report.fixed.push(fighter.id)
+    this._combat.emitEvent({
+      type: "fixed",
+      fighterId: fighter.id,
+      cell: { ...fighter.position },
+    })
   }
 
   // ─── Autonomy ─────────────────────────────────────────────────────────────

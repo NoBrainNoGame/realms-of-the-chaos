@@ -51,6 +51,7 @@ import BoardView, {
 import { describeHp, describeStatus } from "./describe"
 import { FX, floatingText, particles, projectile } from "./effects"
 import FighterView, { STATUS_COLORS, type WaterState } from "./FighterView"
+import { FightVoice, type LineSpec } from "./fightLines"
 import Hud from "./Hud"
 import { Lens } from "./lens"
 import { facingBetween } from "./Puppet"
@@ -103,6 +104,8 @@ export interface SceneOptions {
   endActions?: EndAction[] | ((combat: Combat) => EndAction[])
   /** Adventure only: the opt-in combat rules (see `@realms/engine/adventure`). */
   adventure?: AdventureRules
+  /** Adventure only: the lines the characters speak during the fight. */
+  lines?: readonly LineSpec[]
   /** Adventure only: AI teams that never act (the bystanders). */
   hold?: number[]
   /** Shows a "Menu" button to leave the fight. */
@@ -321,11 +324,13 @@ export default class FightScene extends ViewChip<SceneEvents> {
   private _backdrop!: Backdrop
   /** The decor and the board, seen through the camera's lens. */
   private _lens!: Lens
+  private _voice: FightVoice
 
   constructor(private readonly _options: SceneOptions) {
     super()
     this._speed = _options.speed
     this.combat = new Combat(combatOptions(_options))
+    this._voice = new FightVoice(_options.lines ?? [])
     for (const team of _options.hold ?? []) this.combat.holding.add(team)
   }
 
@@ -502,7 +507,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
       this._placing = { selected: null }
       this._hud.setPlacement(true)
       this._refreshOverlay()
-    }
+    } else this._speak(this._voice.on("start"))
   }
 
   // ─── Line-up ──────────────────────────────────────────────────────────────
@@ -520,6 +525,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
     this._placing = null
     this._hud.setPlacement(false)
     this._refreshOverlay()
+    this._speak(this._voice.on("start"))
   }
 
   /**
@@ -1245,6 +1251,11 @@ export default class FightScene extends ViewChip<SceneEvents> {
     }
 
     for (const event of events) {
+      const said = this._voice.onEvent(event)
+      if (said.length) {
+        flush()
+        chips.push(new booyah.Lambda(() => this._speak(said)))
+      }
       const quick = this._quickEffect(event)
       if (quick) {
         parallel.push(quick)
@@ -1258,6 +1269,18 @@ export default class FightScene extends ViewChip<SceneEvents> {
   }
 
   /** Effects that can run together (hits, heals, statuses…). */
+  /** Lines of the characters, in the fight's log. */
+  private _speak(lines: readonly LineSpec[]) {
+    for (const l of lines) {
+      const name =
+        l.who === "heros"
+          ? "Le héros"
+          : (this.combat.fighters.find((f) => f.presetId.startsWith(l.who))
+              ?.name ?? l.who.charAt(0).toUpperCase() + l.who.slice(1))
+      this._hud.log(`${name} : « ${l.text} »`)
+    }
+  }
+
   private _quickEffect(event: FightEvent): booyah.ChipResolvable | null {
     switch (event.type) {
       case "damaged": {

@@ -28,6 +28,8 @@ export interface Strike {
   byTeam: number | null
   actionId: string | null
   cell: Point
+  /** Cells between the striker and the one struck (none for a status). */
+  distance?: number
   amount: number
   tick: number
 }
@@ -155,6 +157,9 @@ export class TraceKit {
           byTeam: striker ? striker.team : null,
           actionId: by ? (this._action.get(by) ?? null) : null,
           cell: { ...target.position },
+          ...(striker
+            ? { distance: manhattan(striker.position, target.position) }
+            : {}),
           amount: event.amount,
           tick: this._ticks(),
         }

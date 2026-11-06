@@ -110,10 +110,23 @@ const tenirLesBords: FightSpec = {
   rules: {
     // The Frange ticks every 10; holding until tick 10 is a win for the Échos.
     clock: { period: 10, limit: 10, winner: 0 },
+    // A lost zone shrinks the map: a column of the east edge turns to Clair.
     zones: [
-      { id: "feu", cells: cells(1, 1, 3, 3) },
-      { id: "rigole", cells: cells(5, 2, 7, 4) },
-      { id: "semis", cells: cells(5, 6, 7, 8) },
+      {
+        id: "feu",
+        cells: cells(1, 1, 3, 3),
+        onLost: { holes: cells(8, 0, 8, 8) },
+      },
+      {
+        id: "rigole",
+        cells: cells(5, 2, 7, 4),
+        onLost: { holes: cells(7, 0, 7, 8) },
+      },
+      {
+        id: "semis",
+        cells: cells(5, 6, 7, 8),
+        onLost: { holes: cells(6, 0, 6, 8) },
+      },
     ],
     zoneTeams: [0],
     regions: { foyer: [{ x: 2, y: 2 }] },
@@ -132,8 +145,6 @@ const tenirLesBords: FightSpec = {
       check: (r) => ({ ok: zonesKept(r) === 3, n: zonesKept(r) }),
       success: "Le feu, la rigole, les semis : tout a tenu.",
       failure: "Le bord a pris ce qu'on ne tenait pas.",
-      // CUT: each lost zone should shrink the map for the whole chapter (a
-      // column of Clair); the flag is kept for chapter 2 to read.
       onSuccess: [{ add: "zones_bords_froids", by: 1, perUnit: true }],
       onFailure: [{ add: "zones_bords_froids", by: 1, perUnit: true }],
     },
@@ -190,8 +201,23 @@ const tenirLesBords: FightSpec = {
       who: "lyra",
       text: "Le feu se tait ! Va y faire quelque chose !",
     },
-    // CUT: first Séisme/Distorsion, first heal, zone lost and Lacunaire fixed
-    // lines depend on game events that the fight spec cannot name.
+    { when: "lost", who: "lyra", text: "Trop tard. Celle-là, le bord l'a." },
+    {
+      when: "cast:earthquake",
+      who: "lyra",
+      text: "… Un rocher ? D'où ? Quelqu'un vient de payer cher pour un rocher.",
+    },
+    {
+      when: "cast:timeWarp",
+      who: "lyra",
+      text: "L'air s'est courbé, tu as vu ? Comme au-dessus d'un feu.",
+    },
+    { when: "fixed", who: "lyra", text: "Un caillou de plus." },
+    {
+      when: "heal",
+      who: "lyra",
+      text: "Ce que je répare ici, je le paie ailleurs. Ne prends pas l'habitude.",
+    },
     {
       when: "end",
       who: "lyra",
@@ -568,8 +594,12 @@ export const ch01: Chapter = {
             ),
           ],
         ),
-        // CUT: the extra line of Lyra when the hearth was held (flag
-        // feu_tenu), the document gives no text for it.
+        when(is("feu_tenu"), [
+          say(
+            "lyra",
+            "Le foyer n'a pas bougé de la journée. Rien n'a posé le pied dessus. C'est idiot, mais ça me rassure.",
+          ),
+        ]),
         hub("feu", [
           topic("demeure", "Demeure", [
             say(

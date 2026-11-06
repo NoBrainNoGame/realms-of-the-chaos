@@ -72,9 +72,14 @@ const prairie: FightSpec = {
     {
       name: "Le Lacunaire",
       side: "enemies",
-      // SIMPLIFIED: the Lacunaire is on the board from the start, at the east
-      // fringe, instead of drifting in at turn 6 of the timeline.
-      fighters: [{ preset: lacunaireTutoriel, at: { x: 8, y: 6 } }],
+      // It drifts in from the east fringe at the third tick of the Frange.
+      fighters: [
+        {
+          preset: lacunaireTutoriel,
+          at: { x: 8, y: 6 },
+          arrives: { tick: 3 },
+        },
+      ],
     },
   ],
   rules: {
@@ -111,9 +116,13 @@ const prairie: FightSpec = {
       id: "laisser_venir",
       mark: "◆",
       label: "Laisser le Lacunaire venir",
-      // SIMPLIFIED: "do not strike before it is adjacent" cannot be read from
-      // the report; approximated by "the fight lasted at least two ticks".
-      check: (r) => r.result === "victory" && r.ticks >= 2,
+      // No blow dealt from afar: the hero waits until it is adjacent.
+      check: (r) => r.result === "victory",
+      when: {
+        not: {
+          struckOn: { by: { team: 0 }, target: { team: 1 }, farther: 2 },
+        },
+      },
       success: "Il est venu tout près, comme on s'approche d'un feu.",
       failure: "Il n'a pas eu le temps de venir.",
       onSuccess: [{ set: "lacunaire_approche", value: true }],

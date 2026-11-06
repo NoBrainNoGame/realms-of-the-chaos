@@ -327,6 +327,8 @@ export type FightEvent =
   /** Adventure tiédeur: cells came up hot / went tepid. */
   | { type: "warmed"; cells: Point[] }
   | { type: "cooled"; cells: Point[] }
+  /** Adventure fixOnDeath: a fallen fighter set into a rock. */
+  | { type: "fixed"; fighterId: string; cell: Point }
   | { type: "fleeing"; fighterId: string }
   | { type: "fled"; fighterId: string }
   | { type: "timeUp" }

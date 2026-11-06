@@ -182,6 +182,13 @@ export interface FightLine {
     | "tick:5"
     | "end"
     | `zone:${string}`
+    /** The first time the Ghom casts this Influence. */
+    | `cast:${string}`
+    /** The first heal of the fight / the first zone lost. */
+    | "heal"
+    | "lost"
+    /** A fallen foe set into a rock (a fixed Lacunaire). */
+    | "fixed"
   who: string
   text: string
 }

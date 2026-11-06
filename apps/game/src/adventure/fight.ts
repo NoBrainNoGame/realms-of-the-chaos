@@ -92,6 +92,7 @@ export function fightOptions(
       ...fightRules(spec, flag),
       lockedDivine: spec.rules.lockedDivine ?? locked,
     },
+    lines: spec.lines,
     endActions,
   }
 }

@@ -187,3 +187,21 @@ describe("trace conditions", () => {
     expect(errs).toContain('"empty" has neither')
   })
 })
+
+describe("struckOn farther", () => {
+  const far = (distance?: number): FightReport => ({
+    ...report,
+    trace: {
+      ...report.trace!,
+      strikes: [{ ...report.trace!.strikes[0], distance }],
+    },
+  })
+  const cond = {
+    struckOn: { by: { team: 0 }, target: { team: 1 }, farther: 2 },
+  }
+  test("a blow from afar is told from an adjacent one", () => {
+    expect(readTrace(cond, far(3), spec)).toBe(true)
+    expect(readTrace(cond, far(1), spec)).toBe(false)
+    expect(readTrace(cond, far(undefined), spec)).toBe(false)
+  })
+})

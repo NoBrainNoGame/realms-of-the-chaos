@@ -37,7 +37,16 @@ export type TraceCond =
       }
     }
   /** At least `min` (default 1) blows landed in the region. */
-  | { struckOn: { region?: string; by?: Who; target?: Who; min?: number } }
+  | {
+      struckOn: {
+        region?: string
+        by?: Who
+        target?: Who
+        min?: number
+        /** Only blows dealt from at least this many cells away (2 = not adjacent). */
+        farther?: number
+      }
+    }
   /** At least `min` (default 1) Influences were cast on the region. */
   | {
       castOn: {
@@ -169,7 +178,7 @@ export function readTrace(
     })
   }
   if ("struckOn" in cond) {
-    const { region, by, target, min = 1 } = cond.struckOn
+    const { region, by, target, min = 1, farther } = cond.struckOn
     const set = region ? cells(region) : undefined
     if (region && !set) return false
     return (
@@ -177,7 +186,8 @@ export function readTrace(
         (s) =>
           (!set || set.has(cellKey(s.cell))) &&
           (!by || is(report, by, s.by, s.byTeam)) &&
-          (!target || is(report, target, s.target, s.targetTeam)),
+          (!target || is(report, target, s.target, s.targetTeam)) &&
+          (farther === undefined || (s.distance ?? 0) >= farther),
       ).length >= min
     )
   }
