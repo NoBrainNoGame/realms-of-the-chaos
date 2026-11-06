@@ -120,3 +120,6 @@ export const puzzle = (
   on,
   none: options.none,
 })
+
+/** The hero's body is chosen here (the game opens the appearance editor). */
+export const appearance = (): Beat => ({ t: "appearance" })

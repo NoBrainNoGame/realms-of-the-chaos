@@ -74,6 +74,11 @@ export type Beat =
       on?: Record<string, Beat[]>
       none?: Beat[]
     }
+  /**
+   * The hero's body is chosen here (prologue, on the pond's reflection): the
+   * game opens its appearance editor, the story goes on when it is validated.
+   */
+  | { t: "appearance" }
   /** A fight; its outcome comes back from the game. */
   | { t: "fight"; fight: FightSpec }
   /** Leaves the scene for another node ("$end" ends the chapter). */

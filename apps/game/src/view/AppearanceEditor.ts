@@ -124,6 +124,7 @@ export const PREVIEW_ANIMATIONS = [
  */
 export default class AppearanceEditor extends ViewChip<AppearanceEvents> {
   private _box!: Container
+  private _dim: Graphics | null = null
   private _size = { width: 0, height: 0 }
   private _dirty = false
   private _look: CustomLook
@@ -144,6 +145,11 @@ export default class AppearanceEditor extends ViewChip<AppearanceEvents> {
     seed = Math.floor(Math.random() * 1e6),
     /** Only these parts can be changed (the Adventure hero's body). */
     private readonly _only?: LookPart[],
+    /**
+     * Opened in the story, over the pond's reflection: dimmed scene behind,
+     * no way out (the hero must look at himself once).
+     */
+    private readonly _inScene = false,
   ) {
     super()
     this._rows = _only
@@ -243,6 +249,10 @@ export default class AppearanceEditor extends ViewChip<AppearanceEvents> {
   // ─── Lifecycle ────────────────────────────────────────────────────────────
 
   protected _onActivate() {
+    if (this._inScene) {
+      this._dim = new Graphics()
+      this._container.addChild(this._dim)
+    }
     this._box = new Container()
     this._container.addChild(this._box)
     this._build()
@@ -295,6 +305,7 @@ export default class AppearanceEditor extends ViewChip<AppearanceEvents> {
         this.validate()
         return true
       case "Escape":
+        if (this._inScene) return false
         this.cancel()
         return true
     }
@@ -305,6 +316,10 @@ export default class AppearanceEditor extends ViewChip<AppearanceEvents> {
 
   private _place() {
     if (!this._box || !this._size.width) return
+    this._dim
+      ?.clear()
+      .rect(0, 0, this._size.width, this._size.height)
+      .fill({ color: 0x0b1a2e, alpha: 0.72 })
     const k = Math.max(
       0.4,
       Math.min(
@@ -345,10 +360,15 @@ export default class AppearanceEditor extends ViewChip<AppearanceEvents> {
     this._puppet.setFacing(this._facing)
     this._applyAnimation()
 
-    const title = text("Apparence — habiller l'Écho", 28, COLORS.text, {
-      fontWeight: "700",
-      stroke: { color: 0x000000, width: 5 },
-    })
+    const title = text(
+      this._inScene ? "Le reflet dans la mare" : "Apparence — habiller l'Écho",
+      28,
+      COLORS.text,
+      {
+        fontWeight: "700",
+        stroke: { color: 0x000000, width: 5 },
+      },
+    )
     this._box.addChild(title)
 
     // left: the live puppet
@@ -380,7 +400,9 @@ export default class AppearanceEditor extends ViewChip<AppearanceEvents> {
     animate.view.label = "look:animate"
     animate.view.position.set(65, top + 400)
     const note = text(
-      "L'apparence ne change pas la force de l'Écho.",
+      this._inScene
+        ? "L'eau ne garde rien : elle montre, c'est tout."
+        : "L'apparence ne change pas la force de l'Écho.",
       11,
       COLORS.muted,
       { wordWrap: true, wordWrapWidth: 298, lineHeight: 15 },
@@ -433,7 +455,8 @@ export default class AppearanceEditor extends ViewChip<AppearanceEvents> {
     })
     ok.view.label = "look:done"
     ok.view.position.set(WIDTH - 150, bottom)
-    this._box.addChild(cancel.view, ok.view)
+    if (!this._inScene) this._box.addChild(cancel.view)
+    this._box.addChild(ok.view)
     this._place()
   }
 

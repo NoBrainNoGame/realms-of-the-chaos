@@ -63,6 +63,8 @@ export type Frame =
     }
   | { kind: "puzzle"; id: string; prompt?: string; puzzle: PuzzleSpec }
   | { kind: "fight"; fight: FightSpec }
+  /** The hero's body is chosen now (the game's editor); `next` goes on. */
+  | { kind: "appearance" }
   | { kind: "done" }
 
 export interface ObjectiveResult {
@@ -279,6 +281,8 @@ export function frame(run: Run): Frame {
       }
     case "fight":
       return { kind: "fight", fight: op.fight }
+    case "appearance":
+      return { kind: "appearance" }
     default:
       throw new Error(`Unsettled instruction "${op.op}"`)
   }

@@ -14,7 +14,6 @@ import {
 } from "../storage"
 import { mount, tick } from "../test/harness"
 import { playLocally } from "../test/play"
-import type AppearanceEditor from "./AppearanceEditor"
 import type Carnet from "./Carnet"
 import type Chronicles from "./Chronicles"
 import ExplorationScene from "./ExplorationScene"
@@ -41,6 +40,7 @@ function toFight(island: ExplorationScene) {
     if (f.kind === "fight" || f.kind === "done") return f
     if (f.kind === "choice") island.pick(f.options[0].id)
     else if (f.kind === "hub") island.pick(f.topics[0].id)
+    else if (f.kind === "appearance") island.editor?.validate()
     else if (f.kind === "puzzle") {
       while (
         island.puzzle?.session instanceof PairsSession &&
@@ -92,8 +92,7 @@ describe("Chroniques", () => {
     expect(g.screen.type).toBe("chronicles")
     const sel = g.current as Chronicles
     sel.menu.select(sel.menu.items.findIndex((i) => i.id === "new"))
-    expect(g.screen.type).toBe("hero")
-    ;(g.current as AppearanceEditor).validate()
+    // no editor before the story: the body is chosen on the pond's reflection
     expect(g.screen.type).toBe("story")
     expect(adventureSave().body).not.toBeNull()
     const island = g.current as ExplorationScene
@@ -119,6 +118,38 @@ describe("Chroniques", () => {
     if (won) expect(at(next.run)).not.toBe(at(before))
     next.advance()
     expect(next.mode).not.toBe("debrief")
+  })
+
+  test("the body is chosen in the prologue, on the pond's reflection", () => {
+    const g = game("mode=chronicles")
+    const sel = g.current as Chronicles
+    sel.menu.select(sel.menu.items.findIndex((i) => i.id === "new"))
+    const island = g.current as ExplorationScene
+    expect(island.editor).toBeNull()
+    expect(adventureSave().body).toEqual(STARTING_LOOK)
+    // the first scene, then the pond
+    island.enterPending()
+    while (island.run.node === "eveil") {
+      const f = island.frame
+      if (f.kind === "choice") island.pick(f.options[0].id)
+      else island.advance()
+    }
+    expect(island.mode).toBe("walk")
+    island.enterPending()
+    expect(island.run.node).toBe("reflet")
+    for (let i = 0; i < 20 && island.frame.kind !== "appearance"; i++)
+      island.advance()
+    expect(island.frame.kind).toBe("appearance")
+    const editor = island.editor!
+    expect(editor).not.toBeNull()
+    editor.step("skin", 1)
+    editor.step("body", 1)
+    const chosen = { ...editor.look }
+    editor.validate()
+    expect(island.editor).toBeNull()
+    expect(adventureSave().body).toEqual(chosen)
+    expect(chosen.skin).not.toBe(STARTING_LOOK.skin)
+    expect(island.frame.kind).not.toBe("appearance")
   })
 
   test("?chapter= opens that chapter, resuming restores the saved step", () => {

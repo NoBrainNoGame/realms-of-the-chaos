@@ -33,6 +33,7 @@ export type Op =
   | { op: "pjf"; puzzle: string; rule: string; to: number }
   | { op: "topicEnd"; hub: number; topic: string; id: string }
   | { op: "fight"; fight: FightSpec }
+  | { op: "appearance" }
   | { op: "go"; node: string }
 
 const cache = new WeakMap<Scene, Op[]>()
@@ -75,6 +76,9 @@ function emit(beats: Beat[], ops: Op[], stack: ChoiceCtx[]) {
         break
       case "fight":
         ops.push({ op: "fight", fight: beat.fight })
+        break
+      case "appearance":
+        ops.push({ op: "appearance" })
         break
       case "if": {
         const jf = { op: "jf", cond: beat.cond, to: -1 } as const

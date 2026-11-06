@@ -12,14 +12,13 @@ import {
   START_CARRY,
   teleportReaction,
 } from "@realms/adventure"
-import type { CustomLook } from "@realms/engine"
 import {
   allyTeam,
   fightOptions,
   reportOf,
   startEnergy,
 } from "../adventure/fight"
-import { HERO_PARTS, STARTING_LOOK } from "../adventure/hero"
+import { STARTING_LOOK } from "../adventure/hero"
 import {
   beginChapter,
   continuation,
@@ -37,7 +36,6 @@ import {
   vacuumDecayWipe,
   writeAdventureSave,
 } from "../storage"
-import AppearanceEditor from "./AppearanceEditor"
 import ArcadeRun from "./ArcadeRun"
 import Carnet from "./Carnet"
 import Chronicles from "./Chronicles"
@@ -85,8 +83,6 @@ export type Screen =
       /** The hero arrives by the map: what he says (the teleport). */
       arrival?: string[]
     }
-  /** Which saved Écho plays the hero. */
-  | { type: "hero" }
   /** A vacuum decay inside an Adventure fight: the story absorbs it. */
   | { type: "arcade"; team: string[] }
   | { type: "gallery" }
@@ -384,11 +380,16 @@ export default class Game extends ViewChip {
           else if (choice.kind === "map") this.show({ type: "map" })
           else if (choice.kind === "carnet")
             this.show({ type: "carnet", from: "chronicles" })
-          else if (choice.kind === "new") this.show({ type: "hero" })
-          else if (choice.kind === "resume") {
+          else if (choice.kind === "new") {
+            // the body is chosen in the story, on the pond's reflection
+            newGame(STARTING_LOOK)
+            this.show({ type: "story", start: "prologue" })
+          } else if (choice.kind === "resume") {
             const next = continuation()
-            if (!next) this.show({ type: "hero" })
-            else if (next.kind === "run") this.show({ type: "story" })
+            if (!next) {
+              newGame(STARTING_LOOK)
+              this.show({ type: "story", start: "prologue" })
+            } else if (next.kind === "run") this.show({ type: "story" })
             else this.show({ type: "story", start: next.id })
           } else this.show({ type: "story", start: choice.id, sandbox: true })
         })
@@ -503,23 +504,6 @@ export default class Game extends ViewChip {
           )
         })
         return map
-      }
-
-      case "hero": {
-        const editor = new AppearanceEditor(
-          STARTING_LOOK,
-          "brutus",
-          undefined,
-          HERO_PARTS,
-        )
-        this._subscribeOnce(editor, "done", (look: CustomLook | null) => {
-          newGame(look ?? STARTING_LOOK)
-          this.show({ type: "story", start: "prologue" })
-        })
-        this._subscribeOnce(editor, "cancel", () =>
-          this.show({ type: "chronicles" }),
-        )
-        return editor
       }
 
       case "arcade": {

@@ -1,5 +1,6 @@
 import type { CharacterPreset } from "@realms/engine"
 import {
+  appearance,
   choice,
   fx,
   give,
@@ -8,7 +9,6 @@ import {
   lt,
   narr,
   opt,
-  redirect,
   set,
   stage,
   unlock,
@@ -356,28 +356,18 @@ export const prologue: Chapter = {
         narr(
           "Il y a quelqu'un dans l'eau. Il fait ce que je fais. C'est donc moi.",
         ),
-        // The Atelier (silhouette, peau, visage) is the game's "hero" screen,
-        // the body editor opened just before the prologue; this reflection
-        // scene plays its three gestures in the story.
-        choice("reflet", [
-          opt("silhouette", "Bouger un bras", [
-            narr(
-              "Je bouge un bras. Le reflet aussi. Il a ma forme, ou j'ai la sienne.",
-            ),
-            redirect("peau"),
-          ]),
-          opt("peau", "Passer la main sur sa peau", [
-            narr(
-              "La lumière glisse sur ma peau comme sur l'eau. Elle ne s'y arrête pas.",
-            ),
-            redirect("visage"),
-          ]),
-          opt("visage", "Regarder son visage", [
-            narr(
-              "Je ne reconnais rien. Il faudra bien que ce soit moi quand même.",
-            ),
-          ]),
-        ]),
+        // The hero's body is chosen here, on the reflection: the game opens
+        // its appearance editor over the pond (silhouette, peau, visage).
+        narr(
+          "Je bouge un bras. Le reflet aussi. Il a ma forme, ou j'ai la sienne.",
+        ),
+        narr(
+          "La lumière glisse sur ma peau comme sur l'eau. Elle ne s'y arrête pas.",
+        ),
+        narr(
+          "Je ne reconnais rien. Il faudra bien que ce soit moi quand même.",
+        ),
+        appearance(),
         stage(
           "Le héros se relève. Une goutte tombe de sa main dans la mare, et le reflet se brouille.",
         ),

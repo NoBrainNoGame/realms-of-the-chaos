@@ -112,6 +112,11 @@ export function newGame(body: CustomLook): AdventureSave {
   return save
 }
 
+/** The body chosen on the pond's reflection (the prologue): kept in the save. */
+export function chooseBody(body: CustomLook) {
+  writeAdventureSave({ ...adventureSave(), body })
+}
+
 /** Where « Reprendre » leads: the run in progress, or the next open chapter. */
 export function continuation(
   save = adventureSave(),

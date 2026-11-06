@@ -35,12 +35,16 @@ import {
   Board,
   CHARACTERS,
   type CharacterPreset,
+  type CustomLook,
   type Point,
 } from "@realms/engine"
 import { Container, Graphics, Sprite } from "pixi.js"
 import { allyTeam, puppetId, reportOf } from "../adventure/fight"
-import { saveRun } from "../adventure/progress"
+import { HERO_PARTS, STARTING_LOOK } from "../adventure/hero"
+import { chooseBody, saveRun } from "../adventure/progress"
 import { settings } from "../settings"
+import { adventureSave } from "../storage"
+import AppearanceEditor from "./AppearanceEditor"
 import Backdrop from "./Backdrop"
 import BoardView, { COLUMN_BOTTOM, DEPTH, depthOf } from "./BoardView"
 import type FightScene from "./FightScene"
@@ -153,6 +157,8 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
   private _time = 0
   private _autoIn = 0
   private _fight: FightScene | null = null
+  /** The body editor over the pond's reflection (prologue). */
+  private _editor: AppearanceEditor | null = null
   private _wanderFight: Encounter | null = null
   private _looks: ExamineLine[] = []
   private _debrief: ObjectiveResult[] = []
@@ -894,6 +900,57 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
     this._afterRun()
   }
 
+  /** The appearance editor open over the reflection (read by the tests). */
+  get editor() {
+    return this._editor
+  }
+
+  /**
+   * The hero looks at himself in the pond: the body editor opens over the
+   * island. A replay chooses nothing (the saved body stays).
+   */
+  private _openAppearance() {
+    if (this._editor) return
+    if (this._options.sandbox) {
+      this._run = next(this._run)
+      this._afterRun()
+      return
+    }
+    const editor = new AppearanceEditor(
+      adventureSave().body ?? STARTING_LOOK,
+      "brutus",
+      undefined,
+      HERO_PARTS,
+      true,
+    )
+    this._editor = editor
+    this._box.visible = false
+    this._activateChildChip(editor)
+    this._subscribeOnce(editor, "done", (look: CustomLook | null) => {
+      chooseBody(look ?? STARTING_LOOK)
+      this._terminateChildChip(editor)
+      this._editor = null
+      this._box.visible = true
+      this._reskinHero()
+      this._run = next(this._run)
+      this._save()
+      this._afterRun()
+    })
+  }
+
+  /** The hero's puppet is drawn again with the body just chosen. */
+  private _reskinHero() {
+    const hero = this._hero
+    const old = hero.puppet
+    const puppet = new Puppet(puppetId("heros", this._run))
+    puppet.scale.set(PUPPET_SCALE)
+    puppet.setFacing(old.facing)
+    hero.node.addChild(puppet)
+    hero.node.removeChild(old)
+    old.destroy({ children: true })
+    hero.puppet = puppet
+  }
+
   /** The puzzle board on screen (read by the tests). */
   get puzzle() {
     return this._puzzle
@@ -1052,6 +1109,9 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
           board = new PuzzleBoard(f.puzzle, (rules) => this.solve(rules))
           this._puzzle = board
           break
+        case "appearance":
+          this._openAppearance()
+          return
         case "fight":
           body = `${f.fight.title}\n${f.fight.goal}`
           items = [{ id: "fight", label: "Lancer le combat" }]

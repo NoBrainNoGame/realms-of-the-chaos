@@ -177,7 +177,7 @@ export default class StoryScene extends ViewChip<StoryEvents> {
     )
   }
 
-  private _render() {
+  private _render(): void {
     clearChildren(this._box)
     this._menu = null
     this._board = null
@@ -257,7 +257,15 @@ export default class StoryScene extends ViewChip<StoryEvents> {
     } else if (this._run.done) {
       this._finishChapter(addText, addMenu)
     } else {
-      this._renderFrame(frame(this._run), addText, addMenu, addBoard)
+      const f = frame(this._run)
+      // the body is chosen on the island's pond: a plain reading skips it
+      if (f.kind === "appearance") {
+        this._run = next(this._run)
+        this._save()
+        this._render()
+        return
+      }
+      this._renderFrame(f, addText, addMenu, addBoard)
     }
 
     const height = y + 24
