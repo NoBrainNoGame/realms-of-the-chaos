@@ -10,6 +10,8 @@ import { isSecretEnding } from "./endings"
  * - `?enemies=gorr,nyx`      enemy roster
  * - `?debug`                 exposes `window.game` and `window.runner` in the console
  * - `?gallery`               shows every puppet in its 4 facings (art check)
+ * - `?gallery=looks`        the gallery of modular looks: 12 random looks (seeded by
+ *                            `?seed=`, 1 by default) x 4 facings, with their portrait
  * - `?anim=swim`             with the gallery: loops a single animation
  *                            (idle, walk, melee, shoot, cast, roar, hit, swim)
  * - `?grant=vacuumDecay`    dev: gives a forbidden spell to the save (the
@@ -45,6 +47,8 @@ export interface Params {
   spectate: boolean
   debug: boolean
   gallery: boolean
+  /** Gallery of modular looks (`?gallery=looks`). */
+  galleryLooks: boolean
   /** Gallery: the only animation to loop. */
   anim: string | null
   speed: number
@@ -90,6 +94,7 @@ export function parseParams(search: URLSearchParams): Params {
     spectate: search.has("spectate"),
     debug: search.has("debug"),
     gallery: search.has("gallery"),
+    galleryLooks: search.get("gallery") === "looks",
     anim: search.get("anim"),
     speed: SPEEDS.includes(speed) ? speed : 1,
     playerTeam: roster("team", DEFAULT_PLAYER_TEAM),

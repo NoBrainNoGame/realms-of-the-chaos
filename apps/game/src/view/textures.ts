@@ -1,11 +1,13 @@
+import type { CustomLook } from "@realms/engine"
 import { Texture } from "pixi.js"
+import { lookPortrait } from "../art/lookPortrait"
 import {
   artSize,
   CHARACTER_ART,
   ICON_ART,
   type PixelArt,
 } from "../art/pixelArt"
-import { lookOf } from "./looks"
+import { lookOf, modularLookOf } from "./looks"
 
 const cache = new Map<string, Texture>()
 
@@ -35,7 +37,13 @@ export function artToTexture(key: string, art: PixelArt): Texture {
   return texture
 }
 
+/** Portrait of a modular look (the Atelier, the gallery). */
+export const lookTexture = (look: CustomLook) =>
+  artToTexture(`look:${JSON.stringify(look)}`, lookPortrait(look))
+
 export const characterTexture = (presetId: string) => {
+  const own = modularLookOf(presetId)
+  if (own) return lookTexture(own)
   const look = lookOf(presetId)
   return artToTexture(`character:${look}`, CHARACTER_ART[look])
 }

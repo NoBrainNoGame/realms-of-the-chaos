@@ -4,8 +4,11 @@ import {
   CUSTOM_NAME,
   CUSTOM_STATS,
   CUSTOM_STEP,
+  checkLook,
   customDefaults,
   customRange,
+  LOOK_PARTS,
+  randomLook,
 } from "@realms/engine"
 import { generateName } from "../names"
 import {
@@ -20,9 +23,11 @@ import { mount, tick } from "../test/harness"
 import ArcadeRun from "./ArcadeRun"
 import Creator from "./Creator"
 import FightScene from "./FightScene"
+import Gallery from "./Gallery"
 import { pickedFight } from "./Game"
-import { lookOf } from "./looks"
+import { lookOf, modularLookOf } from "./looks"
 import TeamPicker, { DIFFICULTIES } from "./TeamPicker"
+import { characterTexture } from "./textures"
 
 const sample = (name = "Zaren") => ({
   name,
@@ -198,5 +203,112 @@ describe("a custom fighter in the arcade", () => {
     const fighter = scene.combat.fighters.find((f) => f.presetId === id)!
     expect(scene.combat.presetOf(fighter).name).toBe(sample().name)
     expect(lookOf(id)).toBe(sample().kit)
+  })
+})
+
+describe("appearance", () => {
+  test("stepping a part changes the preview, and the look is saved", () => {
+    const creator = mount(new Creator(undefined, 4))
+    expect(creator.look).toBeUndefined()
+    const editor = creator.openAppearance()!
+    expect(editor).not.toBeNull()
+    tick(creator, 100)
+    const first = editor.puppet
+    const hair = editor.look.hair
+    editor.step("hair", 1)
+    tick(creator, 100)
+    expect(editor.look.hair).toBe((hair + 1) % LOOK_PARTS.hair)
+    expect(editor.puppet).not.toBe(first)
+    // arrows wrap around
+    const cape = editor.look.cape
+    for (let i = 0; i < LOOK_PARTS.cape; i++) editor.step("cape", -1)
+    expect(editor.look.cape).toBe(cape)
+    // turning and animating
+    const facing = editor.facing
+    editor.rotate(1)
+    expect(editor.facing).not.toBe(facing)
+    const anim = editor.animation.id
+    editor.nextAnimation()
+    expect(editor.animation.id).not.toBe(anim)
+    for (let i = 0; i < 12; i++) {
+      editor.nextAnimation()
+      tick(creator, 200)
+    }
+    editor.randomize()
+    const look = { ...editor.look }
+    editor.randomizeColors()
+    expect(editor.look.hair).toBe(look.hair)
+    editor.validate()
+    tick(creator, 100)
+    expect(creator.appearance).toBeNull()
+    expect(creator.look).toEqual(editor.look)
+    expect(creator.save()).toBe(true)
+    expect(customCharacters()[0].look).toEqual(editor.look)
+    expect(checkLook(customCharacters()[0].look).ok).toBe(true)
+  })
+
+  test("cancel keeps the look, the kit's art can be taken again", () => {
+    const creator = mount(new Creator(undefined, 4))
+    creator.openAppearance()!.validate()
+    expect(creator.look).toBeDefined()
+    const keep = { ...creator.look! }
+    creator.openAppearance()!.step("top", 1)
+    creator.appearance!.cancel()
+    expect(creator.look).toEqual(keep)
+    creator.openAppearance()!.useKitArt()
+    expect(creator.look).toBeUndefined()
+    tick(creator, 100)
+  })
+
+  test("a look round trips through storage; old characters still load", () => {
+    const look = randomLook(11)
+    saveCustom({ ...sample("Avec"), look })
+    saveCustom(sample("Sans"))
+    const list = customCharacters()
+    expect(list.find((c) => c.name === "Avec")?.look).toEqual(look)
+    expect(list.find((c) => c.name === "Sans")?.look).toBeUndefined()
+    // an invalid look drops the character
+    localStorage.setItem(
+      SAVE_KEYS.custom,
+      JSON.stringify([{ ...sample("Bad"), look: { ...look, hair: 99 } }]),
+    )
+    expect(customCharacters()).toEqual([])
+  })
+
+  test("a custom with a look renders in a fight and on the timeline", () => {
+    const look = randomLook(21)
+    saveCustom({ ...sample("Habillé"), look })
+    const id = customId("Habillé")
+    expect(modularLookOf(id)).toEqual(look)
+    expect(lookOf(id)).toBe("eva")
+    const options = pickedFight(
+      {
+        mode: "skirmish",
+        teams: [[id]],
+        enemies: ["nyx"],
+        difficulty: DIFFICULTIES[1],
+        seed: 3,
+      },
+      4,
+    )
+    const scene = mount(new FightScene(options))
+    tick(scene, 1500)
+    const fighter = scene.combat.fighters.find((f) => f.presetId === id)!
+    const view = (scene as any)._views.get(fighter.id)
+    expect(view.puppet.modularLook).toEqual(look)
+    const other = scene.combat.fighters.find((f) => f.presetId === "nyx")!
+    expect(
+      (scene as any)._views.get(other.id).puppet.modularLook,
+    ).toBeUndefined()
+    // without a look, the kit's portrait
+    saveCustom(sample("Nu"))
+    expect(characterTexture(customId("Nu"))).toBe(characterTexture("eva"))
+    expect(characterTexture(id)).not.toBe(characterTexture("eva"))
+  })
+
+  test("the looks gallery builds (?gallery=looks)", () => {
+    const gallery = mount(new Gallery(null, true, 2))
+    tick(gallery, 4000)
+    expect((gallery as any)._puppets).toHaveLength(48)
   })
 })

@@ -1,3 +1,4 @@
+import { type AdventureRules, AdventureTracker } from "./adventure"
 import { decide, decideDivine } from "./ai"
 import {
   Board,
@@ -82,6 +83,12 @@ export interface CombatOptions {
   seed?: number
   /** Explicit start positions per team (otherwise random placement). */
   positions?: Point[][]
+  /**
+   * Opt-in rules of the Adventure. A fight with this option is an Adventure
+   * fight: a vacuum decay in it does not wipe the save (the game checks
+   * `Combat.adventure`).
+   */
+  adventure?: AdventureRules
 }
 
 /**
@@ -154,6 +161,10 @@ export class Combat {
    * needs them): no turn, no cell, out of reach. `bringIn` lets one in.
    */
   readonly offstage = new Set<string>()
+  /** Fighters that left the island alive (fled, spared): off the board for good. */
+  readonly departed = new Set<string>()
+  /** Rule state of an Adventure fight; null in every other fight. */
+  adventure: AdventureTracker | null = null
 
   private _time = 0
   private _state: CombatState = "running"
@@ -251,6 +262,10 @@ export class Combat {
       fighter.nextActionAt =
         this.baseDelay(fighter) * (0.3 + 0.7 * this.rng.next())
     }
+
+    if (options.adventure) {
+      this.adventure = new AdventureTracker(this, options.adventure)
+    }
   }
 
   // ─── Read-only state ──────────────────────────────────────────────────────
@@ -304,7 +319,9 @@ export class Combat {
   }
 
   get aliveFighters() {
-    return this.fighters.filter((f) => f.alive && !this.offstage.has(f.id))
+    return this.fighters.filter(
+      (f) => f.alive && !this.offstage.has(f.id) && !this.departed.has(f.id),
+    )
   }
 
   fightersAt(p: Point) {
@@ -388,6 +405,7 @@ export class Combat {
   }
 
   isEnemy(a: Fighter, b: Fighter) {
+    if (this.adventure) return this.adventure.isEnemy(a, b)
     return a.team !== b.team
   }
 
@@ -754,6 +772,14 @@ export class Combat {
       return
     }
 
+    const silence = this.adventure?.turnStart(fighter) ?? 0
+    if (silence > 0) this._applyDamage(fighter, silence, null, false)
+
+    if (!fighter.alive || this.departed.has(fighter.id)) {
+      this._activeFighter = null
+      return
+    }
+
     for (const status of [...fighter.statuses]) {
       status.turns--
       if (status.turns <= 0) this._removeStatus(fighter, status.id)
@@ -772,6 +798,13 @@ export class Combat {
 
   private _playAi(fighter: Fighter) {
     if (this.holding.has(fighter.team)) return this._pass(fighter)
+    if (this.adventure?.fleeing.has(fighter.id)) {
+      this.adventure.playFlee(fighter)
+      if (this._activeFighter === fighter && this._state === "running") {
+        this._pass(fighter)
+      }
+      return
+    }
     const divine = decideDivine(this, fighter)
     if (divine) this._useDivine(fighter.team, divine.divineId, divine.target)
     if (this._state === "ended") return
@@ -1076,6 +1109,7 @@ export class Combat {
     const elapsed = Math.max(0, to - this._time)
     this._time += elapsed
     if (elapsed === 0) return
+    this.adventure?.advance(this._time)
     for (const team of this.teams) {
       const members = this.fighters.filter((f) => f.team === team.index)
       const fallen = members.filter((f) => !f.alive).length
@@ -1285,6 +1319,8 @@ export class Combat {
   ): string | null {
     const divine = DIVINE_ACTIONS[divineId]
     if (!divine) return "Action divine inconnue"
+    if (this.adventure?.locked.has(divineId))
+      return "Influence pas encore connue"
     const teamState = this.teams[team]
     if (teamState.energy < divine.cost) return "Pas assez d'énergie divine"
 
@@ -1358,6 +1394,9 @@ export class Combat {
     }
 
     target.hp = Math.max(0, target.hp - (amount - absorbed))
+    if (this.adventure?.rules.noDefeat?.includes(target.team)) {
+      target.hp = Math.max(1, target.hp)
+    }
     // erosion: part of every wound can never be healed (fights always end)
     target.erosion += (amount - absorbed) * EROSION
     target.hp = Math.min(target.hp, this.maxHp(target))
@@ -1370,17 +1409,31 @@ export class Combat {
       sourceId,
     })
 
+    if (target.hp > 0) this.adventure?.wounded(target)
+
     if (target.hp <= 0) {
       target.alive = false
       this._clearWalk(target)
       target.statuses = []
       this._emit({ type: "died", fighterId: target.id })
+      if (this.adventure?.fixes(target)) this._fix(target)
       // catch-up: the team that loses a fighter gets energy right away
       if (this.aliveFighters.some((f) => f.team === target.team)) {
         this._gainEnergy(target.team, DEATH_ENERGY)
       }
       this._checkVictory()
     }
+  }
+
+  /** A fallen Lacunaire hardens into a rock where it stood. */
+  private _fix(target: Fighter) {
+    const cell = this.board.get(target.position)
+    if (!cell || cell.elevation >= MAX_ELEVATION) return
+    if (this.fightersAt(target.position).length > 0) return
+    cell.elevation += 1
+    this._regions.clear()
+    this.adventure?.fixed(target)
+    this._emit({ type: "terrainChanged", cell: { ...target.position } })
   }
 
   private _heal(target: Fighter, amount: number) {
@@ -1490,7 +1543,9 @@ export class Combat {
       (f) => f.alive && this.offstage.has(f.id),
     )
     const teams = new Set(
-      [...this.aliveFighters, ...waiting].map((f) => f.team),
+      [...this.aliveFighters, ...waiting]
+        .filter((f) => !this.adventure?.isNeutral(f.team))
+        .map((f) => f.team),
     )
     if (teams.size <= 1) this._end(teams.size === 1 ? [...teams][0] : null)
   }
@@ -1623,6 +1678,36 @@ export class Combat {
 
   private _emit(event: FightEvent) {
     this._events.push(event)
+    this.adventure?.observe(event)
+  }
+
+  /** Adventure rules emit their own events through this door. */
+  emitEvent(event: FightEvent) {
+    this._emit(event)
+  }
+
+  /** Ends the fight from outside (a clock that ran out). */
+  finish(winnerTeam: number | null) {
+    this._end(winnerTeam)
+  }
+
+  /** An Adventure fighter leaves the island alive (it fled): spared. */
+  depart(fighter: Fighter) {
+    this.departed.add(fighter.id)
+    this._clearWalk(fighter)
+    this._emit({ type: "fled", fighterId: fighter.id })
+    this._activeFighter = null
+    this._checkVictory()
+  }
+
+  /** Plans a walk for an AI fighter (flight). */
+  walk(fighter: Fighter, destination: Point) {
+    this._moveTo(fighter, destination)
+  }
+
+  /** Lets the Ghom use an Influence that was locked. */
+  unlockDivine(divineId: string) {
+    this.adventure?.locked.delete(divineId)
   }
 
   private _flush() {

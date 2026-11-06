@@ -6,6 +6,7 @@ import {
   CUSTOM_STATS,
   CUSTOM_STEP,
   type CustomCharacter,
+  type CustomLook,
   type CustomStatName,
   type CustomStats,
   checkCustom,
@@ -31,6 +32,7 @@ import {
   MAX_CUSTOMS,
   saveCustom,
 } from "../storage"
+import AppearanceEditor from "./AppearanceEditor"
 import { actionIcon } from "./actionFx"
 import Backdrop from "./Backdrop"
 import { Puppet } from "./Puppet"
@@ -112,6 +114,9 @@ export default class Creator extends ViewChip<CreatorEvents> {
   /** The spell choice being made for a slot, page by page. */
   private _chooser: { slot: number; page: number } | null = null
   private _forge: SpellForge | null = null
+  /** Modular look (undefined: the art of the kit). */
+  private _look: CustomLook | undefined
+  private _appearance: AppearanceEditor | null = null
 
   constructor(edit?: string, seed = Math.floor(Math.random() * 1e6)) {
     super()
@@ -121,6 +126,7 @@ export default class Creator extends ViewChip<CreatorEvents> {
       this._kit = saved.kit
       this._stats = { ...saved.stats }
       this._spells = saved.spells ? clone(saved.spells) : undefined
+      this._look = saved.look ? { ...saved.look } : undefined
       this._name = saved.name
       this._editing = saved.name
     } else {
@@ -158,6 +164,11 @@ export default class Creator extends ViewChip<CreatorEvents> {
     return this._spells ?? CHARACTERS[this._kit].actions
   }
 
+  /** Its modular look, if it has one (otherwise the art of its kit). */
+  get look(): Readonly<CustomLook> | undefined {
+    return this._look
+  }
+
   /** Whether the spells were changed (they are then saved). */
   get ownSpells() {
     return this._spells !== undefined
@@ -170,6 +181,7 @@ export default class Creator extends ViewChip<CreatorEvents> {
       stats: { ...this._stats },
     }
     if (this._spells) character.spells = clone(this._spells)
+    if (this._look) character.look = { ...this._look }
     return character
   }
 
@@ -366,6 +378,38 @@ export default class Creator extends ViewChip<CreatorEvents> {
     this._dirty = true
   }
 
+  /** The appearance screen (the current look, or the kit's default). */
+  get appearance() {
+    return this._appearance
+  }
+
+  openAppearance() {
+    if (this._appearance || this._forge) return null
+    const editor = new AppearanceEditor(
+      this._look,
+      this._kit,
+      this._nameSeed + 303,
+    )
+    this._appearance = editor
+    this._box.visible = false
+    this._activateChildChip(editor)
+    this._subscribeOnce(editor, "done", (look: CustomLook | null) => {
+      this._look = look ?? undefined
+      this._closeAppearance()
+    })
+    this._subscribeOnce(editor, "cancel", () => this._closeAppearance())
+    return editor
+  }
+
+  private _closeAppearance() {
+    if (!this._appearance) return
+    this._terminateChildChip(this._appearance)
+    this._appearance = null
+    this._box.visible = true
+    this._puppetKit = null
+    this._dirty = true
+  }
+
   /** Draws another generated name (never one already saved). */
   rerollName() {
     this._nameSeed++
@@ -380,6 +424,7 @@ export default class Creator extends ViewChip<CreatorEvents> {
     this._kit = saved.kit
     this._stats = { ...saved.stats }
     this._spells = saved.spells ? clone(saved.spells) : undefined
+    this._look = saved.look ? { ...saved.look } : undefined
     this._name = saved.name
     this._editing = saved.name
     this._puppetKit = null
@@ -391,6 +436,7 @@ export default class Creator extends ViewChip<CreatorEvents> {
     this._editing = null
     this._kit = KITS[0]
     this._spells = undefined
+    this._look = undefined
     this._stats = customDefaults(this._kit)
     this._name = this._freshName()
     this._puppetKit = null
@@ -440,7 +486,8 @@ export default class Creator extends ViewChip<CreatorEvents> {
   }
 
   protected _onTick() {
-    this._puppet?.update(this._lastTickInfo.timeSinceLastTick)
+    if (!this._appearance)
+      this._puppet?.update(this._lastTickInfo.timeSinceLastTick)
     if (this._dirty) this._build()
   }
 
@@ -450,8 +497,8 @@ export default class Creator extends ViewChip<CreatorEvents> {
   }
 
   handleKey(key: string): boolean {
-    // the forge has its own keys
-    if (this._forge) return false
+    // the forge and the appearance screen have their own keys
+    if (this._forge || this._appearance) return false
     if (this._chooser) {
       if (key !== "Escape") return false
       this.closeChooser()
@@ -503,10 +550,11 @@ export default class Creator extends ViewChip<CreatorEvents> {
     if (this._puppet) this._box.removeChild(this._puppet)
     clearChildren(this._box)
     const preset = CHARACTERS[this._kit]
-    if (this._puppetKit !== this._kit || !this._puppet) {
+    const puppetKey = `${this._kit}|${JSON.stringify(this._look ?? null)}`
+    if (this._puppetKit !== puppetKey || !this._puppet) {
       this._puppet?.destroy({ children: true })
-      this._puppet = new Puppet(this._kit)
-      this._puppetKit = this._kit
+      this._puppet = new Puppet(this._kit, this._look)
+      this._puppetKit = puppetKey
       this._puppet.walk(1500)
     }
 
@@ -546,12 +594,22 @@ export default class Creator extends ViewChip<CreatorEvents> {
     kitTitle.anchor.set(0.5, 0)
     kitTitle.position.set(150, top + 206)
     const kitNote = text(
-      "Son apparence et son affinité. Ses sorts se choisissent plus bas.",
+      this._look
+        ? "Son affinité. Son apparence est la vôtre, ses sorts se choisissent plus bas."
+        : "Son apparence et son affinité. Ses sorts se choisissent plus bas.",
       11,
       COLORS.muted,
       { lineHeight: 15, wordWrap: true, wordWrapWidth: 276 },
     )
     kitNote.position.set(12, top + 236)
+    const look = button({
+      width: 220,
+      height: 40,
+      label: this._look ? "Apparence : à vous" : "Apparence…",
+      onTap: () => this.openAppearance(),
+    })
+    look.view.label = "creator:look"
+    look.view.position.set(40, top + 330)
     const kitPanel = panel(300, 440)
     kitPanel.position.set(0, top)
     this._box.addChild(
@@ -563,6 +621,7 @@ export default class Creator extends ViewChip<CreatorEvents> {
       kitNote,
       prev.view,
       next.view,
+      look.view,
     )
 
     // middle: name and stats

@@ -9,6 +9,7 @@
  */
 import { healthFor, type Kit, presetPower, STAT_LIMITS } from "./balance"
 import { ACTIONS, CHARACTERS, forbiddenAction } from "./content"
+import { type CustomLook, checkLook } from "./look"
 import { checkSpell, NAME_RULE, type SpellRecipe } from "./spells"
 import type {
   ActionDefinition,
@@ -45,6 +46,11 @@ export interface CustomCharacter {
    * Health still follows, so the power stays the reference's.
    */
   spells?: (string | SpellRecipe)[]
+  /**
+   * How it looks (cosmetic, never affects balance). Absent: the art of
+   * its kit.
+   */
+  look?: CustomLook
 }
 
 /** Name rules (names are picked, never typed, but the server checks). */
@@ -222,6 +228,10 @@ export function checkCustom(
       return { ok: false, reason: `${stat} is not on a step` }
     if (value < min || value > max)
       return { ok: false, reason: `${stat} out of bounds` }
+  }
+  if (character.look !== undefined) {
+    const looked = checkLook(character.look)
+    if (!looked.ok) return looked
   }
   let picked: SpellsCheck | null = null
   if (spells !== undefined) {

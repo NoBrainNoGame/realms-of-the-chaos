@@ -84,6 +84,7 @@ describe("URL parameters", () => {
       spectate: false,
       debug: false,
       gallery: false,
+      galleryLooks: false,
       anim: null,
       speed: 1,
       playerTeam: DEFAULT_PLAYER_TEAM,

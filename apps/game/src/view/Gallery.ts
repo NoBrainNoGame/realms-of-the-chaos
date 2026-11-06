@@ -1,10 +1,12 @@
 import type * as booyah from "@ghom/booyah"
-import { CHARACTERS } from "@realms/engine"
-import { Graphics, Text } from "pixi.js"
+import { CHARACTERS, randomLook } from "@realms/engine"
+import { Graphics, Sprite, Text } from "pixi.js"
 import { type Facing, Puppet, type PuppetAction } from "./Puppet"
+import { lookTexture } from "./textures"
 import { FONT } from "./theme"
 import ViewChip from "./ViewChip"
 
+const LOOK_COUNT = 12
 const FACINGS: Facing[] = ["SE", "SW", "NE", "NW"]
 const ACTIONS: (PuppetAction | "walk" | "idle" | "swim")[] = [
   "idle",
@@ -30,7 +32,16 @@ export default class Gallery extends ViewChip<GalleryEvents> {
   /** Animations shown in turn (a single one with `?anim=`). */
   private readonly _actions: typeof ACTIONS
 
-  constructor(only: string | null = null) {
+  /**
+   * @param looks the gallery of modular looks (`?gallery=looks`) instead of
+   *   the reference characters
+   * @param seed first seed of the random looks
+   */
+  constructor(
+    only: string | null = null,
+    private readonly _looks = false,
+    private readonly _seed = 1,
+  ) {
     super()
     const chosen = ACTIONS.find((a) => a === only)
     this._actions = chosen ? [chosen] : ACTIONS
@@ -39,7 +50,45 @@ export default class Gallery extends ViewChip<GalleryEvents> {
   private _time = 0
   private _label!: Text
 
+  /** 12 random looks, each in its 4 facings, with its portrait. */
+  private _buildLooks() {
+    const kits = Object.keys(CHARACTERS)
+    const scale = 1.25
+    for (let i = 0; i < LOOK_COUNT; i++) {
+      const look = randomLook(this._seed * 1000 + i)
+      const kit = kits[i % kits.length]
+      const ox = 10 + (i % 2) * 480
+      const oy = 100 + Math.floor(i / 2) * 108
+      const portrait = new Sprite(lookTexture(look))
+      portrait.scale.set(3)
+      portrait.position.set(ox, oy - 54)
+      const name = new Text({
+        text: `#${this._seed * 1000 + i}`,
+        style: { fontFamily: FONT, fontSize: 11, fill: 0x9d92b8 },
+      })
+      name.position.set(ox, oy - 4)
+      this._container.addChild(portrait, name)
+      FACINGS.forEach((facing, col) => {
+        const x = ox + 100 + col * 92
+        const shadow = new Graphics()
+          .ellipse(x, oy, 15 * scale, 6.5 * scale)
+          .fill({ color: 0x000000, alpha: 0.35 })
+        const puppet = new Puppet(kit, look)
+        puppet.setFacing(facing)
+        puppet.scale.set(scale)
+        puppet.position.set(x, oy)
+        this._container.addChild(shadow, puppet)
+        this._puppets.push(puppet)
+      })
+    }
+  }
+
   protected _onActivate() {
+    if (this._looks) {
+      this._buildLooks()
+      this._finishActivate()
+      return
+    }
     const ids = Object.keys(CHARACTERS)
     const scale = 1.7
     ids.forEach((id, row) => {
@@ -63,6 +112,10 @@ export default class Gallery extends ViewChip<GalleryEvents> {
       name.position.set(10, 90 + row * 112)
       this._container.addChild(name)
     })
+    this._finishActivate()
+  }
+
+  private _finishActivate() {
     this._label = new Text({
       text: "",
       style: { fontFamily: FONT, fontSize: 22, fill: 0xffe066 },

@@ -226,6 +226,12 @@ export type FightEvent =
   | { type: "terrainChanged"; cell: Point }
   /** A vacuum decay bubble was nucleated: nothing survives it. */
   | { type: "vacuumDecay"; fighterId: string }
+  /** Adventure rules: the clock ticked, a zone changed, a fighter fled. */
+  | { type: "clockTick"; tick: number }
+  | { type: "zoneChanged"; zoneId: string; state: "active" | "silent" | "lost" }
+  | { type: "fleeing"; fighterId: string }
+  | { type: "fled"; fighterId: string }
+  | { type: "timeUp" }
   | { type: "ended"; winnerTeam: number | null }
 
 export type CommandResult =

@@ -1,7 +1,9 @@
-import type { Point } from "@realms/engine"
+import type { CustomLook, Point } from "@realms/engine"
 import { Container, Graphics, Sprite } from "pixi.js"
+import { type ResolvedLook, resolveLook } from "../art/lookPalettes"
+import { capePiece, headPiece, legPiece, torsoPiece } from "../art/modular"
 import { softCircle } from "./effects"
-import { lookOf } from "./looks"
+import { lookOf, modularLookOf } from "./looks"
 
 /**
  * Isometric characters, "Dofus style": vector puppets made of articulated
@@ -83,6 +85,8 @@ interface Style {
   cape?: number
   /** How the character looks in deep water (swimmers and aquatics). */
   swim?: SwimKind
+  /** Modular puppet: its pieces replace the legs, torso, head and cape. */
+  look?: ResolvedLook
 }
 
 /**
@@ -323,6 +327,7 @@ function glow(color: number, radius: number, x = 0, y = 0) {
 }
 
 function leg(style: Style, shade: boolean) {
+  if (style.look) return legPiece(style.look, shade)
   const c = new Container()
   const g = new Graphics()
   const color = shade ? darken(style.legs) : style.legs
@@ -543,6 +548,7 @@ function itemRest(weapon: Weapon, hand: Hand) {
 }
 
 function torso(style: Style, front: boolean) {
+  if (style.look) return torsoPiece(style.look, front, style.weapon === "bow")
   const c = new Container()
   const g = new Graphics()
   const { color, shade, trim, belt, kind } = style.body
@@ -643,6 +649,7 @@ function torso(style: Style, front: boolean) {
 }
 
 function head(style: Style, front: boolean) {
+  if (style.look) return headPiece(style.look, front)
   const c = new Container()
   const g = new Graphics()
   /** Drawn behind the torso (long hair seen from the front). */
@@ -861,8 +868,9 @@ function buildRig(style: Style, front: boolean): Rig {
   const off = arm(style, "off", front, !front)
   // the arm behind the body sticks out of the torso, like a real arm seen
   // from three quarters; the one in front overlaps it
-  weapon.shoulder.position.set(front ? 11 : 8, SHOULDER)
-  off.shoulder.position.set(front ? -8.5 : -11, SHOULDER)
+  const reach = style.look?.build.shoulder ?? 1
+  weapon.shoulder.position.set((front ? 11 : 8) * reach, SHOULDER)
+  off.shoulder.position.set((front ? -8.5 : -11) * reach, SHOULDER)
   const behind = front ? weapon.shoulder : off.shoulder
   const before = front ? off.shoulder : weapon.shoulder
 
@@ -871,7 +879,12 @@ function buildRig(style: Style, front: boolean): Rig {
   hd.container.position.set(1, HEAD_Y)
   hd.behind.position.copyFrom(hd.container.position)
 
-  body.addChild(behind, legFar, legNear, hd.behind, t, hd.container, before)
+  // the cape hangs behind the body facing the camera, over it from behind
+  const cape = style.look ? capePiece(style.look, front) : null
+  if (cape && front) body.addChild(cape)
+  body.addChild(behind, legFar, legNear, hd.behind, t)
+  if (cape && !front) body.addChild(cape)
+  body.addChild(hd.container, before)
 
   root.scale.set(style.scale)
   return {
@@ -1305,6 +1318,41 @@ export function computePose(
   return pose
 }
 
+/**
+ * The style of a modular look: the pieces of the look, on the weapon of the
+ * kit (so its actions animate as usual). Aquatic and golem kits swim like
+ * everybody else.
+ */
+export function modularStyle(look: CustomLook, kit: string): Style {
+  const base = STYLES[kit]
+  const resolved = resolveLook(look)
+  const weapon: Weapon = base && base.kind !== "golem" ? base.weapon : "claws"
+  const sleeves =
+    look.top % 6 === 3
+      ? resolved.metal
+      : look.top % 6 === 5
+        ? resolved.cloth2
+        : resolved.cloth
+  return {
+    scale: resolved.build.h,
+    skin: resolved.skin,
+    skinShade: resolved.skinShade,
+    legs: resolved.cloth2,
+    boots: resolved.boots,
+    body: {
+      kind: look.top % 6 === 3 ? "armor" : "tunic",
+      color: look.top % 6 === 3 ? resolved.metal : resolved.cloth,
+      shade: look.top % 6 === 3 ? resolved.metalShade : resolved.clothShade,
+    },
+    sleeves,
+    hands: resolved.skin,
+    head: { kind: "hair", color: resolved.hair, shade: resolved.hairShade },
+    weapon,
+    swim: "crawl",
+    look: resolved,
+  }
+}
+
 export const isBackFacing = (facing: Facing) =>
   facing === "NE" || facing === "NW"
 export const isMirrored = (facing: Facing) => facing === "SW" || facing === "NW"
@@ -1326,10 +1374,23 @@ export class Puppet extends Container {
     duration: number
   } | null = null
 
-  constructor(readonly presetId: string) {
+  private readonly _style: Style | GolemStyle
+
+  /**
+   * @param look a modular look to draw (the Atelier previews it before it
+   *   is saved); otherwise the one of the preset, or its kit's art
+   */
+  constructor(
+    readonly presetId: string,
+    look?: CustomLook,
+  ) {
     super()
-    const style = STYLES[lookOf(presetId)]
+    const own = look ?? modularLookOf(presetId)
+    const style = own
+      ? modularStyle(own, lookOf(presetId))
+      : STYLES[lookOf(presetId)]
     if (!style) throw new Error(`No puppet style for "${presetId}"`)
+    this._style = style
     const build = (front: boolean) =>
       style.kind === "golem"
         ? buildGolemRig(style, front)
@@ -1375,10 +1436,12 @@ export class Puppet extends Container {
 
   /** Approximate head height, for UI placement. */
   get headHeight() {
-    return (
-      (STYLES[lookOf(this.presetId)].kind === "golem" ? 56 : 54) *
-      STYLES[lookOf(this.presetId)].scale
-    )
+    return (this._style.kind === "golem" ? 56 : 54) * this._style.scale
+  }
+
+  /** The modular look it wears (undefined: the art of a reference character). */
+  get modularLook(): CustomLook | undefined {
+    return (this._style as Style).look?.look
   }
 
   get currentAction() {
@@ -1401,7 +1464,7 @@ export class Puppet extends Container {
 
   setFacing(facing: Facing) {
     this._facing = facing
-    const scale = STYLES[lookOf(this.presetId)].scale
+    const scale = this._style.scale
     for (const rig of [this._front, this._back]) {
       rig.root.scale.x = (isMirrored(facing) ? -1 : 1) * scale
     }

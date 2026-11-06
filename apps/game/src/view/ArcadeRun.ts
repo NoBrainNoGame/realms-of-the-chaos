@@ -223,7 +223,7 @@ function arcadeMembers(ids: string[]): ArcadeMember[] {
     if (!isCustomId(id)) return [id]
     const stored = customById(id)
     if (!stored) return []
-    registerLook(id, stored.kit)
+    registerLook(id, stored.kit, stored.look)
     return [stored]
   })
 }

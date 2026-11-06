@@ -287,7 +287,11 @@ export default class Game extends ViewChip {
       }
 
       case "gallery": {
-        const gallery = new Gallery(this._params.anim)
+        const gallery = new Gallery(
+          this._params.anim,
+          this._params.galleryLooks,
+          this._params.seed ?? 1,
+        )
         this._subscribeOnce(gallery, "back", () => this.show({ type: "title" }))
         return gallery
       }
