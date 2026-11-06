@@ -41,4 +41,4 @@ export const characterTexture = (presetId: string) => {
 }
 
 export const iconTexture = (id: string) =>
-  artToTexture(`icon:${id}`, ICON_ART[id])
+  artToTexture(`icon:${id}`, ICON_ART[id] ?? ICON_ART.kick)

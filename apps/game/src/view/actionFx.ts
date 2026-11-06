@@ -4,8 +4,9 @@
  * lightning, screen shake). Purely cosmetic: everything is fire-and-forget.
  */
 import type * as booyah from "@ghom/booyah"
-import { type Point, zoneCells } from "@realms/engine"
+import { type ActionDefinition, type Point, zoneCells } from "@realms/engine"
 import type { Container } from "pixi.js"
+import { ICON_ART } from "../art/pixelArt"
 import type BoardView from "./BoardView"
 import {
   burst,
@@ -103,6 +104,154 @@ export const PROJECTILES: Record<string, ProjectileStyle> = {
 /** Melee actions that hit an adjacent cell. */
 export const isMelee = (actionId: string) => ACTION_POSE[actionId] === "melee"
 
+// ─── Generic visuals (spells forged by players have no dedicated fx) ────────
+
+/** Whether an action is a catalogue one (it has its own visuals). */
+export const hasOwnFx = (actionId: string) => actionId in ACTION_POSE
+
+const has = (def: ActionDefinition, type: string) =>
+  def.effects.some((e) => e.type === type)
+
+const statusOf = (def: ActionDefinition) =>
+  def.effects.flatMap((e) => (e.type === "status" ? [e.status] : []))
+
+const hostile = (def: ActionDefinition) =>
+  has(def, "damage") ||
+  has(def, "push") ||
+  has(def, "delay") ||
+  statusOf(def).some((s) => s === "poisoned" || s === "slowed")
+
+const magical = (def: ActionDefinition) =>
+  def.effects.some((e) => e.type === "damage" && e.kind === "magical")
+
+/** Body animation of the caster of a spell. */
+export function genericPose(def: ActionDefinition): PuppetAction {
+  if (hostile(def)) {
+    if (has(def, "damage") || has(def, "push")) {
+      if (def.launch.max <= 1 && def.target !== "self") return "melee"
+      return magical(def) || !has(def, "damage") ? "cast" : "shoot"
+    }
+    return "cast"
+  }
+  return statusOf(def).includes("enraged") ? "roar" : "cast"
+}
+
+export const genericMelee = (def: ActionDefinition) =>
+  genericPose(def) === "melee"
+
+/** Main color of a spell, from its effects. */
+export function genericTint(def: ActionDefinition): number {
+  const status = statusOf(def)
+  if (status.includes("poisoned")) return 0x82c91e
+  if (status.includes("slowed")) return 0x74c0fc
+  if (has(def, "delay")) return 0xb197fc
+  if (has(def, "push")) return 0xced4da
+  if (has(def, "damage")) return magical(def) ? 0xff922b : 0xffffff
+  if (has(def, "heal")) return 0x51cf66
+  if (status.includes("shielded")) return 0x99e9f2
+  if (status.includes("hasted")) return 0xfcc419
+  if (status.includes("enraged")) return 0xf03e3e
+  return 0xffffff
+}
+
+/** Projectile of a ranged spell. */
+export function genericProjectile(def: ActionDefinition): ProjectileStyle {
+  const color = genericTint(def)
+  if (has(def, "damage") && !magical(def)) {
+    const poison = statusOf(def).includes("poisoned")
+    return poison ? PROJECTILES.poisonArrow : { color, icon: "arrow", arc: 18 }
+  }
+  const status = statusOf(def)
+  if (status.includes("poisoned"))
+    return { color, arc: 20, size: 5, trail: () => FX.bubbles() }
+  if (has(def, "damage") && !status.length && !has(def, "delay"))
+    return PROJECTILES.fireball
+  if (status.includes("slowed")) return PROJECTILES.frost
+  return {
+    color,
+    arc: 30,
+    size: 5,
+    trail: () => ({ ...FX.sparkles([color, 0xffffff], 2), count: 4 }),
+  }
+}
+
+/** Icon of an action in the action bar (spells borrow a catalogue one). */
+export function actionIcon(def: ActionDefinition): string {
+  if (ICON_ART[def.id]) return def.id
+  const status = statusOf(def)
+  if (hostile(def)) {
+    if (has(def, "damage")) {
+      if (def.launch.max <= 1) return "kick"
+      return magical(def) ? "fireball" : "arrow"
+    }
+    if (status.includes("slowed")) return "frost"
+    if (status.includes("poisoned")) return "poisonArrow"
+    if (has(def, "push")) return "shieldBash"
+    return "timeWarp"
+  }
+  if (has(def, "heal")) return "heal"
+  if (status.includes("shielded")) return "aegis"
+  if (status.includes("enraged")) return "warCry"
+  return "quicken"
+}
+
+/** Impact of a spell: strike, bolt, glow, ring or shove from its definition. */
+function genericImpactFx(
+  ctx: FxContext,
+  def: ActionDefinition,
+  launcher: Point,
+  target: Point,
+  zone: Point[],
+) {
+  const { layer, spawn, ms } = ctx
+  const at = top(ctx, target)
+  const tint = genericTint(def)
+  const area = zone.length > 1
+  if (hostile(def)) {
+    if (genericMelee(def)) {
+      const flip = top(ctx, target).x < top(ctx, launcher).x
+      spawn(slash(layer, above(ctx, target, -24), tint, flip, ms(240)))
+      spawn(
+        particles(layer, above(ctx, target, -24), FX.sparks([tint, 0xffffff])),
+      )
+    } else if (has(def, "push") && !has(def, "damage")) {
+      spawn(particles(layer, at, FX.dust(12)))
+    } else {
+      spawn(lightFlash(layer, above(ctx, target, -14), tint, 50, ms(450)))
+      const status = statusOf(def)
+      spawn(
+        particles(
+          layer,
+          above(ctx, target, -14),
+          status.includes("poisoned")
+            ? FX.bubbles()
+            : status.includes("slowed")
+              ? FX.ice()
+              : magical(def)
+                ? FX.fire(12)
+                : FX.sparks([tint, 0xffffff]),
+        ),
+      )
+    }
+    if (has(def, "push")) ctx.shake(3, ms(200))
+    if (area && !has(def, "damage"))
+      ctx.board.shockwave(target, zone, 4 + zone.length, {
+        duration: ms(420),
+        step: ms(80),
+      })
+  } else {
+    for (const c of zone) {
+      spawn(lightFlash(layer, above(ctx, c, -26), tint, 46, ms(550)))
+      spawn(converge(layer, above(ctx, c, -18), tint, ms(500), 8))
+      spawn(
+        particles(layer, above(ctx, c, -6), FX.sparkles([tint, 0xffffff], 14)),
+      )
+    }
+  }
+  if (area)
+    for (const c of zone) spawn(burst(layer, top(ctx, c), tint, 26, ms(420)))
+}
+
 function top(ctx: FxContext, p: Point): XY {
   return ctx.board.cellTop(p)
 }
@@ -123,6 +272,8 @@ export function impactFx(
   target: Point,
   cells: Point[],
   damaging: boolean,
+  /** Definition of a spell: it has no case of its own below. */
+  def?: ActionDefinition,
 ) {
   const { layer, spawn, ms } = ctx
   const at = top(ctx, target)
@@ -139,6 +290,11 @@ export function impactFx(
       duration: ms(460),
       step: ms(80),
     })
+  }
+
+  if (def && !hasOwnFx(actionId)) {
+    genericImpactFx(ctx, def, launcher, target, zone)
+    return
   }
 
   switch (actionId) {

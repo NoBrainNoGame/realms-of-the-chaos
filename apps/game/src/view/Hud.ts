@@ -8,6 +8,7 @@ import {
 } from "@realms/engine"
 import { Container, Graphics, Rectangle, Sprite, Text } from "pixi.js"
 import { settings } from "../settings"
+import { actionIcon } from "./actionFx"
 import {
   describeAction,
   describeDivine,
@@ -863,7 +864,7 @@ export default class Hud extends ViewChip<HudEvents> {
       const b = button({
         width: size,
         height: size,
-        icon: action.combo?.baseId ?? action.id,
+        icon: action.combo?.baseId ?? actionIcon(action),
         accent: action.combo ? COLORS.combo : undefined,
         hotkey: `${i + 1}`,
         label: cooldown > 0 ? `⌛${cooldown - 1}` : undefined,

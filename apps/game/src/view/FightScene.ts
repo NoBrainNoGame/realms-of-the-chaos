@@ -1,6 +1,5 @@
 import * as booyah from "@ghom/booyah"
 import {
-  ACTIONS,
   type ActionDefinition,
   Board,
   type CharacterPreset,
@@ -16,6 +15,7 @@ import {
   MAX_ELEVATION,
   manhattan,
   type Point,
+  resolveAction,
   STATUSES,
   usefulActions,
 } from "@realms/engine"
@@ -28,6 +28,10 @@ import {
   deathFx,
   divineFx,
   type FxContext,
+  genericMelee,
+  genericPose,
+  genericProjectile,
+  hasOwnFx,
   hitFx,
   impactFx,
   isMelee,
@@ -1423,7 +1427,8 @@ export default class FightScene extends ViewChip<SceneEvents> {
         const action =
           this.combat
             .actionsOf(launcher)
-            .find((a) => a.id === event.actionId) ?? ACTIONS[base]
+            .find((a) => a.id === event.actionId) ??
+          resolveAction(this.combat.presetOf(launcher), base)
         // a sprint is just quick steps: the moves that follow animate it
         if (action.movement) {
           // set now: the steps that follow are staged right after this event
@@ -1440,7 +1445,9 @@ export default class FightScene extends ViewChip<SceneEvents> {
         }
         const view = this._views.get(event.fighterId)!
         const origin = this._cells.get(event.fighterId)!
-        const pose = ACTION_POSE[base] ?? "melee"
+        // spells forged by players have no visuals of their own
+        const own = hasOwnFx(base)
+        const pose = own ? (ACTION_POSE[base] ?? "melee") : genericPose(action)
         const targetTop = this._board.cellTop(event.target)
         const to = { x: targetTop.x, y: targetTop.y - 24 }
         const distance = manhattan(origin, event.target)
@@ -1495,7 +1502,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
           return chips
         }
 
-        if (isMelee(base) && distance <= 1) {
+        if ((own ? isMelee(base) : genericMelee(action)) && distance <= 1) {
           chips.push(
             new booyah.Lambda(() => view.act(pose, this._ms(320))),
             new booyah.Wait(this._ms(110)),
@@ -1514,7 +1521,9 @@ export default class FightScene extends ViewChip<SceneEvents> {
                 from,
                 to,
                 this._ms(300 + distance * 35),
-                PROJECTILES[base] ?? { color: 0xffffff },
+                own
+                  ? (PROJECTILES[base] ?? { color: 0xffffff })
+                  : genericProjectile(action),
                 (chip) => this._activateChildChip(chip),
               ),
           )
@@ -1535,6 +1544,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
               event.target,
               event.cells,
               damaging,
+              action,
             )
           }),
           new booyah.Wait(this._ms(damaging ? 90 : 160)),

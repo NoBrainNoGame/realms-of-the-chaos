@@ -1,15 +1,26 @@
 import { describe, expect, test } from "bun:test"
 import type * as booyah from "@ghom/booyah"
-import { ACTIONS, Board, DIVINE_ACTIONS, type Point } from "@realms/engine"
+import {
+  ACTIONS,
+  Board,
+  buildSpell,
+  DIVINE_ACTIONS,
+  generateSpell,
+  type Point,
+} from "@realms/engine"
 import { Container } from "pixi.js"
 import { CHARACTER_ART } from "../art/pixelArt"
 import { mount, runToEnd, tick } from "../test/harness"
 import {
   ACTION_POSE,
+  actionIcon,
   comboFx,
   deathFx,
   divineFx,
   type FxContext,
+  genericPose,
+  genericProjectile,
+  hasOwnFx,
   hitFx,
   impactFx,
   isMelee,
@@ -167,6 +178,33 @@ describe("action staging", () => {
       impactFx(ctx, action.id, { x: 3, y: 4 }, target, [target], damaging)
       if (action.id !== "leap") expect(spawned.length).toBeGreaterThan(0)
       expect(waves.length).toBe(damaging ? 1 : 0)
+    }
+  })
+
+  test("forged spells get generic visuals, whatever their parts", () => {
+    for (let seed = 0; seed < 60; seed++) {
+      const def = buildSpell(generateSpell(seed))
+      expect(hasOwnFx(def.id)).toBe(false)
+      expect(["melee", "cast", "shoot", "roar"]).toContain(genericPose(def))
+      expect(iconTexture(actionIcon(def))).toBeDefined()
+      const { ctx, spawned } = context()
+      const target = { x: 4, y: 4 }
+      const zone = def.area
+        ? [target, { x: 5, y: 4 }, { x: 3, y: 4 }]
+        : [target]
+      const damaging = def.effects.some((e) => e.type === "damage")
+      impactFx(ctx, def.id, { x: 3, y: 4 }, target, zone, damaging, def)
+      expect(spawned.length).toBeGreaterThan(0)
+      if (genericPose(def) !== "melee") {
+        const chip = projectile(
+          new Container(),
+          { x: 0, y: 0 },
+          { x: 100, y: 0 },
+          200,
+          genericProjectile(def),
+        )
+        runToEnd(chip)
+      }
     }
   })
 

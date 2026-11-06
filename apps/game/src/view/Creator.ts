@@ -1,5 +1,6 @@
 import type * as booyah from "@ghom/booyah"
 import {
+  type ActionDefinition,
   AFFINITIES,
   CHARACTERS,
   CUSTOM_STATS,
@@ -8,11 +9,16 @@ import {
   type CustomStatName,
   type CustomStats,
   checkCustom,
+  checkSpell,
   customDefaults,
   customRange,
   customStats,
   HP_PER_HEALTH,
+  MAX_SPELLS,
+  PICKABLE_ACTIONS,
+  previewSpell,
   resolveAction,
+  type SpellRecipe,
 } from "@realms/engine"
 import { Container, Graphics } from "pixi.js"
 import { generateName } from "../names"
@@ -22,14 +28,41 @@ import {
   MAX_CUSTOMS,
   saveCustom,
 } from "../storage"
+import { actionIcon } from "./actionFx"
 import Backdrop from "./Backdrop"
 import { Puppet } from "./Puppet"
+import SpellForge from "./SpellForge"
 import { COLORS } from "./theme"
 import { type Button, button, clearChildren, panel, text } from "./ui"
 import ViewChip from "./ViewChip"
 
 interface CreatorEvents extends booyah.BaseCompositeEvents {
   back: []
+}
+
+type Spells = (string | SpellRecipe)[]
+
+/** What a slot shows of a spell. */
+export function spellInfo(entry: string | SpellRecipe) {
+  if (typeof entry === "string") {
+    const action = resolveAction({}, entry)
+    return {
+      name: action.name,
+      cost: action.timeCost,
+      description: action.description,
+      icon: actionIcon(action),
+      forged: false,
+    }
+  }
+  const check = checkSpell(entry)
+  const action: ActionDefinition | null = check.ok ? check.action : null
+  return {
+    name: entry.name,
+    cost: previewSpell(entry).cost,
+    description: action?.description ?? "",
+    icon: action ? actionIcon(action) : "kick",
+    forged: true,
+  }
 }
 
 export const STAT_LABELS: Record<CustomStatName, string> = {
@@ -42,7 +75,8 @@ export const STAT_LABELS: Record<CustomStatName, string> = {
 }
 
 const WIDTH = 940
-const HEIGHT = 560
+const HEIGHT = 720
+const PAGE = 10
 const KITS = Object.keys(CHARACTERS)
 
 /**
@@ -64,6 +98,11 @@ export default class Creator extends ViewChip<CreatorEvents> {
   private _nameSeed: number
   /** Name of the saved character being edited, if any. */
   private _editing: string | null = null
+  /** Own spells (undefined: the kit's actions, untouched). */
+  private _spells: Spells | undefined
+  /** The spell choice being made for a slot, page by page. */
+  private _chooser: { slot: number; page: number } | null = null
+  private _forge: SpellForge | null = null
 
   constructor(edit?: string, seed = Math.floor(Math.random() * 1e6)) {
     super()
@@ -72,6 +111,7 @@ export default class Creator extends ViewChip<CreatorEvents> {
     if (saved) {
       this._kit = saved.kit
       this._stats = { ...saved.stats }
+      this._spells = saved.spells ? clone(saved.spells) : undefined
       this._name = saved.name
       this._editing = saved.name
     } else {
@@ -101,11 +141,27 @@ export default class Creator extends ViewChip<CreatorEvents> {
 
   /** Health the stats leave (shown live). */
   get health() {
-    return customStats(this._kit, this._stats).health
+    return customStats(this._kit, this._stats, this._spells).health
+  }
+
+  /** The spells shown: the kit's own actions until the player changes them. */
+  get spells(): Readonly<Spells> {
+    return this._spells ?? CHARACTERS[this._kit].actions
+  }
+
+  /** Whether the spells were changed (they are then saved). */
+  get ownSpells() {
+    return this._spells !== undefined
   }
 
   get character(): CustomCharacter {
-    return { name: this._name, kit: this._kit, stats: { ...this._stats } }
+    const character: CustomCharacter = {
+      name: this._name,
+      kit: this._kit,
+      stats: { ...this._stats },
+    }
+    if (this._spells) character.spells = clone(this._spells)
+    return character
   }
 
   get canSave() {
@@ -118,7 +174,7 @@ export default class Creator extends ViewChip<CreatorEvents> {
   }
 
   range(stat: CustomStatName) {
-    return customRange(this._kit, this._stats, stat)
+    return customRange(this._kit, this._stats, stat, this._spells)
   }
 
   canStep(stat: CustomStatName, direction: -1 | 1) {
@@ -147,8 +203,148 @@ export default class Creator extends ViewChip<CreatorEvents> {
   setKit(kit: string) {
     if (!CHARACTERS[kit] || kit === this._kit) return
     this._kit = kit
+    this._spells = undefined
     this._stats = customDefaults(kit)
     this._puppetKit = null
+    this._dirty = true
+  }
+
+  // ─── Spells ───────────────────────────────────────────────────────────────
+
+  /** The spells as the player owns them (the kit's, when untouched). */
+  private _own(): Spells {
+    return this._spells ?? CHARACTERS[this._kit].actions.slice(0, MAX_SPELLS)
+  }
+
+  /**
+   * Puts a spell in a slot (the next free one adds it). Stats are kept
+   * when they still fit, and start over from balanced ones otherwise.
+   */
+  setSpell(slot: number, spell: string | SpellRecipe) {
+    const spells = this._own().slice()
+    if (slot < 0 || slot > spells.length || slot >= MAX_SPELLS) return false
+    spells[slot] = clone(spell)
+    return this._setSpells(spells)
+  }
+
+  canRemoveSpell(slot: number) {
+    return this.spells.length > 1 && slot >= 0 && slot < this.spells.length
+  }
+
+  removeSpell(slot: number) {
+    if (!this.canRemoveSpell(slot)) return false
+    const spells = this._own().slice()
+    spells.splice(slot, 1)
+    return this._setSpells(spells)
+  }
+
+  /** Back to the kit's own actions. */
+  resetSpells() {
+    if (!this._spells) return
+    this._spells = undefined
+    this._refit()
+    this._dirty = true
+  }
+
+  private _setSpells(spells: Spells) {
+    const ids = spells.map((s) =>
+      typeof s === "string" ? s : `spell:${s.name}`,
+    )
+    if (new Set(ids).size !== ids.length) return false
+    this._spells = spells
+    this._refit()
+    this._dirty = true
+    return true
+  }
+
+  /** Re-clamps the stats on what the new spells allow (health follows). */
+  private _refit() {
+    const spells = this._spells
+    const stats = { ...this._stats }
+    for (let pass = 0; pass < 3; pass++) {
+      for (const stat of CUSTOM_STATS) {
+        const { min, max } = customRange(this._kit, stats, stat, spells)
+        if (min <= max) stats[stat] = Math.min(max, Math.max(min, stats[stat]))
+      }
+      if (checkCustom({ ...this.character, stats }).ok) {
+        this._stats = stats
+        return
+      }
+    }
+    this._stats = customDefaults(this._kit, spells)
+  }
+
+  /** The choice of a spell for a slot (the existing actions, or the forge). */
+  openChooser(slot: number) {
+    if (slot < 0 || slot > this.spells.length || slot >= MAX_SPELLS) return
+    this._chooser = { slot, page: 0 }
+    this._dirty = true
+  }
+
+  closeChooser() {
+    this._chooser = null
+    this._dirty = true
+  }
+
+  get chooser(): Readonly<{ slot: number; page: number }> | null {
+    return this._chooser
+  }
+
+  get pages() {
+    return Math.ceil(PICKABLE_ACTIONS.length / PAGE)
+  }
+
+  chooserPage(direction: -1 | 1) {
+    if (!this._chooser) return
+    const page = this._chooser.page + direction
+    if (page < 0 || page >= this.pages) return
+    this._chooser = { ...this._chooser, page }
+    this._dirty = true
+  }
+
+  /** Picks an existing action for the slot being chosen. */
+  pickAction(id: string) {
+    if (!this._chooser || !PICKABLE_ACTIONS.includes(id)) return false
+    const ok = this.setSpell(this._chooser.slot, id)
+    if (ok) this._chooser = null
+    return ok
+  }
+
+  get forge() {
+    return this._forge
+  }
+
+  /** Opens the forge for a slot (a forged spell there is modified). */
+  openForge(slot: number) {
+    if (this._forge || slot < 0 || slot > this.spells.length) return null
+    if (slot >= MAX_SPELLS) return null
+    const spells = this._own()
+    const current = spells[slot]
+    const taken = spells
+      .filter((_, i) => i !== slot)
+      .flatMap((s) => (typeof s === "string" ? [] : [s.name]))
+    const forge = new SpellForge(
+      typeof current === "object" ? current : undefined,
+      taken,
+      this._nameSeed + 77 + slot,
+    )
+    this._forge = forge
+    this._box.visible = false
+    this._activateChildChip(forge)
+    this._subscribeOnce(forge, "done", (recipe: SpellRecipe) => {
+      this.setSpell(slot, recipe)
+      this._closeForge()
+    })
+    this._subscribeOnce(forge, "cancel", () => this._closeForge())
+    return forge
+  }
+
+  private _closeForge() {
+    if (!this._forge) return
+    this._terminateChildChip(this._forge)
+    this._forge = null
+    this._chooser = null
+    this._box.visible = true
     this._dirty = true
   }
 
@@ -165,6 +361,7 @@ export default class Creator extends ViewChip<CreatorEvents> {
     if (!saved) return
     this._kit = saved.kit
     this._stats = { ...saved.stats }
+    this._spells = saved.spells ? clone(saved.spells) : undefined
     this._name = saved.name
     this._editing = saved.name
     this._puppetKit = null
@@ -175,6 +372,7 @@ export default class Creator extends ViewChip<CreatorEvents> {
   startNew() {
     this._editing = null
     this._kit = KITS[0]
+    this._spells = undefined
     this._stats = customDefaults(this._kit)
     this._name = this._freshName()
     this._puppetKit = null
@@ -234,6 +432,13 @@ export default class Creator extends ViewChip<CreatorEvents> {
   }
 
   handleKey(key: string): boolean {
+    // the forge has its own keys
+    if (this._forge) return false
+    if (this._chooser) {
+      if (key !== "Escape") return false
+      this.closeChooser()
+      return true
+    }
     switch (key) {
       case "ArrowLeft":
         this.changeKit(-1)
@@ -294,6 +499,10 @@ export default class Creator extends ViewChip<CreatorEvents> {
       { fontWeight: "700", stroke: { color: 0x000000, width: 5 } },
     )
     this._box.addChild(title)
+    if (this._chooser) {
+      this._buildChooser()
+      return
+    }
 
     // left: the kit (box coordinates)
     const top = 56
@@ -318,21 +527,14 @@ export default class Creator extends ViewChip<CreatorEvents> {
     )
     kitTitle.anchor.set(0.5, 0)
     kitTitle.position.set(150, top + 206)
-    const actions = text(
-      preset.actions
-        .filter((a) => a !== "kick")
-        .map((a) => {
-          const action = resolveAction(preset, a)
-          return `• ${action.name} — ${action.description}`
-        })
-        .join("\n"),
-      12,
-      COLORS.text,
-      { lineHeight: 16, wordWrap: true, wordWrapWidth: 276 },
+    const kitNote = text(
+      "Son apparence et son affinité. Ses sorts se choisissent plus bas.",
+      11,
+      COLORS.muted,
+      { lineHeight: 15, wordWrap: true, wordWrapWidth: 276 },
     )
-    actions.position.set(12, top + 232)
-    // the card ends with its content
-    const kitPanel = panel(300, actions.y + actions.height + 14 - top)
+    kitNote.position.set(12, top + 236)
+    const kitPanel = panel(300, 440)
     kitPanel.position.set(0, top)
     this._box.addChild(
       kitPanel,
@@ -340,7 +542,7 @@ export default class Creator extends ViewChip<CreatorEvents> {
       this._puppet,
       kitName,
       kitTitle,
-      actions,
+      kitNote,
       prev.view,
       next.view,
     )
@@ -405,6 +607,17 @@ export default class Creator extends ViewChip<CreatorEvents> {
     )
     note.position.set(x, health.y + 28)
     this._box.addChild(health, note)
+    if (!checkCustom(this.character).ok) {
+      const warn = text(
+        "Cette composition est trop forte ou trop faible : changez un sort ou une qualité.",
+        12,
+        0xff6b6b,
+        { wordWrap: true, wordWrapWidth: 340, lineHeight: 15 },
+      )
+      warn.label = "creator:warning"
+      warn.position.set(x, note.y + note.height + 8)
+      this._box.addChild(warn)
+    }
 
     // right: saved characters
     const rx = 716
@@ -444,6 +657,8 @@ export default class Creator extends ViewChip<CreatorEvents> {
       this._box.addChild(fresh.view)
     }
 
+    this._buildSlots(512)
+
     // bottom: save, delete, back
     const back = button({
       width: 150,
@@ -478,9 +693,189 @@ export default class Creator extends ViewChip<CreatorEvents> {
     this._place()
   }
 
+  /** The spells of the character: one card per slot. */
+  private _buildSlots(y: number) {
+    const spells = this.spells
+    const slots = Math.max(MAX_SPELLS, spells.length)
+    const gap = 12
+    const width = (WIDTH - gap * (slots - 1)) / slots
+    const heading = text(
+      this.ownSpells ? "Sorts" : "Sorts (ceux de son modèle)",
+      16,
+      COLORS.text,
+      { fontWeight: "700" },
+    )
+    heading.position.set(0, y)
+    this._box.addChild(heading)
+    if (this.ownSpells) {
+      const reset = button({
+        width: 190,
+        height: 24,
+        label: "Rétablir ceux du modèle",
+        onTap: () => this.resetSpells(),
+      })
+      reset.view.label = "creator:spells:reset"
+      reset.view.position.set(WIDTH - 190, y - 2)
+      this._box.addChild(reset.view)
+    }
+    const top = y + 28
+    for (let i = 0; i < slots; i++) {
+      const x = i * (width + gap)
+      const card = panel(width, 120)
+      card.position.set(x, top)
+      this._box.addChild(card)
+      const entry = spells[i]
+      if (entry === undefined) {
+        const add = button({
+          width: width - 24,
+          height: 36,
+          label: "+ Ajouter un sort",
+          onTap: () => this.openChooser(i),
+        })
+        add.view.label = `creator:spell:${i}:add`
+        add.view.position.set(x + 12, top + 42)
+        this._box.addChild(add.view)
+        continue
+      }
+      const info = spellInfo(entry)
+      const name = text(info.name, 15, 0xffe066, { fontWeight: "700" })
+      name.position.set(x + 10, top + 8)
+      const cost = text(`Délai : ${info.cost.toFixed(2)}`, 11, COLORS.muted)
+      cost.anchor.set(1, 0)
+      cost.position.set(x + width - 10, top + 11)
+      const short =
+        info.description.length > 110
+          ? `${info.description.slice(0, 107)}…`
+          : info.description
+      const description = text(short, 11, COLORS.text, {
+        wordWrap: true,
+        wordWrapWidth: width - 20,
+        lineHeight: 14,
+      })
+      description.position.set(x + 10, top + 30)
+      this._box.addChild(name, cost, description)
+      const buttons: [string, string, () => void, boolean, number?][] = [
+        ["Changer", "change", () => this.openChooser(i), true],
+        ...(info.forged
+          ? ([["Modifier", "edit", () => this.openForge(i), true]] as [
+              string,
+              string,
+              () => void,
+              boolean,
+            ][])
+          : []),
+        [
+          "Retirer",
+          "remove",
+          () => this.removeSpell(i),
+          this.canRemoveSpell(i),
+          0xff6b6b,
+        ],
+      ]
+      const bw = (width - 20 - 6 * (buttons.length - 1)) / buttons.length
+      buttons.forEach(([label, id, onTap, enabled, color], j) => {
+        const b = button({
+          width: bw,
+          height: 26,
+          label,
+          labelColor: color,
+          onTap,
+        })
+        b.view.label = `creator:spell:${i}:${id}`
+        b.view.position.set(x + 10 + j * (bw + 6), top + 88)
+        b.setState({ enabled })
+        this._box.addChild(b.view)
+      })
+    }
+  }
+
+  /** Choice of the spell of a slot: an existing action, or the forge. */
+  private _buildChooser() {
+    const chooser = this._chooser!
+    const top = 56
+    const back = panel(WIDTH, 590)
+    back.position.set(0, top)
+    this._box.addChild(back)
+    const heading = text(
+      `Sort ${chooser.slot + 1} : choisir une action ou en forger une`,
+      18,
+      COLORS.text,
+      { fontWeight: "700" },
+    )
+    heading.position.set(16, top + 12)
+    this._box.addChild(heading)
+    const forge = button({
+      width: 260,
+      height: 40,
+      label: "Forger un sort",
+      onTap: () => this.openForge(chooser.slot),
+    })
+    forge.view.label = "creator:forge"
+    forge.view.position.set(WIDTH - 276, top + 8)
+    this._box.addChild(forge.view)
+
+    const taken = new Set(this.spells.filter((_, i) => i !== chooser.slot))
+    const ids = PICKABLE_ACTIONS.slice(
+      chooser.page * PAGE,
+      (chooser.page + 1) * PAGE,
+    )
+    const hint = text("", 12, COLORS.text, {
+      wordWrap: true,
+      wordWrapWidth: WIDTH - 32,
+      lineHeight: 16,
+    })
+    hint.position.set(16, top + 480)
+    ids.forEach((id, i) => {
+      const action = resolveAction({}, id)
+      const col = i % 2
+      const row = Math.floor(i / 2)
+      const b = button({
+        width: 446,
+        height: 44,
+        inline: true,
+        icon: actionIcon(action),
+        label: `${action.name} · délai ${action.timeCost.toFixed(2)}`,
+        onTap: () => this.pickAction(id),
+        onOver: () => {
+          hint.text = action.description
+        },
+      })
+      b.view.label = `creator:pick:${id}`
+      b.view.position.set(16 + col * 458, top + 64 + row * 54)
+      b.setState({
+        enabled: !taken.has(id),
+        selected: this.spells[chooser.slot] === id,
+      })
+      this._box.addChild(b.view)
+    })
+    this._box.addChild(hint)
+
+    const prev = this._small("‹", () => this.chooserPage(-1), "creator:page:-")
+    prev.view.position.set(16, top + 540)
+    prev.setState({ enabled: chooser.page > 0 })
+    const page = text(`${chooser.page + 1} / ${this.pages}`, 14, COLORS.text)
+    page.anchor.set(0.5, 0)
+    page.position.set(78, top + 546)
+    const next = this._small("›", () => this.chooserPage(1), "creator:page:+")
+    next.view.position.set(120, top + 540)
+    next.setState({ enabled: chooser.page < this.pages - 1 })
+    const cancel = button({
+      width: 150,
+      height: 36,
+      label: "Annuler",
+      onTap: () => this.closeChooser(),
+    })
+    cancel.view.label = "creator:chooser:cancel"
+    cancel.view.position.set(WIDTH - 166, top + 540)
+    this._box.addChild(prev.view, page, next.view, cancel.view)
+    this._place()
+  }
+
   private _small(label: string, onTap: () => void, id: string): Button {
     const b = button({ width: 36, height: 36, label, onTap })
     b.view.label = id
     return b
   }
 }
+
+const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
