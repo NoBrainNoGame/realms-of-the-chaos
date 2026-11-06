@@ -5,6 +5,7 @@
  */
 import { Combat, type CombatOptions, type Command } from "./combat"
 import { CHARACTERS } from "./content"
+import { type CustomCharacter, checkCustom, customPreset } from "./custom"
 import { createRng } from "./random"
 
 export type ArcadeBonus = "heal" | "power" | "recruit"
@@ -37,9 +38,16 @@ export const ARCADE_RECOVERY = 0.5
 /** Hard cap on the number of waves (keeps verification bounded). */
 export const ARCADE_MAX_WAVES = 50
 
+/** A team member: a character id, or a custom character (checked). */
+export type ArcadeMember = string | CustomCharacter
+
+function memberPreset(member: ArcadeMember) {
+  return typeof member === "string" ? member : customPreset(member)
+}
+
 export interface ArcadeState {
   /** Character presets of the player's team (survivors only). */
-  team: string[]
+  team: ArcadeMember[]
   /** Hit points of each team member (undefined = full). */
   hp: (number | undefined)[]
   /** Player's stat multiplier (power bonuses). */
@@ -50,12 +58,15 @@ export interface ArcadeState {
   alive: boolean
 }
 
-export function startArcade(team: string[]): ArcadeState {
+export function startArcade(team: ArcadeMember[]): ArcadeState {
   if (team.length < 1 || team.length > ARCADE_MAX_TEAM) {
     throw new Error(`An arcade team has 1 to ${ARCADE_MAX_TEAM} fighters`)
   }
   for (const id of team) {
-    if (!CHARACTERS[id]) throw new Error(`Unknown character "${id}"`)
+    if (typeof id !== "string") {
+      const check = checkCustom(id)
+      if (!check.ok) throw new Error(`Invalid character: ${check.reason}`)
+    } else if (!CHARACTERS[id]) throw new Error(`Unknown character "${id}"`)
   }
   return {
     team: [...team],
@@ -90,7 +101,7 @@ export function arcadeWaveOptions(
       {
         name: "Vous",
         controller: "human",
-        fighters: state.team,
+        fighters: state.team.map(memberPreset),
         statMultiplier: state.multiplier,
         hp: state.hp,
       },
@@ -118,7 +129,8 @@ export function arcadeAfterWave(
 
   const mine = combat.fighters.filter((f) => f.team === 0)
   const survivors = mine.filter((f) => f.alive)
-  const team = survivors.map((f) => f.presetId)
+  // the team's fighters come in the order of state.team
+  const team = mine.flatMap((f, i) => (f.alive ? [state.team[i]] : []))
   const hp = survivors.map((f) => {
     const max = combat.maxHp(f)
     return Math.round(f.hp + (max - f.hp) * ARCADE_RECOVERY)
@@ -173,7 +185,7 @@ export function applyArcadeBonus(
 /** Everything needed to replay and verify a run. */
 export interface ArcadeRecord {
   seed: number
-  team: string[]
+  team: ArcadeMember[]
   waves: { log: Command[]; bonus: ArcadeBonus | null }[]
 }
 

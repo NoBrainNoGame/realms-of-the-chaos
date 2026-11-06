@@ -113,14 +113,11 @@ export default class TeamPicker extends ViewChip<PickerEvents> {
   ) {
     super()
     this._seed = options.seed ?? Math.floor(Math.random() * 1e6)
-    // the arcade rebuilds its team from the reference characters only
-    if (mode !== "arcade") {
-      for (const c of customCharacters()) {
-        const id = customId(c.name)
-        this._roster[id] = customPreset(c)
-        this._customIds.push(id)
-        registerLook(id, c.kit)
-      }
+    for (const c of customCharacters()) {
+      const id = customId(c.name)
+      this._roster[id] = customPreset(c)
+      this._customIds.push(id)
+      registerLook(id, c.kit)
     }
     this._picks = Array.from({ length: this.steps }, (_, i) =>
       (options.teams?.[i] ?? [])

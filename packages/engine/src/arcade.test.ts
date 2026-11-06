@@ -18,6 +18,7 @@ import {
 } from "./arcade"
 import { Combat, type Command } from "./combat"
 import { CHARACTERS } from "./content"
+import { customDefaults } from "./custom"
 
 /** Play the human team with the AI brain, through logged commands. */
 function autoplay(combat: Combat) {
@@ -145,7 +146,7 @@ describe("arcade rules", () => {
     expect(applyArcadeBonus(1, state, "power").multiplier).toBe(1.1)
     const recruited = applyArcadeBonus(1, state, "recruit")
     expect(recruited.team).toHaveLength(3)
-    expect(CHARACTERS[recruited.team[2]]).toBeDefined()
+    expect(CHARACTERS[recruited.team[2] as string]).toBeDefined()
     expect(arcadeBonusChoices(recruited)).not.toContain("recruit")
     expect(recruited.team.length).toBe(ARCADE_MAX_TEAM)
     expect(() => applyArcadeBonus(1, recruited, "recruit")).toThrow()
@@ -202,4 +203,35 @@ describe("arcade run verification", () => {
       expect(() => verifyArcadeRun(badBonus)).toThrow()
     }
   }, 60_000)
+})
+
+describe("arcade with a custom character", () => {
+  test("a custom member plays its stats, is kept by id order and verified", () => {
+    const custom = {
+      name: "Ombrelune",
+      kit: "nyx",
+      stats: customDefaults("nyx"),
+    }
+    const state = startArcade(["gorr", custom])
+    const options = arcadeWaveOptions(5, state)
+    const preset = options.teams[0].fighters[1]
+    expect(typeof preset === "object" && preset.name).toBe("Ombrelune")
+    const combat = new Combat(options)
+    autoplay(combat)
+    expect(combat.state).toBe("ended")
+    const after = arcadeAfterWave(state, combat)
+    if (after.alive) {
+      for (const member of after.team)
+        expect([custom, "gorr"]).toContain(member)
+    }
+    const record: ArcadeRecord = {
+      seed: 5,
+      team: ["gorr", custom],
+      waves: [{ log: [...combat.log], bonus: null }],
+    }
+    expect(verifyArcadeRun(record).score).toBe(after.score)
+    expect(() =>
+      startArcade([{ ...custom, stats: { ...custom.stats, speed: 99 } }]),
+    ).toThrow()
+  })
 })

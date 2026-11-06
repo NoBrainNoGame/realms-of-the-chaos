@@ -3,6 +3,7 @@ import type * as booyah from "@ghom/booyah"
 import {
   ARCADE_BONUSES,
   type ArcadeBonus,
+  type ArcadeMember,
   type ArcadeRecord,
   type ArcadeState,
   applyArcadeBonus,
@@ -13,8 +14,9 @@ import {
   CHARACTERS,
   startArcade,
 } from "@realms/engine"
-import { submitArcadeScore } from "../storage"
+import { customById, customId, isCustomId, submitArcadeScore } from "../storage"
 import FightScene, { type SceneOptions } from "./FightScene"
+import { registerLook } from "./looks"
 import MessageScreen from "./MessageScreen"
 import { COLORS } from "./theme"
 import ViewChip from "./ViewChip"
@@ -71,8 +73,9 @@ export default class ArcadeRun extends ViewChip<ArcadeEvents> {
   ) {
     super()
     const seed = _options.seed ?? Math.floor(Math.random() * 1e9)
-    this._run = startArcade(team)
-    this._record = { seed, team: [...team], waves: [] }
+    const members = arcadeMembers(team)
+    this._run = startArcade(members)
+    this._record = { seed, team: members, waves: [] }
   }
 
   /** Progress of the run (team, hit points, wave, score). */
@@ -124,12 +127,12 @@ export default class ArcadeRun extends ViewChip<ArcadeEvents> {
     }
 
     const survivors = this._run.team
-      .map((id, i) => {
+      .map((member, i) => {
         const fighter = scene.combat.fighters.find(
-          (f) => f.team === 0 && f.alive && f.presetId === id,
+          (f) => f.team === 0 && f.alive && f.presetId === memberId(member),
         )
         const max = fighter ? scene.combat.baseMaxHp(fighter) : 0
-        return `${CHARACTERS[id].name} ${this._run.hp[i]}/${max} PV`
+        return `${memberName(member)} ${this._run.hp[i]}/${max} PV`
       })
       .join(" · ")
     const fallen = before.team.length - this._run.team.length
@@ -181,7 +184,7 @@ export default class ArcadeRun extends ViewChip<ArcadeEvents> {
       lines: [
         `Marées repoussées : ${waves}`,
         `Score : ${this._run.score}`,
-        `Équipe : ${this.team.map((id) => CHARACTERS[id].name).join(", ")}`,
+        `Équipe : ${this._record.team.map(memberName).join(", ")}`,
       ],
       choices: [
         { id: "again", label: "Rejouer avec cette équipe" },
@@ -193,4 +196,23 @@ export default class ArcadeRun extends ViewChip<ArcadeEvents> {
       id === "again" ? this.emit("again") : this.emit("exit"),
     )
   }
+}
+
+/** The run's team: saved custom characters join as their full character. */
+function arcadeMembers(ids: string[]): ArcadeMember[] {
+  return ids.flatMap((id): ArcadeMember[] => {
+    if (!isCustomId(id)) return [id]
+    const stored = customById(id)
+    if (!stored) return []
+    registerLook(id, stored.kit)
+    return [stored]
+  })
+}
+
+function memberId(member: ArcadeMember) {
+  return typeof member === "string" ? member : customId(member.name)
+}
+
+function memberName(member: ArcadeMember) {
+  return typeof member === "string" ? CHARACTERS[member].name : member.name
 }

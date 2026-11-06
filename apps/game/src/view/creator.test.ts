@@ -11,10 +11,12 @@ import { generateName } from "../names"
 import {
   clearStorage,
   customCharacters,
+  customId,
   deleteCustom,
   saveCustom,
 } from "../storage"
 import { mount, tick } from "../test/harness"
+import ArcadeRun from "./ArcadeRun"
 import Creator from "./Creator"
 import FightScene from "./FightScene"
 import { pickedFight } from "./Game"
@@ -149,9 +151,11 @@ describe("a custom fighter", () => {
     picker.add("gorr")
     expect(picker.picks[0]).toEqual([id, "gorr"])
     tick(picker, 100)
-    // not offered to the arcade
+    // offered to the arcade too
     const arcade = mount(new TeamPicker("arcade", { seed: 3 }))
-    expect((arcade as any)._cards).toHaveLength(Object.keys(CHARACTERS).length)
+    expect((arcade as any)._cards).toHaveLength(
+      Object.keys(CHARACTERS).length + 1,
+    )
 
     const options = pickedFight(
       {
@@ -180,5 +184,18 @@ describe("a custom fighter", () => {
       4,
     )
     expect(options.teams[0].fighters).toEqual(["eva"])
+  })
+})
+
+describe("a custom fighter in the arcade", () => {
+  test("joins the run as its character, and the run is verifiable", () => {
+    saveCustom(sample())
+    const id = customId(sample().name)
+    const run = mount(new ArcadeRun([id, "gorr"], { speed: 4, seed: 9 }))
+    expect(run.run.team[0]).toEqual(sample())
+    const scene = run.screen as FightScene
+    const fighter = scene.combat.fighters.find((f) => f.presetId === id)!
+    expect(scene.combat.presetOf(fighter).name).toBe(sample().name)
+    expect(lookOf(id)).toBe(sample().kit)
   })
 })
