@@ -1,3 +1,4 @@
+import type { PuzzleSpec } from "./puzzle"
 import type {
   Beat,
   Cond,
@@ -105,3 +106,17 @@ export const around = (island: string[], x: number, y: number): Spot[] =>
       const c = island[p.y]?.[p.x]
       return c !== undefined && c !== "w" && c !== "W"
     })
+
+export const puzzle = (
+  id: string,
+  spec: PuzzleSpec,
+  on: Record<string, Beat[]> = {},
+  options: { prompt?: string; none?: Beat[] } = {},
+): Beat => ({
+  t: "puzzle",
+  id,
+  prompt: options.prompt,
+  puzzle: spec,
+  on,
+  none: options.none,
+})

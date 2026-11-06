@@ -33,6 +33,7 @@ export {
 export * from "./exploration"
 export * from "./flags"
 export * from "./items"
+export * from "./puzzle"
 export * from "./reactions"
 export * from "./runner"
 export * from "./trace"

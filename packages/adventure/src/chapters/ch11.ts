@@ -9,11 +9,13 @@ import {
   is,
   narr,
   opt,
+  puzzle,
   say,
   set,
   stage,
   when,
 } from "../dsl"
+import type { PuzzleSpec } from "../puzzle"
 import {
   type Beat,
   type Chapter,
@@ -245,6 +247,21 @@ function strate(
   ]
 }
 
+// The wall of the old shore, one cell per stretch; the lantern lights what it
+// passes over.
+const LANTERNE: PuzzleSpec = {
+  kind: "grid",
+  w: 6,
+  h: 1,
+  tokens: [{ id: "lanterne", label: "La lanterne", at: { x: 0, y: 0 } }],
+  moves: 5,
+  rules: [
+    { id: "roche", kind: "visit", cells: [{ x: 1, y: 0 }] },
+    { id: "camp", kind: "visit", cells: [{ x: 3, y: 0 }] },
+    { id: "eclats", kind: "visit", cells: [{ x: 5, y: 0 }] },
+  ],
+}
+
 export const ch11: Chapter = {
   id: "11",
   era: 2,
@@ -446,10 +463,23 @@ export const ch11: Chapter = {
           "nerea",
           "Votre époque est là, Dormeur. Quatre siècles de vase au-dessus. Ce sera froid.",
         ),
-        // SIMPLIFIED: the guided reading (the lantern moved along the wall) is
-        // told as a series of traces.
         stage(
           "Pas de combat : une lecture guidée. Le héros déplace une lanterne le long de la paroi ; chaque trace s'allume au passage. La lumière ne crée rien : elle rend visible ce que la vase a gardé.",
+        ),
+        puzzle(
+          "lanterne",
+          LANTERNE,
+          {
+            roche: [stage("La lanterne passe sur une roche chauffée, mince.")],
+            camp: [stage("Plus loin, des cendres de petits feux, empilées.")],
+            eclats: [
+              stage("Au bout de la paroi, des éclats d'un cristal taillé."),
+            ],
+          },
+          {
+            prompt:
+              "Déplace la lanterne le long de la paroi : chaque trace s'allume là où elle passe.",
+          },
         ),
         stage(
           "Une couche de roche chauffée, mince, au bord de l'ancien rivage, avec des éclats d'un cristal taillé.",

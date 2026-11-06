@@ -14,12 +14,14 @@ import {
   join,
   narr,
   opt,
+  puzzle,
   say,
   set,
   stage,
   topic,
   when,
 } from "../dsl"
+import type { PuzzleSpec } from "../puzzle"
 import type { Beat, Chapter, FightReport, FightSpec } from "../types"
 import { END } from "../types"
 import {
@@ -231,39 +233,84 @@ const PAIRS = [
   {
     id: "a",
     flag: "nasse_a",
-    text: "Amener le vieux pêcheur près de la tisseuse.",
+    tokens: ["pecheur", "tisseuse"] as [string, string],
   },
   {
     id: "b",
     flag: "nasse_b",
-    text: "Guider le père et sa fille, front contre front.",
+    tokens: ["pere", "fille"] as [string, string],
   },
   {
     id: "c",
     flag: "nasse_c",
-    text: "Placer le conteur entre les deux frères.",
+    tokens: ["conteur", "freres"] as [string, string],
   },
-] as const
+]
 
-const nassesMove = (n: number): Beat =>
-  choice(`nasses_${n}`, [
-    ...PAIRS.map((p) =>
-      opt(
+// 5 x 5 cells, all of them Lacune ground (walkable, but nothing holds): six
+// Déliés, each alone on a cell; four moves; two of them on one cell make it
+// inhabited.
+const NASSES: PuzzleSpec = {
+  kind: "grid",
+  w: 5,
+  h: 5,
+  marks: [
+    {
+      label: "Fond du gris",
+      cells: Array.from({ length: 25 }, (_, i) => ({
+        x: i % 5,
+        y: (i / 5) | 0,
+      })),
+    },
+  ],
+  tokens: [
+    { id: "pecheur", label: "Le vieux pêcheur", at: { x: 0, y: 0 } },
+    { id: "tisseuse", label: "La tisseuse", at: { x: 3, y: 1 } },
+    { id: "pere", label: "Le père", at: { x: 1, y: 3 } },
+    { id: "fille", label: "Sa fille", at: { x: 4, y: 4 } },
+    { id: "conteur", label: "Le conteur", at: { x: 2, y: 2 } },
+    { id: "freres", label: "Les deux frères", at: { x: 0, y: 4 } },
+  ],
+  moves: 4,
+  sticky: true,
+  rules: PAIRS.map((p) => ({
+    id: p.id,
+    kind: "together" as const,
+    tokens: p.tokens,
+  })),
+}
+
+const NASSE_TEXT: Record<string, string> = {
+  a: "Le vieux pêcheur rejoint la tisseuse : leurs contours redeviennent nets.",
+  b: "Le père et sa fille, front contre front : la case reprend un peu de couleur.",
+  c: "Le conteur entre les deux frères : la case reprend de la couleur.",
+}
+
+const nassesPuzzle = (): Beat =>
+  puzzle(
+    "nasses",
+    NASSES,
+    Object.fromEntries(
+      PAIRS.map((p) => [
         p.id,
-        p.text,
         [
           fx(set(p.flag)),
           stage(
-            "Le héros se place entre eux, les guide du plat de la main. Les deux silhouettes se rejoignent sur la même case : leurs contours redeviennent nets, la case reprend un peu de couleur.",
+            `Le héros se place entre eux, les guide du plat de la main. ${NASSE_TEXT[p.id]}`,
           ),
         ],
-        is(p.flag, false),
-      ),
+      ]),
     ),
-    opt("attendre", "Regarder, sans rien guider.", [
-      stage("Rien ne bouge. À dix pas, un contour s'est encore un peu défait."),
-    ]),
-  ])
+    {
+      prompt:
+        "Choisis un Délié, puis la case où le guider : quatre déplacements. Deux Déliés sur la même case, et elle redevient habitée.",
+      none: [
+        stage(
+          "Rien ne bouge. À dix pas, un contour s'est encore un peu défait.",
+        ),
+      ],
+    },
+  )
 
 // ─── Chapter ────────────────────────────────────────────────────────────────
 
@@ -583,10 +630,7 @@ export const ch20: Chapter = {
         stage(
           "Six Déliés vivent ici, chacun seul sur sa case, et perdent lentement leurs contours. Le héros a quatre déplacements : chaque fois qu'il amène deux d'entre eux sur la même case, la case devient habitée.",
         ),
-        nassesMove(1),
-        nassesMove(2),
-        nassesMove(3),
-        nassesMove(4),
+        nassesPuzzle(),
         when(all(is("nasse_a"), is("nasse_b"), is("nasse_c")), [
           fx(add("lacunes.habitees")),
           stage(

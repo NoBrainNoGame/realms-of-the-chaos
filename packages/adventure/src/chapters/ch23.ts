@@ -13,12 +13,14 @@ import {
   isnt,
   lt,
   opt,
+  puzzle,
   say,
   set,
   stage,
   topic,
   when,
 } from "../dsl"
+import type { PuzzleSpec } from "../puzzle"
 import type { Beat, Chapter, Cond } from "../types"
 import { END } from "../types"
 import "./era4kit"
@@ -72,6 +74,23 @@ const friseTopic = (
     ],
     cond ? { if: cond } : {},
   )
+
+// 4 x 3 floor in front of the crystal; three Échos, one move to bring two
+// of them together.
+const INTRICATION: PuzzleSpec = {
+  kind: "grid",
+  w: 4,
+  h: 3,
+  marks: [{ label: "Devant le cristal", cells: [{ x: 3, y: 1 }] }],
+  tokens: [
+    { id: "echo1", label: "Écho de Lyra", at: { x: 0, y: 0 } },
+    { id: "echo2", label: "Écho de Gorr", at: { x: 1, y: 2 } },
+    { id: "echo3", label: "Écho du héros", at: { x: 3, y: 1 } },
+  ],
+  moves: 2,
+  endsWhenAll: true,
+  rules: [{ id: "lie", kind: "stacked", n: 2, cells: [{ x: 3, y: 1 }] }],
+}
 
 // ─── Chapter ────────────────────────────────────────────────────────────────
 
@@ -244,6 +263,26 @@ export const ch23: Chapter = {
       beats: [
         stage(
           "La Salle projette une frise des grandes actions du Ghom, de l'Aube à la Fêlure. Pour chaque moment, deux faisceaux sortent du cristal : le clair, ce que l'Influence a fait à l'Archipel, que les Déliés ont toujours lu ; et le sombre, la signature de l'Influence elle-même, sa forme, sa chaleur, sa lenteur, que personne n'avait cherché.",
+        ),
+        puzzle(
+          "intrication",
+          INTRICATION,
+          {
+            lie: [
+              stage(
+                "Les deux Échos se superposent devant le cristal : l'Intrication tient, le faisceau sombre devient lisible.",
+              ),
+            ],
+          },
+          {
+            prompt:
+              "Amène deux Échos sur la même case, devant le cristal, pour lire le faisceau sombre.",
+            none: [
+              stage(
+                "Les Échos restent à distance. La Salle les rapproche d'elle-même, à contrecœur : la lecture sera moins nette.",
+              ),
+            ],
+          },
         ),
         hub("frise", [
           friseTopic(

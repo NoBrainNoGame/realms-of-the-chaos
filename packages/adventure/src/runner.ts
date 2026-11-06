@@ -1,6 +1,7 @@
 import { compile, type Op } from "./compile"
 import { autonomyEffects } from "./entries"
 import { clampFlag, defaultFlag, flagSpec } from "./flags"
+import type { PuzzleSpec } from "./puzzle"
 import { objectiveOutcome } from "./trace"
 import type {
   Chapter,
@@ -37,6 +38,8 @@ export interface Run extends Carry {
   seen?: string[]
   /** The Ghom's Élan, carried between the island and the fights. */
   elan?: number
+  /** The rules each puzzle of the chapter ended on (see `solvePuzzle`). */
+  puzzles?: Record<string, string[]>
 }
 
 export type Frame =
@@ -58,6 +61,7 @@ export type Frame =
       id: string
       topics: { id: string; title: string }[]
     }
+  | { kind: "puzzle"; id: string; prompt?: string; puzzle: PuzzleSpec }
   | { kind: "fight"; fight: FightSpec }
   | { kind: "done" }
 
@@ -213,6 +217,13 @@ function settle(input: Run): Run {
         run.pc = op.hub
         break
       }
+      case "pjf": {
+        const got = run.puzzles?.[`${run.node}:${op.puzzle}`] ?? []
+        const hit =
+          op.rule === "none" ? got.length === 0 : got.includes(op.rule)
+        run.pc = hit ? run.pc + 1 : op.to
+        break
+      }
       case "hub":
         if (availableTopics(run, op).length === 0) run.pc = op.after
         else return run
@@ -259,6 +270,13 @@ export function frame(run: Run): Frame {
           title: t.title,
         })),
       }
+    case "puzzle":
+      return {
+        kind: "puzzle",
+        id: op.id,
+        prompt: op.prompt,
+        puzzle: visiblePuzzle(run, op.puzzle),
+      }
     case "fight":
       return { kind: "fight", fight: op.fight }
     default:
@@ -270,6 +288,10 @@ export function frame(run: Run): Frame {
 export function next(run: Run): Run {
   const r = copy(run)
   const op = opsOf(r)[r.pc]
+  if (op.op === "puzzle") {
+    // walking away from a puzzle: no rule holds
+    return solvePuzzle(r, [])
+  }
   if (op.op === "choice" || op.op === "hub" || op.op === "fight")
     throw new Error("A choice, a hub or a fight is not skipped")
   r.pc++
@@ -289,6 +311,30 @@ export function choose(run: Run, optionId: string): Run {
     if (!t) throw new Error(`No topic "${optionId}" here`)
     r.pc = t.to
   } else throw new Error("Nothing to choose here")
+  return settle(r)
+}
+
+/** The rules of a puzzle whose condition does not hold are left out. */
+function visiblePuzzle(run: Run, puzzle: PuzzleSpec): PuzzleSpec {
+  if (puzzle.kind !== "grid") return puzzle
+  return {
+    ...puzzle,
+    rules: puzzle.rules.filter((r) => !r.if || holds(run, r.if)),
+  }
+}
+
+/** The puzzle ended: `rules` are the ids that hold (see the sessions). */
+export function solvePuzzle(run: Run, rules: string[]): Run {
+  const r = copy(run)
+  const op = opsOf(r)[r.pc]
+  if (op.op !== "puzzle") throw new Error("No puzzle is waiting")
+  const known = new Set(
+    op.puzzle.kind === "grid" ? op.puzzle.rules.map((x) => x.id) : ["ok"],
+  )
+  for (const id of rules)
+    if (!known.has(id)) throw new Error(`No rule "${id}" in puzzle "${op.id}"`)
+  r.puzzles = { ...r.puzzles, [`${r.node}:${op.id}`]: rules }
+  r.pc++
   return settle(r)
 }
 

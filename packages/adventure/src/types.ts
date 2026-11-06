@@ -12,6 +12,7 @@ import type {
   TraceReport,
 } from "@realms/engine/adventure"
 
+import type { PuzzleSpec } from "./puzzle"
 import type { TraceCond } from "./trace"
 
 // ─── Flags, conditions, effects ─────────────────────────────────────────────
@@ -61,6 +62,18 @@ export type Beat =
   | { t: "hub"; id: string; topics: Topic[] }
   /** Inside an option: plays the body of another option of the same choice. */
   | { t: "redirect"; option: string }
+  /**
+   * A little puzzle played with clicks. `on` maps a rule id that holds at the
+   * end to the beats it plays; `none` plays when no rule holds.
+   */
+  | {
+      t: "puzzle"
+      id: string
+      prompt?: string
+      puzzle: PuzzleSpec
+      on?: Record<string, Beat[]>
+      none?: Beat[]
+    }
   /** A fight; its outcome comes back from the game. */
   | { t: "fight"; fight: FightSpec }
   /** Leaves the scene for another node ("$end" ends the chapter). */

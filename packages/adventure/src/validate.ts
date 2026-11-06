@@ -1,6 +1,7 @@
 import { compile } from "./compile"
 import { entryProblems } from "./entries"
 import { flagSpec } from "./flags"
+import { puzzleProblems } from "./puzzle"
 import { traceProblems } from "./trace"
 import { type Chapter, type Cond, type Effect, END } from "./types"
 
@@ -62,6 +63,12 @@ export function validateChapter(chapter: Chapter): string[] {
         case "hub":
           for (const t of op.topics) if (t.if) cond(t.if, where)
           jumps.push(op.after)
+          break
+        case "puzzle":
+          for (const m of puzzleProblems(op.puzzle)) err(`${where}: ${m}`)
+          break
+        case "pjf":
+          jumps.push(op.to)
           break
         case "fight":
           for (const m of entryProblems(op.fight)) err(`${where}: ${m}`)

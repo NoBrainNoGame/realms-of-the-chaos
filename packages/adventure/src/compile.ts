@@ -1,3 +1,4 @@
+import type { PuzzleSpec } from "./puzzle"
 import type { Beat, Cond, Effect, FightSpec, Scene, Topic } from "./types"
 
 /** Flat instructions of a scene: the cursor of a run is an index into them. */
@@ -27,6 +28,9 @@ export type Op =
       }[]
       after: number
     }
+  | { op: "puzzle"; id: string; prompt?: string; puzzle: PuzzleSpec }
+  /** Skips to `to` unless the puzzle `puzzle` ended on the rule `rule` ("none": on no rule). */
+  | { op: "pjf"; puzzle: string; rule: string; to: number }
   | { op: "topicEnd"; hub: number; topic: string; id: string }
   | { op: "fight"; fight: FightSpec }
   | { op: "go"; node: string }
@@ -123,6 +127,24 @@ function emit(beats: Beat[], ops: Op[], stack: ChoiceCtx[]) {
         }
         break
       }
+      case "puzzle": {
+        ops.push({
+          op: "puzzle",
+          id: beat.id,
+          prompt: beat.prompt,
+          puzzle: beat.puzzle,
+        })
+        const sections: [string, Beat[]][] = [
+          ...Object.entries(beat.on ?? {}),
+          ...(beat.none ? ([["none", beat.none]] as [string, Beat[]][]) : []),
+        ]
+        for (const [rule, body] of sections) {
+          const at = ops.push({ op: "pjf", puzzle: beat.id, rule, to: -1 }) - 1
+          emit(body, ops, stack)
+          setTo(ops[at], ops.length)
+        }
+        break
+      }
       case "hub": {
         const at = ops.length
         const hub: Extract<Op, { op: "hub" }> = {
@@ -151,6 +173,6 @@ function emit(beats: Beat[], ops: Op[], stack: ChoiceCtx[]) {
 }
 
 function setTo(op: Op, to: number) {
-  if (op.op === "jf" || op.op === "jmp") op.to = to
+  if (op.op === "jf" || op.op === "jmp" || op.op === "pjf") op.to = to
   else throw new Error("not a jump")
 }

@@ -11,12 +11,14 @@ import {
   lt,
   narr,
   opt,
+  puzzle,
   say,
   set,
   stage,
   topic,
   when,
 } from "../dsl"
+import type { PuzzleSpec } from "../puzzle"
 import type { Beat, Chapter, FightSpec, ObjectiveSpec } from "../types"
 import {
   ALLY_COND,
@@ -415,6 +417,37 @@ const ISLAND = [
   "............",
 ]
 
+// The little map of the Lacune (5 x 5, the hole in the middle, radius 1): the
+// edge cells touch it, the walled vein sits in the south-east corner.
+const BORD = [1, 2, 3].flatMap((i) => [
+  { x: 0, y: i },
+  { x: 4, y: i },
+  { x: i, y: 0 },
+  { x: i, y: 4 },
+])
+const LACUNE_PUZZLE: PuzzleSpec = {
+  kind: "grid",
+  w: 5,
+  h: 5,
+  holes: [1, 2, 3].flatMap((x) => [1, 2, 3].map((y) => ({ x, y }))),
+  marks: [
+    { label: "Bord de la Lacune", cells: BORD },
+    { label: "Veine murée", cells: [{ x: 4, y: 4 }] },
+  ],
+  tokens: [
+    { id: "heros", label: "Le héros", at: { x: 0, y: 4 } },
+    { id: "lyra", label: "Lyra", at: { x: 0, y: 0 } },
+    { id: "gorr", label: "Gorr", at: { x: 4, y: 0 } },
+  ],
+  moves: 6,
+  first: true,
+  rules: [
+    { id: "elargir", kind: "occupy", cells: [{ x: 4, y: 4 }] },
+    { id: "recoudre", kind: "spread", n: 3, cells: BORD },
+    { id: "habiter", kind: "stacked", n: 2, cells: BORD },
+  ],
+}
+
 export const ch15: Chapter = {
   id: "15",
   era: 3,
@@ -597,12 +630,27 @@ export const ch15: Chapter = {
             "Ça sent rien. Rien du tout. Même le vide sent quelque chose, d'habitude.",
           ),
         ]),
-        // SIMPLIFIED: the 5x5 placement puzzle is three gestures.
-        choice("lacune", [
-          opt(
-            "recoudre",
-            "Recoudre : trois Échos sur trois bords, deux tours chacun.",
-            [
+        puzzle(
+          "lacune",
+          LACUNE_PUZZLE,
+          {
+            elargir: [
+              when(ALLY_COND.squalor, [
+                say(
+                  "squalor",
+                  "Un trou de plus. Mais un trou qui mène quelque part.",
+                ),
+              ]),
+              stage(
+                "La Lacune ronge le mur et ouvre un raccourci vers la Chambre du Diapason.",
+              ),
+              fx(
+                add("lacunes.elargies"),
+                add("cristaux.extraits"),
+                set("lacune_mine", "elargie"),
+              ),
+            ],
+            recoudre: [
               say(
                 "lyra",
                 "On la réchauffe. Comme un malade. Ça coûte, bien sûr.",
@@ -613,27 +661,7 @@ export const ch15: Chapter = {
                 add("usure"),
               ),
             ],
-          ),
-          opt("elargir", "Élargir : briser un Cristal de la veine murée.", [
-            when(ALLY_COND.squalor, [
-              say(
-                "squalor",
-                "Un trou de plus. Mais un trou qui mène quelque part.",
-              ),
-            ]),
-            stage(
-              "La Lacune ronge le mur et ouvre un raccourci vers la Chambre du Diapason.",
-            ),
-            fx(
-              add("lacunes.elargies"),
-              add("cristaux.extraits"),
-              set("lacune_mine", "elargie"),
-            ),
-          ]),
-          opt(
-            "habiter",
-            "Habiter à deux : deux Échos sur la même case du bord.",
-            [
+            habiter: [
               say(
                 "lyra",
                 "C'est étrange. Là, au bord, j'existe plus fort. Parce que tu es là.",
@@ -645,9 +673,13 @@ export const ch15: Chapter = {
                 add("confiance.lyra"),
               ),
             ],
-          ),
-          opt("passer", "Passer sans rien faire.", [narr("La Lacune reste.")]),
-        ]),
+          },
+          {
+            prompt:
+              "Placez les Échos sur le bord de la Lacune, ou brisez le Cristal de la veine murée (case de la veine). Rien à faire : terminer sans placer personne.",
+            none: [narr("La Lacune reste.")],
+          },
+        ),
       ],
       next: "4",
     },
