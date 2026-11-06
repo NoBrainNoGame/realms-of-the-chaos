@@ -71,6 +71,25 @@ const echoes = [
   { preset: GUETTEUSE, at: { x: 7, y: 3 } },
 ]
 
+// Reconstitution II: the Thermiste lives on the north terrace, his tools
+// are in its layer; the village (cells `2` of the top) goes down to the shore.
+const NORD = [0, 1].flatMap((y) =>
+  Array.from({ length: 9 }, (_, x) => ({ x, y })),
+)
+const BAS = Array.from({ length: 7 }, (_, i) => i + 2).flatMap((y) =>
+  Array.from({ length: 9 }, (_, x) => ({ x, y })),
+)
+const RIVAGE = [6, 7].flatMap((y) =>
+  Array.from({ length: 9 }, (_, x) => ({ x, y })).filter(
+    (p) => !(p.y === 7 && p.x >= 3 && p.x <= 5),
+  ),
+)
+const echoes2 = [
+  { preset: PORTEUSE, at: { x: 4, y: 2 } },
+  { preset: THERMISTE, at: { x: 1, y: 0 } },
+  { preset: GUETTEUSE, at: { x: 7, y: 3 } },
+]
+
 /** Reconstitution I: a Fragment kept with a perfect cadence against a small Marée. */
 const reco1: FightSpec = {
   id: "ch11-fragment-entretenu",
@@ -89,12 +108,19 @@ const reco1: FightSpec = {
       ],
     },
   ],
-  // SIMPLIFIED: the Élan does not fill at a perfect cadence, and the trace
-  // constraints are not checked as the fight goes; they are read from the
-  // report at the end (see the objective).
-  rules: { clock: { period: 1, limit: 10, winner: 0 } },
+  // The Élan fills at a perfect cadence: one point every tick, nothing
+  // between. The two marked cells of the south are the only ones the Séisme
+  // may reshape (the traces are read from where the Influences were cast).
+  rules: {
+    clock: { period: 1, limit: 10, winner: 0 },
+    energy: { cadence: { team: 0, every: 1 } },
+    regions: {
+      terrasse_ouest: [{ x: 1, y: 5 }],
+      terrasse_est: [{ x: 7, y: 5 }],
+    },
+  },
   influences: ["blessing", "earthquake"],
-  startEnergy: 3,
+  startEnergy: 4,
   goal: "Repousser la petite Marée. Les traces : une chaleur à chaque occasion, deux terrasses neuves au sud, aucun Écho dispersé.",
   defeat: [set("defaite"), add("usure", 1), add("confiance.nerea", -1)],
   objectives: [
@@ -102,8 +128,12 @@ const reco1: FightSpec = {
       id: "fidele-1",
       mark: "★",
       label: "Ne pas réécrire",
-      // SIMPLIFIED: trace 1 = the Réparation was used; trace 2 = at most two
-      // Séismes; trace 3 = no Écho dispersed.
+      // Trace 1: the Réparation is used; trace 2: a Séisme on each of the two
+      // south terraces and nowhere else; trace 3: no Écho dispersed.
+      when: [
+        { castOn: { region: "terrasse_ouest", divine: "earthquake" } },
+        { castOn: { region: "terrasse_est", divine: "earthquake" } },
+      ],
       check: (r) =>
         (r.divineUsed.blessing ?? 0) >= 1 &&
         (r.divineUsed.earthquake ?? 0) <= 2 &&
@@ -139,31 +169,39 @@ function reco2(squalor: boolean): FightSpec {
     title: "Reconstitution II : l'arrêt",
     board: FRAGMENT,
     teams: [
-      { name: "Les Échos de l'époque", side: "allies", fighters: echoes },
+      { name: "Les Échos de l'époque", side: "allies", fighters: echoes2 },
       {
         name: "Les villageois",
         side: "neutral",
         fighters: [
-          { preset: VILLAGEOIS, at: { x: 3, y: 1 } },
-          { preset: VILLAGEOIS, at: { x: 4, y: 1 } },
-          { preset: VILLAGEOIS, at: { x: 5, y: 1 } },
+          ...[3, 4, 5].map((x) => ({
+            preset: VILLAGEOIS,
+            at: { x, y: 1 },
+            script: [{ act: { do: "move" as const, to: { x, y: 6 } } }],
+          })),
         ],
       },
       {
         name: "Les premiers Lacunaires",
         side: "enemies",
         fighters: [
-          { preset: UNSTABLE, at: { x: 0, y: 4 } },
-          { preset: UNSTABLE, at: { x: 8, y: 4 } },
-          { preset: EFFILOCHEUR, at: { x: 0, y: 6 } },
-          { preset: EFFILOCHEUR, at: { x: 8, y: 6 } },
+          { preset: UNSTABLE, at: { x: 0, y: 4 }, arrives: { tick: 5 } },
+          { preset: UNSTABLE, at: { x: 8, y: 4 }, arrives: { tick: 5 } },
+          { preset: EFFILOCHEUR, at: { x: 0, y: 6 }, arrives: { tick: 7 } },
+          { preset: EFFILOCHEUR, at: { x: 8, y: 6 }, arrives: { tick: 7 } },
         ],
       },
     ],
-    // SIMPLIFIED: the Élan does not drop to zero at tour 4 (the Influences
-    // stay usable), cells do not fray after three idle turns, and the
-    // Lacunaires are on the board from the start, not at tours 5 and 7.
-    rules: { neutral: [1], clock: { period: 1, limit: 10, winner: 0 } },
+    // Tour 4: the Élan falls to zero and stays there (the Influences grey out);
+    // from then on a cell nobody stood on for 3 ticks frays into a Lacune.
+    // The first Lacunaires come at tours 5 and 7.
+    rules: {
+      neutral: [1],
+      clock: { period: 1, limit: 10, winner: 0 },
+      energy: { stopAt: { team: 0, tick: 4 } },
+      idleFray: { from: 4, idle: 3 },
+      regions: { nord: NORD, bas: BAS, rivage: RIVAGE },
+    },
     influences: ["blessing", "earthquake"],
     startEnergy: 3,
     goal: "Survivre jusqu'à la dixième couche : au moins deux villageois au rivage sud. Les traces disent que le Thermiste reste sur la terrasse nord.",
@@ -173,10 +211,15 @@ function reco2(squalor: boolean): FightSpec {
         id: "fidele-2",
         mark: "★",
         label: "Ne pas réécrire",
-        // SIMPLIFIED: the Thermiste stays on the north terrace and is dispersed
-        // there (hp 0); at least two villagers are alive.
+        // Trace 1: by tour 8 nobody of the village is left on the north
+        // terrace; trace 2: the Thermiste never leaves it; trace 3: at least
+        // two villagers reach the south shore.
+        when: [
+          { not: { held: { region: "nord", who: { team: 1 }, ticks: 8 } } },
+          { not: { visited: { region: "bas", who: "echo_thermiste" } } },
+          { visited: { region: "rivage", who: "villageois" } },
+        ],
         check: (r) =>
-          r.fighters.some((f) => f.preset === "echo_thermiste" && f.hp === 0) &&
           r.fighters.filter((f) => f.preset === "villageois" && f.hp > 0)
             .length >= 2,
         success: "Voilà ce qui s'est passé. Pas ce que nous aurions voulu.",
