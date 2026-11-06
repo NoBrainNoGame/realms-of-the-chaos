@@ -34,7 +34,7 @@ const ROWS = 7
  * there, without being told who does it.
  */
 export default class WorldMap extends ViewChip<WorldMapEvents> {
-  private _islands: { data: MapIsland; node: Container }[] = []
+  private _islands: { data: MapIsland; node: Container; name: Container }[] = []
   private _heads: Container[] = []
   private _label!: Container
   private _size = { width: 0, height: 0 }
@@ -46,7 +46,7 @@ export default class WorldMap extends ViewChip<WorldMapEvents> {
     const run = save.run
     return CHAPTERS.map((c) => ({
       id: c.id,
-      name: c.place,
+      name: c.title,
       enabled: open.includes(c.id),
       current:
         run && !run.done
@@ -85,10 +85,15 @@ export default class WorldMap extends ViewChip<WorldMapEvents> {
       // would pile up over their neighbours)
       name.visible = data.enabled
       name.anchor.set(0.5, 0)
-      node.addChild(name)
+      name.eventMode = "none"
       this._container.addChild(node)
-      this._islands.push({ data, node })
+      this._islands.push({ data, node, name })
     })
+    // the names go over every island (a neighbour must not hide them)
+    for (const it of this._islands) {
+      it.name.alpha = it.data.enabled ? 1 : 0
+      this._container.addChild(it.name)
+    }
     for (const era of ERAS) {
       const head = text(`Ère ${romanOf(era.id)}`, 14, COLORS.muted, {
         fontWeight: "700",
@@ -157,8 +162,7 @@ export default class WorldMap extends ViewChip<WorldMapEvents> {
         top + cellH * (row + 0.35),
       )
       it.node.getChildByLabel("art")?.scale.set(k)
-      const name = it.node.getChildByLabel("name")
-      name?.position.set(0, 88 * k)
+      it.name.position.set(it.node.x, it.node.y + 88 * k)
     })
   }
 }
