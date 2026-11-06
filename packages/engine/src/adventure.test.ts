@@ -56,7 +56,7 @@ describe("adventure rules are opt-in", () => {
       seed: 3,
       board: ground(),
       teams: [
-        { controller: "local", fighters: ["lyra"] },
+        { controller: "human", fighters: ["lyra"] },
         { controller: "ai", fighters: ["merlin"] },
       ],
       positions: [[{ x: 0, y: 0 }], [{ x: 7, y: 4 }]],
