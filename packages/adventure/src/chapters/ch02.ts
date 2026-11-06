@@ -1,6 +1,7 @@
 import { type CharacterPreset, HP_PER_HEALTH } from "@realms/engine"
 import {
   add,
+  around,
   choice,
   fx,
   give,
@@ -187,6 +188,11 @@ const fightCoeur: FightSpec = {
 
 // ─── Chapter ────────────────────────────────────────────────────────────────
 
+// ─── The island (the fight's wood, walked) ──────────────────────────────────
+
+const ISLAND = fightCoeur.board
+const zone = (x: number, y: number) => around(ISLAND, x, y)
+
 export const ch02: Chapter = {
   id: "2",
   era: 1,
@@ -203,6 +209,134 @@ export const ch02: Chapter = {
     text: "Peut-on réparer ce que le temps défait ?",
   },
   start: "baie",
+  exploration: {
+    // The fight's wood is the island: the edge of the birches in the south, the
+    // Lacune and its hill in the middle, the pools to the east.
+    island: ISLAND,
+    start: { x: 4, y: 10 },
+    companions: ["lyra"],
+    influences: ["earthquake", "timeWarp", "blessing"],
+    encounters: [
+      {
+        id: "baie",
+        label: "La Baie grise",
+        scene: "baie",
+        at: { x: 4, y: 8 },
+        zone: zone(4, 8),
+      },
+      {
+        id: "main",
+        label: "Avant d'entrer dans le bois",
+        scene: "main",
+        at: { x: 4, y: 6 },
+        zone: zone(4, 6),
+      },
+      {
+        id: "coeur",
+        label: "Le bois qui se défait",
+        scene: "coeur",
+        at: { x: 4, y: 5 },
+        auto: true,
+      },
+      {
+        id: "couture",
+        label: "Le cœur de la Lacune",
+        scene: "couture",
+        at: { x: 4, y: 3 },
+        zone: zone(4, 3),
+      },
+      {
+        id: "veillee",
+        label: "Le feu, à l'orée du bois",
+        scene: "veillee",
+        at: { x: 7, y: 9 },
+        zone: zone(7, 9),
+      },
+      {
+        id: "ouest",
+        label: "Le bord, vers l'ouest",
+        scene: "ouest",
+        at: { x: 0, y: 4 },
+        zone: zone(0, 4),
+      },
+      {
+        id: "oiseaux",
+        label: "Les oiseaux qui se taisent",
+        at: { x: 7, y: 2 },
+        examine: {
+          lines: [
+            {
+              text: "À l'orée, les oiseaux chantent. Ici, on en entend un seul, puis plus rien : le silence a gagné d'un arbre à l'autre, comme un gel.",
+            },
+          ],
+          effects: [{ add: "ecoute", by: 1 }],
+        },
+      },
+      {
+        id: "mare",
+        label: "Une mare lisse",
+        at: { x: 7, y: 6 },
+        examine: {
+          lines: [
+            {
+              style: "stage",
+              text: "Un caillou jeté dans la mare y trace une ride qui s'arrête net, à mi-chemin du bord, comme si l'eau avait oublié la suite.",
+            },
+          ],
+          effects: [{ add: "ecoute", by: 1 }],
+        },
+      },
+      {
+        id: "sol_mou",
+        label: "Le sol mou",
+        at: { x: 2, y: 3 },
+        examine: {
+          lines: [
+            {
+              text: "Le sol, au bord de la clairière, est mou comme du pain trempé. Les pas s'y gardent un instant, puis le sol les rend à peine visibles.",
+            },
+          ],
+          effects: [{ add: "ecoute", by: 1 }],
+        },
+      },
+      {
+        id: "bouleau",
+        label: "Un bouleau qui hésite",
+        at: { x: 6, y: 4 },
+        obstacle: {
+          influence: "blessing",
+          before: [
+            {
+              style: "stage",
+              text: "Un bouleau à demi net : d'un côté l'écorce blanche, de l'autre un tronc de brouillard. Il attend qu'on le décide.",
+            },
+          ],
+          after: [
+            {
+              style: "stage",
+              text: "L'écorce se referme d'un seul trait, nette jusqu'aux feuilles. Dans les mares, là-bas, de la vapeur se lève : l'ordre d'ici se paie de chaleur ailleurs.",
+            },
+          ],
+          effects: [{ add: "ecoute", by: 1 }],
+        },
+      },
+      {
+        id: "errant",
+        label: "Un Lacunaire isolé",
+        at: { x: 7, y: 1 },
+        wander: {
+          preset: instable,
+          title: "Un Lacunaire égaré",
+          goal: "Le toucher pour qu'il se décide.",
+          range: 2,
+          radius: 4,
+          effects: [{ add: "ecoute", by: 1 }],
+          success:
+            "Il s'est défait en une poignée de feuilles grises, qui se sont éteintes sur la mousse.",
+        },
+      },
+    ],
+  },
   scenes: {
     baie: {
       id: "baie",

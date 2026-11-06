@@ -1,4 +1,12 @@
-import type { Beat, Cond, Effect, FlagValue, Option, Topic } from "./types"
+import type {
+  Beat,
+  Cond,
+  Effect,
+  FlagValue,
+  Option,
+  Spot,
+  Topic,
+} from "./types"
 
 // Small constructors so that chapters read like the documents they come from.
 
@@ -79,3 +87,21 @@ export const lt = (key: string, value: number): Cond => ({
 export const all = (...conds: Cond[]): Cond => ({ all: conds })
 export const any = (...conds: Cond[]): Cond => ({ any: conds })
 export const not = (cond: Cond): Cond => ({ not: cond })
+
+/**
+ * The cells that trigger a place on an island: the cell itself and its four
+ * neighbours, minus what falls off the island or into deep water.
+ */
+export const around = (island: string[], x: number, y: number): Spot[] =>
+  [
+    [0, 0],
+    [-1, 0],
+    [1, 0],
+    [0, -1],
+    [0, 1],
+  ]
+    .map(([dx, dy]) => ({ x: x + dx, y: y + dy }))
+    .filter((p) => {
+      const c = island[p.y]?.[p.x]
+      return c !== undefined && c !== "w" && c !== "W"
+    })

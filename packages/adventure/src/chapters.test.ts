@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import { Board, CHARACTERS } from "@realms/engine"
 import {
   activeEncounters,
   type Carry,
@@ -115,11 +116,51 @@ describe("playthroughs", () => {
   })
 })
 
+const CHARACTERS_IDS = Object.keys(CHARACTERS)
+
 describe("exploration", () => {
   test("the walked chapters have a place for every scene, inside the island", () => {
     const walked = CHAPTERS.filter((c) => c.exploration)
-    expect(walked.map((c) => c.id)).toEqual(["prologue", "1"])
+    expect(walked.map((c) => c.id)).toEqual([
+      "prologue",
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+    ])
     for (const c of walked) expect(validateChapter(c)).toEqual([])
+  })
+
+  test("on every island (the prologue's pool aside) the hero can stand and reach every place", () => {
+    for (const c of CHAPTERS.filter(
+      (x) => x.exploration && x.id !== "prologue",
+    )) {
+      const ex = c.exploration as NonNullable<typeof c.exploration>
+      const board = Board.fromAscii(ex.island)
+      const reach = board.regionOf(ex.start)
+      expect(board.canStand(ex.start)).toBe(true)
+      for (const e of ex.encounters) {
+        expect([c.id, e.id, board.canStand(e.at)]).toEqual([c.id, e.id, true])
+        // a character or an object is walked up to: one of its neighbours
+        // (or the cell itself, for a zone) must be reachable
+        const cells = e.zone ?? [e.at, ...board.neighbors(e.at)]
+        const ok = cells.some((p) => reach.has(`${p.x},${p.y}`))
+        expect([c.id, e.id, ok]).toEqual([c.id, e.id, true])
+      }
+      // the companions are known characters
+      for (const w of ex.companions ?? []) expect(CHARACTERS_IDS).toContain(w)
+    }
+  })
+
+  test("every Influence an obstacle asks for is given by its island", () => {
+    for (const c of CHAPTERS.filter((x) => x.exploration)) {
+      const ex = c.exploration as NonNullable<typeof c.exploration>
+      for (const e of ex.encounters)
+        if (e.obstacle)
+          expect(ex.influences ?? []).toContain(e.obstacle.influence)
+    }
   })
 
   test("the story waits on its encounter until the hero enters", () => {

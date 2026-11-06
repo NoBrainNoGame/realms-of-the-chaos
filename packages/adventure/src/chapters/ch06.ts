@@ -3,6 +3,7 @@ import {
   add,
   all,
   any,
+  around,
   choice,
   fx,
   give,
@@ -408,6 +409,23 @@ function highest(who: (typeof TRUST)[number]): Cond {
 
 // ─── Chapter ────────────────────────────────────────────────────────────────
 
+// ─── The island (the Lisière and its Lacune, walked) ────────────────────────
+
+// The fight's Lacune (the dry pit in the middle, its heart the deepest cell)
+// between the native island (west) and the Dérive (east), with the Lac Sourd.
+const ISLAND = [
+  "...........",
+  "..1.....12.",
+  ".~~..a..122",
+  ".~..aaa..12",
+  "....aba..~~",
+  ".1..aaa..12",
+  "....~a..122",
+  "..1.....12.",
+  "...........",
+]
+const nearby = (x: number, y: number) => around(ISLAND, x, y)
+
 export const ch06: Chapter = {
   id: "6",
   era: 1,
@@ -420,6 +438,166 @@ export const ch06: Chapter = {
   place: "La Lisière et sa Lacune géante ; le Lac Sourd ; le Puits",
   question: { id: "Q06", text: "Pourquoi quelque chose plutôt que rien ?" },
   start: "1",
+  exploration: {
+    island: ISLAND,
+    start: { x: 0, y: 4 },
+    companions: ["lyra", "brutus", "nerea"],
+    influences: ["earthquake", "timeWarp", "blessing"],
+    encounters: [
+      {
+        id: "e1",
+        label: "L'aube sur le trou",
+        scene: "1",
+        at: { x: 2, y: 4 },
+        zone: nearby(2, 4),
+      },
+      {
+        id: "e2",
+        label: "Le Lac Sourd",
+        scene: "2",
+        at: { x: 8, y: 4 },
+        zone: nearby(8, 4),
+      },
+      {
+        id: "e3",
+        label: "La rive, au bord de la Lacune",
+        scene: "3",
+        at: { x: 3, y: 4 },
+        zone: nearby(3, 4),
+      },
+      {
+        id: "e4",
+        label: "La Lacune géante",
+        scene: "4",
+        at: { x: 3, y: 4 },
+        auto: true,
+      },
+      {
+        id: "e5",
+        label: "Ce que devient le trou",
+        scene: "5",
+        at: { x: 5, y: 3 },
+        zone: nearby(5, 3),
+      },
+      {
+        id: "e5b",
+        label: "Le trou recousu",
+        scene: "5b",
+        at: { x: 5, y: 3 },
+        zone: nearby(5, 3),
+      },
+      {
+        id: "e5c",
+        label: "Le trou élargi",
+        scene: "5c",
+        at: { x: 5, y: 3 },
+        zone: nearby(5, 3),
+      },
+      {
+        id: "e6",
+        label: "Le Premier Cristal",
+        scene: "6",
+        at: { x: 5, y: 4 },
+        zone: nearby(5, 4),
+      },
+      {
+        id: "e7",
+        label: "La Lisière, la nuit",
+        scene: "7",
+        at: { x: 2, y: 6 },
+        zone: nearby(2, 6),
+      },
+      {
+        id: "e8",
+        label: "Le Puits",
+        scene: "8",
+        at: { x: 5, y: 4 },
+        zone: nearby(5, 4),
+      },
+      {
+        id: "cristaux",
+        label: "Des cristaux au bord du trou",
+        at: { x: 7, y: 2 },
+        examine: {
+          lines: [
+            {
+              text: "Sur les bords de la Lacune, les cristaux sont posés par paires, à demi enfoncés dans le sol. Ils luisent un peu plus fort que ceux de la veille, et un peu plus près du centre.",
+            },
+          ],
+          effects: [{ add: "ecoute", by: 1 }],
+        },
+      },
+      {
+        id: "gris",
+        label: "Le gris du trou",
+        at: { x: 3, y: 2 },
+        examine: {
+          lines: [
+            {
+              style: "stage",
+              text: "Le gris n'a pas de profondeur : on ne sait pas si le fond est à un pas ou à mille. Le sol des deux îles s'y effiloche et s'y mêle, brin par brin.",
+            },
+          ],
+          effects: [{ add: "ecoute", by: 1 }],
+        },
+      },
+      {
+        id: "silence",
+        label: "Le silence de la Lisière",
+        at: { x: 1, y: 0 },
+        examine: {
+          lines: [
+            {
+              text: "Plus d'insectes, plus de vent. Ce n'est pas le calme : c'est ce qui reste quand plus rien n'échange avec rien.",
+            },
+          ],
+          effects: [{ add: "ecoute", by: 1 }],
+        },
+      },
+      {
+        id: "cristal_pose",
+        label: "Un cristal de la rive",
+        at: { x: 7, y: 6 },
+        obstacle: {
+          influence: "earthquake",
+          before: [
+            {
+              style: "stage",
+              text: "Un cristal planté au bord du trou, lourd et tranquille. Il ne bouge pas, mais le sol, autour de lui, penche vers le centre.",
+            },
+          ],
+          after: [
+            {
+              style: "stage",
+              text: "Le sol tressaille. Le cristal glisse d'une case vers le cœur du trou, et sa jumelle, là-bas, a glissé en même temps.",
+            },
+          ],
+          effects: [{ add: "ecoute", by: 1 }],
+        },
+      },
+      {
+        id: "cristal_fele",
+        label: "Un cristal fêlé",
+        at: { x: 6, y: 7 },
+        obstacle: {
+          influence: "blessing",
+          before: [
+            {
+              style: "stage",
+              text: "Un cristal fêlé en son milieu, une ligne claire dans le gris. Chaque fois qu'il luit, la fêlure s'allonge d'un cheveu.",
+            },
+          ],
+          after: [
+            {
+              style: "stage",
+              text: "La fêlure se referme sans bruit. Le cristal luit plus net, mais le sol, autour, est un peu plus froid.",
+            },
+          ],
+          effects: [{ add: "ecoute", by: 1 }],
+        },
+      },
+    ],
+  },
   scenes: {
     // ── 1 ──
     "1": {

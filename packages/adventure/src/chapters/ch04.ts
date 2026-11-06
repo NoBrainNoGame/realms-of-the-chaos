@@ -1,5 +1,6 @@
 import {
   add,
+  around,
   choice,
   fx,
   give,
@@ -176,6 +177,11 @@ const mareeDuLent: FightSpec = {
   ],
 }
 
+// ─── The island (the lake and its shore, walked) ────────────────────────────
+
+const ISLAND = mareeDuLent.board
+const zone = (x: number, y: number) => around(ISLAND, x, y)
+
 export const ch04: Chapter = {
   id: "4",
   era: 1,
@@ -191,6 +197,157 @@ export const ch04: Chapter = {
     text: "Que gardent les profondeurs de ce qui a été ?",
   },
   start: "s1",
+  exploration: {
+    // The fight's lake is the island: a ring of shallows around the deep water
+    // (walkers cannot enter it), the beach in the south.
+    island: ISLAND,
+    start: { x: 4, y: 8 },
+    // Nérea joins at the evening fire; Brutus and Lyra are already there.
+    companions: ["lyra", "brutus", "nerea"],
+    influences: ["earthquake", "timeWarp", "blessing"],
+    encounters: [
+      {
+        id: "s1",
+        label: "Le lac qui respire",
+        scene: "s1",
+        at: { x: 4, y: 7 },
+        zone: zone(4, 7),
+      },
+      {
+        id: "s2",
+        label: "Un remous au centre du lac",
+        scene: "s2",
+        at: { x: 6, y: 5 },
+        actor: "nerea",
+      },
+      {
+        id: "s3",
+        label: "Néréa, les pieds dans l'eau",
+        scene: "s3",
+        at: { x: 7, y: 4 },
+        actor: "nerea",
+      },
+      {
+        id: "s4",
+        label: "Le Lent, noir et profond",
+        scene: "s4",
+        at: { x: 4, y: 7 },
+        auto: true,
+      },
+      {
+        id: "s5",
+        label: "Un feu sur la berge",
+        scene: "s5",
+        at: { x: 1, y: 8 },
+        zone: zone(1, 8),
+      },
+      {
+        id: "s6",
+        label: "La rive, à l'aube",
+        scene: "s6",
+        at: { x: 7, y: 8 },
+        zone: zone(7, 8),
+      },
+      {
+        id: "roseaux",
+        label: "Des roseaux couchés",
+        at: { x: 8, y: 5 },
+        examine: {
+          lines: [
+            {
+              style: "stage",
+              text: "Les roseaux sont couchés tous dans le même sens, vers le lac, comme après une longue inspiration. Au-dessus d'eux, une ligne de vase humide marque où l'eau est montée.",
+            },
+          ],
+          effects: [{ add: "ecoute", by: 1 }],
+        },
+      },
+      {
+        id: "eau_noire",
+        label: "L'eau noire",
+        at: { x: 0, y: 2 },
+        examine: {
+          lines: [
+            {
+              text: "L'eau est si calme qu'on y voit le ciel. L'île de l'est y paraît plus grande que là-haut, comme si le reflet tirait sur la surface.",
+            },
+          ],
+          effects: [{ add: "ecoute", by: 1 }],
+        },
+      },
+      {
+        id: "cuvette",
+        label: "La cuvette boisée",
+        at: { x: 4, y: 0 },
+        examine: {
+          lines: [
+            {
+              style: "stage",
+              text: "Les arbres de la cuvette penchent un peu vers le lac. Au pied de chacun, un anneau de vase séchée donne la hauteur de la dernière marée.",
+            },
+          ],
+          effects: [{ add: "ecoute", by: 1 }],
+        },
+      },
+      {
+        id: "vase",
+        label: "Une ligne de vase humide",
+        at: { x: 8, y: 6 },
+        obstacle: {
+          influence: "timeWarp",
+          before: [
+            {
+              style: "stage",
+              text: "La vase brille, encore humide, à la hauteur d'une marée qui n'est pas revenue. Le lac attend, lui aussi : ce soir ou jamais.",
+            },
+          ],
+          after: [
+            {
+              style: "stage",
+              text: "Le temps glisse d'un cran. La vase sèche d'un coup, se craquelle en écailles. Au loin, l'eau se retire d'un pas, et revient, plus lentement.",
+            },
+          ],
+          effects: [{ add: "ecoute", by: 1 }],
+        },
+      },
+      {
+        id: "strate",
+        label: "Une berge en couches",
+        at: { x: 0, y: 6 },
+        obstacle: {
+          influence: "earthquake",
+          before: [
+            {
+              style: "stage",
+              text: "La berge est faite de couches fines, grises, empilées comme des pages collées. Impossible de les compter sans les ouvrir.",
+            },
+          ],
+          after: [
+            {
+              style: "stage",
+              text: "Le sol se fend net, comme une page tournée. Les couches s'ouvrent, régulières : chacune porte, figée, la trace d'une marée.",
+            },
+          ],
+          effects: [{ add: "ecoute", by: 1 }],
+        },
+      },
+      {
+        id: "nageur",
+        label: "Un nageur de l'abysse",
+        at: { x: 6, y: 7 },
+        wander: {
+          preset: unstable(1),
+          title: "Un nageur égaré",
+          goal: "Le toucher pour qu'il se décide.",
+          range: 2,
+          radius: 4,
+          effects: [{ add: "ecoute", by: 1 }],
+          success:
+            "Il s'est défait en filaments sombres, que l'eau a déroulés, puis plus rien.",
+        },
+      },
+    ],
+  },
   scenes: {
     s1: {
       id: "s1",

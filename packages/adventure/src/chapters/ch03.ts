@@ -1,6 +1,7 @@
 import type { CharacterPreset } from "@realms/engine"
 import {
   add,
+  around,
   choice,
   fx,
   give,
@@ -239,6 +240,26 @@ const fightNuit: FightSpec = {
 
 // ─── Chapter ────────────────────────────────────────────────────────────────
 
+// ─── The island (Demeure and the fields at its gate, walked) ────────────────
+
+// The fight's village (walls 3, the granary block NW, doors N and S) with the
+// fields outside it, and a stair up the east wall to the chemin de ronde.
+const ISLAND = [
+  "333.33333",
+  "3221....3",
+  "3221....3",
+  "3....a..3",
+  "3.......1",
+  "3.......2",
+  "3..~....3",
+  "3.......3",
+  "3333.3333",
+  ".........",
+  "..1...1..",
+  ".........",
+]
+const zone = (x: number, y: number) => around(ISLAND, x, y)
+
 export const ch03: Chapter = {
   id: "3",
   era: 1,
@@ -255,6 +276,162 @@ export const ch03: Chapter = {
     text: "Si tout est fixé, sommes-nous encore vivants ?",
   },
   start: "mur",
+  exploration: {
+    island: ISLAND,
+    start: { x: 4, y: 11 },
+    // Brutus joins at the very end: he follows only once he is in the team.
+    companions: ["lyra", "brutus"],
+    influences: ["earthquake", "timeWarp", "blessing"],
+    encounters: [
+      {
+        id: "mur",
+        label: "Brutus, devant la porte",
+        scene: "mur",
+        at: { x: 3, y: 9 },
+        actor: "brutus",
+      },
+      {
+        id: "doyenne",
+        label: "La place de Demeure",
+        scene: "doyenne",
+        at: { x: 4, y: 5 },
+        zone: zone(4, 5),
+      },
+      {
+        id: "pim",
+        label: "Derrière la maison commune",
+        scene: "pim",
+        at: { x: 6, y: 2 },
+        zone: zone(6, 2),
+      },
+      {
+        id: "surmur",
+        label: "Le chemin de ronde",
+        scene: "surmur",
+        at: { x: 8, y: 6 },
+        zone: zone(8, 6),
+      },
+      {
+        id: "nuit",
+        label: "Demeure, de nuit",
+        scene: "nuit",
+        at: { x: 4, y: 4 },
+        auto: true,
+      },
+      {
+        id: "grenier",
+        label: "Le grenier scellé",
+        scene: "grenier",
+        at: { x: 3, y: 1 },
+        zone: zone(3, 1),
+      },
+      {
+        id: "place",
+        label: "La place, à l'aube",
+        scene: "place",
+        at: { x: 4, y: 5 },
+        zone: zone(4, 5),
+      },
+      {
+        id: "puits",
+        label: "Le puits du village",
+        at: { x: 3, y: 6 },
+        examine: {
+          lines: [
+            {
+              style: "stage",
+              text: "Une copie de la Borne est gravée sur la margelle : les lettres du haut sont nettes et fraîches, celles du bas usées par les mains.",
+            },
+          ],
+          effects: [{ add: "ecoute", by: 1 }],
+        },
+      },
+      {
+        id: "bancs",
+        label: "Les bancs de pierre",
+        at: { x: 2, y: 5 },
+        examine: {
+          lines: [
+            {
+              text: "Les bancs sont polis par des années d'attente. Au bout de chacun, la pierre est creusée juste à la forme d'une main.",
+            },
+          ],
+          effects: [{ add: "ecoute", by: 1 }],
+        },
+      },
+      {
+        id: "friche",
+        label: "Les champs en friche",
+        at: { x: 0, y: 11 },
+        examine: {
+          lines: [
+            {
+              style: "stage",
+              text: "Des herbes sèches, hautes jusqu'à la taille, et des sillons effacés : plus personne n'a retourné cette terre depuis longtemps. Elle n'a pourtant rien d'un sol mort.",
+            },
+          ],
+          effects: [{ add: "ecoute", by: 1 }],
+        },
+      },
+      {
+        id: "clepsydre",
+        label: "Une clepsydre arrêtée",
+        at: { x: 6, y: 5 },
+        obstacle: {
+          influence: "timeWarp",
+          before: [
+            {
+              style: "stage",
+              text: "Une clepsydre de pierre, devant la maison commune. Sa dernière goutte est suspendue au bec, depuis si longtemps qu'un lichen la contourne.",
+            },
+          ],
+          after: [
+            {
+              style: "stage",
+              text: "Le temps glisse d'un cran. La goutte tombe, et la pierre en dessous, sèche depuis des années, devient sombre.",
+            },
+          ],
+          effects: [{ add: "ecoute", by: 1 }],
+        },
+      },
+      {
+        id: "pave",
+        label: "Un pavé scellé",
+        at: { x: 5, y: 7 },
+        obstacle: {
+          influence: "earthquake",
+          before: [
+            {
+              style: "stage",
+              text: "Un pavé de la place, scellé au mortier : ses voisins sont rejointoyés à neuf, lui est resté tel quel. Quelque chose pousse en dessous, qui n'a pas la place.",
+            },
+          ],
+          after: [
+            {
+              style: "stage",
+              text: "Le sol tressaille, le mortier cède. Entre les pavés, une pousse verte jaillit, dérisoire, droite. Personne ne l'avait vue venir.",
+            },
+          ],
+          effects: [{ add: "ecoute", by: 1 }],
+        },
+      },
+      {
+        id: "errant",
+        label: "Un Lacunaire isolé",
+        at: { x: 7, y: 10 },
+        wander: {
+          preset: instable,
+          title: "Un Lacunaire égaré",
+          goal: "Le toucher pour qu'il se décide.",
+          range: 2,
+          radius: 4,
+          effects: [{ add: "ecoute", by: 1 }],
+          success:
+            "Il s'est défait en poussière grise dans les herbes sèches. La brise l'a emporté sans bruit.",
+        },
+      },
+    ],
+  },
   scenes: {
     mur: {
       id: "mur",

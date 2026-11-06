@@ -193,6 +193,14 @@ describe("exploration", () => {
     expect(i.companionCells).toHaveLength(0) // Lyra is met at the fire
   })
 
+  test("chapters 2 to 6 land on their island, the hero free to walk", () => {
+    for (const n of ["2", "3", "4", "5", "6"]) {
+      const { i } = island(`chapter=${n}`)
+      expect([n, i.mode]).toEqual([n, "walk"])
+      expect(i.run.entry).toBeUndefined()
+    }
+  })
+
   test("clicking walks (no cost), the zone of a scene triggers it, the story plays on the island", () => {
     const { g, i } = island()
     expect(i.walkTo({ x: 0, y: 5 })).toBe(true)

@@ -1,6 +1,7 @@
 import {
   add,
   any,
+  around,
   choice,
   fx,
   give,
@@ -160,6 +161,13 @@ const jointure: FightSpec = {
   ],
 }
 
+// ─── The island (the Lisière, walked) ───────────────────────────────────────
+
+// The fight's seam (the dry pit of column 4) between the native island (west)
+// and the black rock of the Dérive (east hills).
+const ISLAND = jointure.board
+const zone = (x: number, y: number) => around(ISLAND, x, y)
+
 export const ch05: Chapter = {
   id: "5",
   era: 1,
@@ -175,6 +183,139 @@ export const ch05: Chapter = {
     text: "Les Échos d'en face sont-ils aussi vivants que les miens ?",
   },
   start: "s1",
+  exploration: {
+    island: ISLAND,
+    start: { x: 0, y: 4 },
+    companions: ["lyra", "brutus", "nerea"],
+    influences: ["earthquake", "timeWarp", "blessing"],
+    encounters: [
+      {
+        id: "s1",
+        label: "Les bords froids, à l'est",
+        scene: "s1",
+        at: { x: 3, y: 4 },
+        zone: zone(3, 4),
+      },
+      {
+        id: "s2",
+        label: "Un rocher de la Dérive",
+        scene: "s2",
+        at: { x: 6, y: 2 },
+        actor: "nyx",
+      },
+      {
+        id: "s3",
+        label: "La Lisière, le sol bouge",
+        scene: "s3",
+        at: { x: 3, y: 4 },
+        auto: true,
+      },
+      {
+        id: "s4",
+        label: "La lame de Nyx",
+        scene: "s4",
+        at: { x: 4, y: 4 },
+        zone: zone(4, 4),
+      },
+      {
+        id: "s5",
+        label: "Un petit feu, côté île natale",
+        scene: "s5",
+        at: { x: 1, y: 7 },
+        zone: zone(1, 7),
+      },
+      {
+        id: "s6",
+        label: "Le trou du milieu",
+        scene: "s6",
+        at: { x: 4, y: 3 },
+        zone: zone(4, 3),
+      },
+      {
+        id: "muraille",
+        label: "La muraille de la Dérive",
+        at: { x: 8, y: 4 },
+        examine: {
+          lines: [
+            {
+              style: "stage",
+              text: "La roche de la Dérive est noire, froide, striée dans un seul sens. Ses arêtes sont neuves : elles viennent d'être cassées par le chemin.",
+            },
+          ],
+          effects: [{ add: "ecoute", by: 1 }],
+        },
+      },
+      {
+        id: "cristaux",
+        label: "Des cristaux par paires",
+        at: { x: 7, y: 6 },
+        examine: {
+          lines: [
+            {
+              text: "Les cristaux de la Dérive poussent par deux, à quelques pouces l'un de l'autre, et luisent presque ensemble. Personne ici ne sait pourquoi.",
+            },
+          ],
+          effects: [{ add: "ecoute", by: 1 }],
+        },
+      },
+      {
+        id: "sol_plisse",
+        label: "Le sol qui se plisse",
+        at: { x: 1, y: 2 },
+        examine: {
+          lines: [
+            {
+              style: "stage",
+              text: "Là où les deux îles se touchent, le sol se plisse comme un tapis poussé du pied : l'herbe d'ici chevauche la mousse noire de là-bas.",
+            },
+          ],
+          effects: [{ add: "ecoute", by: 1 }],
+        },
+      },
+      {
+        id: "dalle",
+        label: "Une dalle de la jointure",
+        at: { x: 4, y: 6 },
+        obstacle: {
+          influence: "earthquake",
+          before: [
+            {
+              style: "stage",
+              text: "Une dalle de roche est coincée dans la jointure, sertie des deux côtés. Elle ne bouge pas : les deux îles s'y appuient l'une sur l'autre.",
+            },
+          ],
+          after: [
+            {
+              style: "stage",
+              text: "Le sol gronde. La dalle saute, retombe un cran plus loin, et la jointure se déplace avec elle. Plus rien ne s'appuie au même endroit.",
+            },
+          ],
+          effects: [{ add: "ecoute", by: 1 }],
+        },
+      },
+      {
+        id: "herbe_noire",
+        label: "Une herbe qui traverse",
+        at: { x: 2, y: 6 },
+        obstacle: {
+          influence: "blessing",
+          before: [
+            {
+              style: "stage",
+              text: "Une touffe d'herbe grise, aplatie contre la roche noire. Du côté de la Dérive, elle est brûlée de froid.",
+            },
+          ],
+          after: [
+            {
+              style: "stage",
+              text: "La touffe se redresse, verte jusqu'à la pointe. Quelques pas plus loin, la roche de la Dérive a pâli d'un ton : ce que l'une gagne, l'autre le perd.",
+            },
+          ],
+          effects: [{ add: "ecoute", by: 1 }],
+        },
+      },
+    ],
+  },
   scenes: {
     s1: {
       id: "s1",
