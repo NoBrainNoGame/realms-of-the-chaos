@@ -15,6 +15,7 @@ import {
   emptyDebateReport,
 } from "./debate"
 import { EnergyKit, type EnergyRules } from "./energy"
+import { FixationKit, type FixationRule } from "./fixation"
 import { equals, keyOf, manhattan, type Point } from "./geometry"
 import { createRng, type Rng } from "./random"
 import {
@@ -49,6 +50,7 @@ export {
   type GelRules,
 } from "./crystals"
 export { type EnergyRules, HALT_MESSAGE } from "./energy"
+export type { FixationRule } from "./fixation"
 export type {
   DebateArgument,
   DebateReport,
@@ -183,6 +185,8 @@ export interface AdventureRules {
   glass?: Point[]
   /** A column of uncertain cells that advances (see `TideRule`). */
   tide?: TideRule
+  /** A gauge filled by allies next to a protected fighter (see `FixationRule`). */
+  fixation?: FixationRule
   /** The fight ends when someone deals a given last blow (see `EndOnRule`). */
   endOn?: EndOnRule
   /** A second way to win, by standing on cells (see `ReachRule`). */
@@ -434,6 +438,7 @@ export class AdventureTracker {
   readonly energy: EnergyKit | null
   private _cold: IdleFrayKit | null = null
   private _tide: TideKit | null = null
+  private _fix: FixationKit | null = null
   readonly report: AdventureReport = {
     ticks: 0,
     divineUsed: {},
@@ -527,6 +532,7 @@ export class AdventureTracker {
     }
     this.locked = new Set(rules.lockedDivine)
     this.energy = rules.energy ? new EnergyKit(_combat, rules.energy) : null
+    if (rules.fixation) this._fix = new FixationKit(_combat, rules.fixation)
     if (rules.tide) this._tide = new TideKit(_combat, rules.tide)
     if (rules.idleFray) this._cold = new IdleFrayKit(_combat, rules.idleFray)
     this._nextTick = rules.clock?.period ?? Infinity
@@ -918,6 +924,8 @@ export class AdventureTracker {
     const reach = this.rules.reach
     if (reach && this._combat.state !== "ended" && reached(this._combat, reach))
       this._combat.finish(reach.team)
+    if (this._fix?.tick() && this._combat.state !== "ended")
+      this._combat.finish(this.rules.fixation?.winner ?? null)
     const end = this.rules.endOn
     if (
       end &&

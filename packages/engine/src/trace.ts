@@ -34,7 +34,17 @@ export interface Strike {
   tick: number
 }
 
+/** A fighter came next to one of another team (the first time each pair did). */
+export interface Touch {
+  by: string
+  byTeam: number
+  of: string
+  tick: number
+}
+
 export interface TraceReport {
+  /** Who first came next to whom, in order (a move or the start of a turn). */
+  touches: Touch[]
   /** Last blow dealt to each fighter that fell (dispersed or transi). */
   finalBlows: Record<string, FinalBlow>
   /** Every blow that landed, with the cell of the one struck. */
@@ -71,6 +81,7 @@ export interface TraceReport {
 }
 
 export const emptyTrace = (): TraceReport => ({
+  touches: [],
   finalBlows: {},
   strikes: [],
   turns: {},
@@ -110,7 +121,24 @@ export class TraceKit {
     return out
   }
 
+  private _touch(id: string, p: Point) {
+    const me = this._combat.getFighter(id)
+    if (!me) return
+    for (const o of this._combat.aliveFighters) {
+      if (o.team === me.team || manhattan(o.position, p) > 1) continue
+      const seen = this.report.touches.some((t) => t.by === id && t.of === o.id)
+      if (!seen)
+        this.report.touches.push({
+          by: id,
+          byTeam: me.team,
+          of: o.id,
+          tick: this._ticks(),
+        })
+    }
+  }
+
   private _visit(id: string, p: Point) {
+    this._touch(id, p)
     const k = keyOf(p)
     const list = this.report.visited[id] ?? []
     this.report.visited[id] = list

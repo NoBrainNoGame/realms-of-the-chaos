@@ -63,27 +63,44 @@ function passe(squalor: boolean): FightSpec {
       {
         name: "Le Lacunaire",
         side: "neutral",
-        fighters: [{ preset: REMOUS, at: { x: 4, y: 3 } }],
+        fighters: [
+          {
+            preset: REMOUS,
+            at: { x: 4, y: 3 },
+            // it drifts east, one turn out of two
+            script: [{ every: 2, act: { do: "move", to: { x: 6, y: 3 } } }],
+          },
+        ],
       },
       {
         name: "Lacunaires de la Marée",
         side: "enemies",
         fighters: [
-          { preset: EFFILOCHEUR, at: { x: 6, y: 0 } },
-          { preset: EFFILOCHEUR, at: { x: 6, y: 3 } },
-          { preset: EFFILOCHEUR, at: { x: 6, y: 6 } },
-          { preset: UNSTABLE, at: { x: 6, y: 1 } },
-          { preset: UNSTABLE, at: { x: 6, y: 5 } },
+          { preset: EFFILOCHEUR, at: { x: 6, y: 0 }, arrives: { tick: 1 } },
+          { preset: EFFILOCHEUR, at: { x: 6, y: 3 }, arrives: { tick: 3 } },
+          { preset: EFFILOCHEUR, at: { x: 6, y: 6 }, arrives: { tick: 5 } },
+          { preset: UNSTABLE, at: { x: 6, y: 1 }, arrives: { tick: 4 } },
+          { preset: UNSTABLE, at: { x: 6, y: 5 }, arrives: { tick: 4 } },
         ],
       },
     ],
     rules: {
-      // SIMPLIFIED: no fixation gauge, no Front de Marée, no drift and no
-      // waves of arrival (tours 1, 3, 4, 5). The east columns are uncertain
-      // until something comes within a cell of them, or the tide settles
-      // them (tick 6).
-      // The Lacunaire is a neutral swimmer with hit points; holding out until
-      // the clock runs down stands for "he is fixed".
+      // Waves of arrival at ticks 1, 3, 4 and 5; the Front de Marée comes from
+      // the east, one column every three ticks, and covers the east columns
+      // with uncertainty (the tide settles what is left at tick 6). The
+      // Lacunaire drifts east; the gauge of fixation fills with the allies
+      // next to him (+1 each per tick), empties with the effilocheurs next to
+      // him (-1 each), and a full gauge fixes him: victory. (Contacts that
+      // count +2 are not separate actions here.)
+      tide: { axis: "x", from: 7, dir: -1, every: 3, start: 2 },
+      fixation: {
+        team: 1,
+        index: 0,
+        helpers: [0],
+        harm: [2],
+        max: 8,
+        winner: 0,
+      },
       neutral: [1],
       superposition: {
         cells: [
@@ -102,6 +119,68 @@ function passe(squalor: boolean): FightSpec {
     goal: "Protéger le Lacunaire pendant qu'il se fixe : tenir la Passe jusqu'à la fin de la Marée.",
     defeat: [set("defaite"), add("usure", 1), add("confiance.lacunaire", -1)],
     objectives: [
+      {
+        id: "forme-ondine",
+        mark: "◆",
+        label: "Forme : ondine",
+        when: { firstTouch: { of: "lacunaire_remous", by: "nerea" } },
+        success:
+          "Néréa l'a touché la première : il prend la forme d'une ondine.",
+        onSuccess: [set("lacunaire.forme", "ondine")],
+      },
+      {
+        id: "forme-aiguille",
+        mark: "◆",
+        label: "Forme : aiguille",
+        when: { firstTouch: { of: "lacunaire_remous", by: "eva" } },
+        success: "Eva l'a touché la première : il s'affine en aiguille.",
+        onSuccess: [set("lacunaire.forme", "aiguille")],
+      },
+      ...(squalor
+        ? [
+            {
+              id: "forme-squale",
+              mark: "◆" as const,
+              label: "Forme : squale",
+              when: { firstTouch: { of: "lacunaire_remous", by: "squalor" } },
+              success:
+                "Squalor l'a goûté sans mordre : il prend une forme de squale.",
+              onSuccess: [set("lacunaire.forme", "squale")],
+            },
+          ]
+        : []),
+      {
+        id: "forme-miroir",
+        mark: "◆",
+        label: "Forme : miroir",
+        when: { firstTouch: { of: "lacunaire_remous", by: "@hero" } },
+        success:
+          "Le héros l'a touché le premier : il prend la forme d'un miroir.",
+        onSuccess: [set("lacunaire.forme", "miroir")],
+      },
+      {
+        id: "forme-brume",
+        mark: "◆",
+        label: "Forme : brume",
+        when: { firstTouch: { of: "lacunaire_remous", by: { team: 2 } } },
+        success: "Un effilocheur l'a touché le premier : il se fait brume.",
+        onSuccess: [set("lacunaire.forme", "brume")],
+      },
+      {
+        id: "forme-recif",
+        mark: "◆",
+        label: "Forme : récif",
+        when: {
+          not: {
+            any: [
+              { firstTouch: { of: "lacunaire_remous", by: { team: 0 } } },
+              { firstTouch: { of: "lacunaire_remous", by: { team: 2 } } },
+            ],
+          },
+        },
+        success: "Personne ne l'a touché : il prend la forme d'un récif.",
+        onSuccess: [set("lacunaire.forme", "recif")],
+      },
       {
         id: "proteger",
         mark: "★",
@@ -514,34 +593,6 @@ export const ch10: Chapter = {
         stage(
           "La Marée tire à l'est. Des effilocheurs viennent reprendre ce qui n'a pas fini de se fixer. Néréa annonce : le premier qui touche le Lacunaire lui donne sa forme.",
         ),
-        // SIMPLIFIED: the first interaction cannot be read from the fight, so
-        // the player chooses who touches first, before it begins.
-        choice("premier", [
-          opt("nerea", "Que Néréa le touche la première.", [
-            fx(set("lacunaire.forme", "ondine")),
-          ]),
-          opt("eva", "Que ce soit Eva (une flèche émoussée).", [
-            fx(set("lacunaire.forme", "aiguille")),
-          ]),
-          opt(
-            "squalor",
-            "Que Squalor le goûte, sans mordre.",
-            [fx(set("lacunaire.forme", "squale"))],
-            is("squalor_rejoint"),
-          ),
-          opt("heros", "Le toucher moi-même.", [
-            fx(set("lacunaire.forme", "miroir")),
-          ]),
-          opt("personne", "Ne choisir personne.", [
-            fx(set("lacunaire.forme", "recif")),
-          ]),
-          opt(
-            "effilocheur",
-            "Laisser un effilocheur le toucher.",
-            [fx(set("lacunaire.forme", "brume"))],
-            gte("lacunes.elargies", 1),
-          ),
-        ]),
         fightBeat,
         when(is("defaite"), [
           stage(

@@ -53,6 +53,54 @@ describe("Front de Marée and reach", () => {
     expect(merlinFell || c.winnerTeam !== 1).toBe(true)
   })
 
+  test("the trace notes who came next to whom first, and a full gauge wins", () => {
+    const c = new Combat({
+      seed: 1,
+      board: Board.fromAscii(["....", "...."]),
+      teams: [
+        { name: "a", controller: "ai", fighters: ["lyra"] },
+        { name: "b", controller: "ai", fighters: ["merlin"] },
+      ],
+      positions: [[{ x: 0, y: 0 }], [{ x: 1, y: 0 }]],
+      adventure: {
+        clock: { period: 1, limit: 40, winner: null },
+        noDefeat: [0, 1],
+        fixation: {
+          team: 1,
+          index: 0,
+          helpers: [0],
+          harm: [],
+          max: 3,
+          winner: 0,
+        },
+      },
+    })
+    c.run()
+    // three ticks next to the protected fighter fill the gauge before any turn
+    expect(c.winnerTeam).toBe(0)
+    expect(c.adventure?.trace.report.touches).toEqual([])
+  })
+
+  test("the trace notes who came next to whom first", () => {
+    const c = new Combat({
+      seed: 1,
+      board: Board.fromAscii(["....", "...."]),
+      teams: [
+        { name: "a", controller: "ai", fighters: ["lyra"] },
+        { name: "b", controller: "ai", fighters: ["merlin"] },
+      ],
+      positions: [[{ x: 0, y: 0 }], [{ x: 1, y: 0 }]],
+      adventure: {
+        clock: { period: 1, limit: 40, winner: null },
+        noDefeat: [0, 1],
+      },
+    })
+    c.run()
+    const touches = c.adventure?.trace.report.touches ?? []
+    expect(touches.length).toBe(2)
+    expect(touches[0].by).not.toBe(touches[1].by)
+  })
+
   test("a settled cell near the centre is uncertain again when left alone", () => {
     const c = fight({
       clock: { period: 1, limit: 3, winner: 0 },

@@ -32,6 +32,7 @@ const report: FightReport = {
     { id: "squalor-1-0", preset: "squalor", team: 1, hp: 0, fled: false },
   ],
   trace: {
+    touches: [],
     finalBlows: {
       "squalor-1-0": {
         by: "brutus-0-0",
