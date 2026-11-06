@@ -14,7 +14,7 @@
    - pas de mémoire de l'eau, et pas de « quantique » employé comme mot magique ;
    - les personnages peuvent se tromper, croire, spéculer, mais **le récit ne valide jamais une erreur scientifique**.
 3. **Pas anthropocentrique.** Les Échos ne sont pas le centre de l'univers. Une pierre, une vague, une flamme comptent autant qu'un Écho dans l'ordre des choses.
-4. **Pas de quatrième mur.** Personne ne s'adresse au joueur en tant que joueur. On parle **du Ghom**, et parfois **au Ghom**, comme à une présence du monde.
+4. **Pas de quatrième mur.** Personne ne s'adresse au joueur en tant que joueur. On parle **du Ghom**, et parfois **au Ghom**, comme à une présence du monde. *Seule exception, diégétique : dans la fin secrète La Gratuité, le Ghom dit au **héros** que le monde est un jeu qu'il a fait et que le héros y est tenu ; c'est adressé au héros, jamais au joueur (voir `06-fins/la-gratuite.md`).*
 5. **Le Ghom ne parle jamais.** Son influence se ressent : une pression dans l'air, un temps qui ralentit, le sol qui bouge. Ce qu'il est reste un **mystère** (Décision 3) : les Échos en débattent, le récit ne tranche pas.
 6. **Le héros parle peu.** Ses répliques sont des **choix du joueur**, de deux à quatre options, courtes. Il n'a pas de nom avant l'arc F.
 7. **Les questions restent des questions.** On ne donne jamais une réponse que la science n'a pas. Quand un personnage ne sait pas, il le dit.
@@ -51,7 +51,7 @@ Ce qui suit est le résumé du lore. Le détail et les statuts (Établi, Hypoth�
 | **Les Archives** | Les traces lisibles du passé : la lumière tardive, les strates des abysses, les défauts des cristaux. |
 | **Vacuum decay** | Sort interdit, caché au ch. 26. Hypothèse physique : notre vide serait un faux vide (métastable), et une poche de vide « vrai » grandirait à presque la vitesse de la lumière en réécrivant les constantes. Jamais mesuré : le jeu le donne comme une hypothèse. Dans l'Aventure, il n'est lancé qu'**une fois**, par la menace du dernier geste du ch. 28 : c'est **La Bascule**, qui efface la vraie sauvegarde. Hors de l'Aventure, il efface aussi la sauvegarde et laisse des **cicatrices** (couleurs légèrement décalées, quelques points de statistiques déplacés sans changer l'équilibre). |
 | **La Bascule** | Première fin secrète (`bascule`) : le sort est lancé, le Ghom tente de contenir la bulle en réimposant l'ancien vide et y échoue. Révèle sa volonté : **garder l'univers tel qu'il est**. Efface la sauvegarde, redémarre, félicite (`la-bascule.md`). |
-| **La Gratuité** | Seconde fin secrète (`gratuite`), accessible seulement après la Bascule : une négociation par gestes avec le Ghom, qui dit ce qu'il croit de l'existence de l'univers : aucune raison hors de lui, et lui-même n'est qu'un motif du même champ (hypothèse, sans preuve). **Réponse canonique du jeu, mais présentée comme ce que le Ghom croit** (`la-gratuite.md`). |
+| **La Gratuité** | Seconde fin secrète (`gratuite`), accessible seulement après la Bascule : une négociation par gestes avec le Ghom, qui dit d'abord ce qu'il **sait** (il est l'auteur du monde du héros, qui y est tenu pour toujours), puis ce qu'il **croit** de l'existence de son propre univers : aucune raison hors de lui, et lui-même n'est qu'un motif du même champ (hypothèse, sans preuve). **Réponse canonique du jeu, mais présentée comme ce que le Ghom croit** (`la-gratuite.md`). |
 | **`bascule_vue`** | Drapeau méta (clé `realms.endings`) : la Bascule a été atteinte. Survit à tous les effacements. Ouvre le geste de la négociation. |
 | **Ordre et Chaos** | Les deux philosophies, *tout figer* contre *tout ouvrir*. La vie existe **entre** les deux. |
 
@@ -65,7 +65,7 @@ Ce qui suit est le résumé du lore. Le détail et les statuts (Établi, Hypoth�
   - les **Immobilistes** : le Ghom est un dieu immobile, hors du temps ;
   - les **Lumineux** : le Ghom est un mouvement perpétuel à la vitesse de la lumière, d'où naît l'énergie.
 - Les savants remarquent qu'à la vitesse de la lumière, aucun temps ne s'écoule. Les deux écoles pourraient donc avoir raison à la fois, et le récit **ne tranche jamais**.
-- **Ce que le Ghom croit de lui-même** (seulement dans la fin secrète *La Gratuité*, et donné comme hypothèse) : il n'est pas un auteur ni un dieu, mais un motif du même champ que le reste, qui persiste parce que le vide qui le porte persiste. Sa « volonté » est de **garder l'univers tel qu'il est** (la Bascule le montre), et non de le contrôler. Cette lecture n'invalide ni les Immobilistes ni les Lumineux.
+- **Ce que le Ghom dit de lui-même** (seulement dans la fin secrète *La Gratuité*) : **fait**, il est l'auteur du monde du héros, où le héros est tenu pour toujours (les Influences sont ses mains ; qui joue tient sa place) ; **hypothèse**, il n'est pas l'auteur de son propre univers ni un dieu, mais un motif du même champ que le reste, qui persiste parce que le vide qui le porte persiste. Sa « volonté » est de **garder le monde qu'il a fait tel qu'il est** (la Bascule le montre : l'effacement était réel), et non de le contrôler. Cette lecture n'invalide ni les Immobilistes ni les Lumineux.
 - Le Ghom du héros est **le Ghom**. Celui d'en face est **le Ghom du Chaos**, puis **le Ghom déchu** (arc E).
 
 ### Les noms se transmettent

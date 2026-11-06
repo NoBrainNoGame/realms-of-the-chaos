@@ -26,7 +26,7 @@ Pour chaque question ouverte, au moins un personnage propose **une réponse tent
 | Q03 | ch. 3 | *Si tout est fixé, sommes-nous encore vivants ?* | Tardive | Ch. 18 (la Cité fendue) : non. Un vivant est une forme traversée par un flux : figée, elle cesse de vivre. | — |
 | Q04 | ch. 4 | *Que gardent les profondeurs de ce qui a été ?* | Tardive | Ch. 11 (les strates) : des **traces**, pas le passé lui-même. On le reconstitue, on ne le revit pas. | — |
 | Q05 | ch. 5 | *Les Échos d'en face sont-ils aussi vivants que les miens ?* | Même ère | Ch. 6 : oui. Ils ont les mêmes besoins, les mêmes peurs, la même Dispersion. | — |
-| Q06 | ch. 6 | *Pourquoi quelque chose plutôt que rien ?* | Ouverte | Reposée à chaque ère, puis par Gorr au ch. 28. (Voir Q28 : seule **La Gratuité** y ajoute ce que le Ghom croit.) | « Parce qu'un Ghom l'a voulu », ou « parce que le rien est impossible ». Les deux sont présentées comme certaines, et aucune ne l'est. |
+| Q06 | ch. 6 | *Pourquoi quelque chose plutôt que rien ?* | Ouverte | Reposée à chaque ère, puis par Gorr au ch. 28. (Voir Q28 : seule **La Gratuité** y ajoute ce que le Ghom sait de ce monde et ce qu'il croit de son propre univers.) | « Parce qu'un Ghom l'a voulu », ou « parce que le rien est impossible ». Les deux sont présentées comme certaines, et aucune ne l'est. |
 | Q07 | ch. 7 | *Suis-je celui de la légende ?* | Tardive | Ch. 14 (le Chroniqueur) : la légende parle de lui, mais déformée par ceux qui l'ont transmise. | — |
 | Q08 | ch. 8 | *Une chose a-t-elle un état avant qu'on la touche ?* | Même ère | Ch. 10 : elle a un état **relativement à ce qui l'a déjà touchée**. Il n'existe pas de valeur cachée, toute prête, qui attendrait d'être découverte : les expériences du monde le montrent (Bell). | — |
 | Q09 | ch. 9 | *Avoir faim, est-ce une raison d'être ?* | Tardive | Ch. 26 (Squalor) : la faim fait **durer**. Elle ne dit pas **pour quoi** durer. | — |
@@ -48,7 +48,7 @@ Pour chaque question ouverte, au moins un personnage propose **une réponse tent
 | Q25 | ch. 25 | *Suis-je mes choix, ou toutes les branches où j'existe ?* | Ouverte | — (les branches multiples sont une hypothèse) | « Toutes les branches sont toi, donc rien ne compte » (un Double) |
 | Q26 | ch. 26 | *Le vide est-il le contraire de l'être, ou ce qu'il est au repos ?* | Même ère | Ch. 26 : le vide physique n'est pas « rien ». Il fluctue et a de l'énergie. Le « rien » absolu, lui, reste une idée. | — |
 | Q27 | ch. 27 | *Le monde a-t-il besoin de nous ?* | Même ère | Ch. 27 : non. La vie revient seule tant qu'il reste un déséquilibre d'énergie. Ce n'est pas triste : c'est une liberté. | — |
-| Q28 | ch. 28 | *Pourquoi quelque chose plutôt que rien ?* (posée par Gorr) | Ouverte | Elle **reste ouverte**. Selon la fin, le héros répond, ou reconnaît qu'on ne sait pas. **Fin secrète La Gratuité** : elle est **annotée** (`q28.annotee`), non résolue : « Hypothèse du Ghom : aucune raison hors de l'univers ; le Ghom est lui-même un motif du même champ. Non prouvée. » | Les deux de Q06 |
+| Q28 | ch. 28 | *Pourquoi quelque chose plutôt que rien ?* (posée par Gorr) | Ouverte | Elle **reste ouverte**. Selon la fin, le héros répond, ou reconnaît qu'on ne sait pas. **Fin secrète La Gratuité** : elle est **annotée** (`q28.annotee`), non résolue : « Le Ghom a fait ce monde et le héros y est tenu pour toujours (fait, dit par l'auteur). Pourquoi *son* univers existe : hypothèse du Ghom, aucune raison hors de lui, il en est un motif parmi d'autres. Non prouvée. » | Les deux de Q06 |
 
 ## Les questions des ères
 

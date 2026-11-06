@@ -110,7 +110,7 @@ Au premier démarrage qui suit, **l'écran de félicitations** : « *Fin secrèt
 
 ## Ce que cette fin apprend (et ce qu'elle ne prouve pas)
 
-Ce que le héros a vu : **quand on essaie de faire disparaître l'univers, le Ghom ne se retire pas, il s'y oppose de toutes ses forces**. On ne peut plus croire, après cela, qu'il le laisserait défaire ou qu'il le défairait. C'est cela qui, au second passage, rend la menace **inutile** : elle ne pèse plus sur lui, et une négociation devient possible (voir [`la-gratuite.md`](la-gratuite.md)).
+Ce que le héros a vu : **quand on essaie de faire disparaître l'univers (le monde que le Ghom a fait), le Ghom ne se retire pas, il s'y oppose de toutes ses forces**. On ne peut plus croire, après cela, qu'il le laisserait défaire ou qu'il le défairait. C'est cela qui, au second passage, rend la menace **inutile** : elle ne pèse plus sur lui, et une négociation devient possible (voir [`la-gratuite.md`](la-gratuite.md)).
 
 Réserves de lore (cohérentes avec [`../bible.md`](../bible.md), « Vacuum decay ») :
 
@@ -123,6 +123,6 @@ Réserves de lore (cohérentes avec [`../bible.md`](../bible.md), « Vacuum deca
 - **Le vrai effacement.** À la fin du nœud « L'échec » (§ 5), l'Aventure appelle `vacuumDecayWipe({ ending: "bascule" })` (`apps/game/src/storage.ts`). Cette fonction : efface toute la sauvegarde (tout ce qui est sous `realms.save.`), ajoute une cicatrice, **enregistre la fin** dans `realms.endings` (jamais effacé) et pose le drapeau « à féliciter au prochain démarrage ». Puis le jeu redémarre : c'est l'écran de félicitations. Les autres usages du sort (Escarmouche, Arcade) effacent aussi, **sans** féliciter.
 - **Pour essayer sans l'Aventure :** `?ending=bascule` dans l'URL (voir `apps/game/src/params.ts`).
 - **Les Influences s'emballent.** Pendant § 3, la barre d'Élan est pleine et chaque Influence s'allume sans que le joueur les commande : le Ghom agit à sa place, sans mot. Aucune invite à jouer. Le joueur ne peut que regarder.
-- **Pas de quatrième mur.** Aucun texte du jeu ne s'adresse au joueur avant l'écran de félicitations, qui vient *après* le redémarrage et appartient à l'interface, pas au monde.
+- **Pas de quatrième mur** (et, après coup, la raison profonde de cet effacement est donnée par La Gratuité : le Ghom est l'auteur, l'effacement est réel). Aucun texte du jeu ne s'adresse au joueur avant l'écran de félicitations, qui vient *après* le redémarrage et appartient à l'interface, pas au monde.
 - **Son :** la note grave du Ghom monte, puis casse. Silence.
 - **Une seule bulle** : le sort n'est jamais lancé avant ce moment, dans l'Aventure.

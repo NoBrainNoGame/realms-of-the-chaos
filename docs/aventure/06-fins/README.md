@@ -13,9 +13,9 @@ Ce dossier contient **le calcul des fins** (ce fichier) et **les sept fins rédi
 | **Le Découplage** | La fin secrète : le Ghom se retire, l'Archipel continue. | [`le-decouplage.md`](le-decouplage.md) |
 | **La Dispersion** | La fin amère : le héros se disperse, un autre termine. | [`la-dispersion.md`](la-dispersion.md) |
 | **La Bascule** | **Première fin secrète** : le sort est lancé, le Ghom tente de contenir la bulle et échoue ; le jeu efface la sauvegarde et redémarre. | [`la-bascule.md`](la-bascule.md) |
-| **La Gratuité** | **Seconde fin secrète** (après la Bascule) : on négocie avec le Ghom, qui dit ce qu'il croit de l'existence de l'univers. | [`la-gratuite.md`](la-gratuite.md) |
+| **La Gratuité** | **Seconde fin secrète** (après la Bascule) : on négocie avec le Ghom, qui révèle être l'auteur du monde du héros, puis dit ce qu'il croit de l'existence de son propre univers. | [`la-gratuite.md`](la-gratuite.md) |
 
-Règle commune : **aucune fin ne répond à Q28 de façon démontrée.** La question reste écrite dans le Carnet, ouverte ou barrée. Les fins disent ce que devient l'Archipel, pas pourquoi il existe. **Seule exception : La Gratuité**, qui rapporte ce que le Ghom *croit* (une hypothèse, sans preuve) et **annote** Q28 sans la clore.
+Règle commune : **aucune fin ne répond à Q28 de façon démontrée.** La question reste écrite dans le Carnet, ouverte ou barrée. Les fins disent ce que devient l'Archipel, pas pourquoi il existe. **Seule exception : La Gratuité**, qui rapporte d'abord ce que le Ghom *sait* (il est l'auteur du monde du héros, qui y est tenu pour toujours), puis ce qu'il *croit* de l'existence de son propre univers (une hypothèse, sans preuve), et **annote** Q28 sans la clore.
 
 ---
 

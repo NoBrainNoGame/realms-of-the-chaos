@@ -13,7 +13,7 @@
    - **un mouvement perpétuel à la vitesse de la lumière**, d'où émergerait toute énergie.
 
    Les deux lectures se rejoignent sur un point réel [Établi] : pour ce qui voyage à la vitesse de la lumière, **aucun temps propre ne s'écoule**. Ce qui bouge le plus vite possible est aussi, de son propre point de vue, parfaitement immobile. Le jeu ne tranche jamais. Les Échos ont leurs théories, et le joueur garde le mystère.
-4. **Pas de quatrième mur.** Le jeu ne s'adresse jamais au joueur en tant que joueur : le chapitre 23 et la fin secrète sont réécrits dans le monde (voir ci-dessous).
+4. **Pas de quatrième mur.** Le jeu ne s'adresse jamais au joueur en tant que joueur : le chapitre 23 et la fin secrète sont réécrits dans le monde (voir ci-dessous). Exception diégétique : dans La Gratuité, le Ghom révèle **au héros** qu'il est l'auteur du monde où le héros est tenu pour toujours ; le joueur n'est jamais interpellé.
 5. **Pas d'encarts « Ce que dit la science »** dans les Chroniques. La rigueur reste dans la conception et ne s'affiche pas.
 6. **Le jeu existant s'adapte au lore :**
    - les termes de l'interface ;
