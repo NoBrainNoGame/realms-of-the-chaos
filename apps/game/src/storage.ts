@@ -169,6 +169,8 @@ export interface AdventureSave {
   run: Run | null
   /** Journeys the Ghom made the hero take across the map. */
   trips: number
+  /** The ending the run reached, once the last chapter is over (never a wipe). */
+  ending: string | null
 }
 
 export const emptyAdventureSave = (): AdventureSave => ({
@@ -178,6 +180,7 @@ export const emptyAdventureSave = (): AdventureSave => ({
   completed: [],
   run: null,
   trips: 0,
+  ending: null,
 })
 
 export function adventureSave(): AdventureSave {

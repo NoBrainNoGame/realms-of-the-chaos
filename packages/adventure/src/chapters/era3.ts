@@ -47,7 +47,7 @@ export const ERA3_GROWTH: Record<string, Era3Growth> = {
     stats: { physicalDefense: 2 },
   },
   "habit:bracelet-de-quartz": {
-    look: { mark: 4 },
+    look: { mark: 1 },
     stats: { physicalDefense: 1 },
   },
   "habit:tablier-de-fonderie": {
@@ -58,12 +58,12 @@ export const ERA3_GROWTH: Record<string, Era3Growth> = {
     trait: "Carte des Lacunes : les creux du Tissu, tracés à la main.",
   },
   "habit:echarpe-de-thermiste": {
-    look: { accessory: 5 },
+    look: { accessory: 2 },
     stats: { magicalDefense: 1 },
   },
   "habit:col-des-vents": { look: { cape: 3 }, stats: { luck: 1 } },
   "habit:eclat-de-vitrelle": {
-    look: { mark: 5 },
+    look: { mark: 2 },
     trait: "Éclat de Vitrelle : on voit à travers, tout passe.",
   },
 }

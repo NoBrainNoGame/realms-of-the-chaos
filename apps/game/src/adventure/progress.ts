@@ -6,8 +6,10 @@ import {
   type Carry,
   CHAPTERS,
   chapterById,
+  type EndingResult,
   nextChapter,
   type Run,
+  resolveEnding,
   START_CARRY,
   startChapter,
 } from "@realms/adventure"
@@ -16,9 +18,16 @@ import {
   type AdventureSave,
   adventureSave,
   emptyAdventureSave,
+  endingsSeen,
+  markEnding,
+  secondEndingAvailable,
+  takeCongratulation,
   vacuumDecayWipe,
   writeAdventureSave,
 } from "../storage"
+
+/** The chapter whose end is the end of the Adventure. */
+export const LAST_CHAPTER = "28"
 
 /** The first chapter is always open; the next ones follow the story. */
 export function unlockedChapters(save = adventureSave()): string[] {
@@ -51,7 +60,13 @@ export function beginChapter(
   sandbox = false,
 ): Run {
   const save = adventureSave()
-  const carry: Carry = save.starts[chapterId] ?? START_CARRY
+  let carry: Carry = save.starts[chapterId] ?? START_CARRY
+  if (chapterId === LAST_CHAPTER)
+    // the negotiation is only offered to a player who saw La Bascule
+    carry = {
+      ...carry,
+      flags: { ...carry.flags, bascule_vue: secondEndingAvailable() },
+    }
   const run = startChapter(chapterId, carry, seed)
   if (!sandbox) {
     save.starts[chapterId] = structuredClone(carry)
@@ -109,12 +124,40 @@ export function continuation(
 }
 
 /**
- * The hook of the last chapter (28): the Adventure reaches a secret ending
- * through the forbidden spell. The save is wiped (the Adventure's progress
- * with it), the ending is recorded and congratulated at the next start.
- * Nothing calls it yet. Inside an Adventure fight, a vacuum decay that is
- * NOT an ending never comes here: it is only a threat (see Game.ts).
+ * The ending a finished run reaches (docs/aventure/06-fins). `forced` is an
+ * ending the last fight itself decided (the vacuum decay of the finale).
  */
-export function endAdventure(ending: string): number {
-  return vacuumDecayWipe({ ending })
+export function endingOf(
+  run: Pick<Run, "flags">,
+  forced?: EndingResult,
+): EndingResult {
+  if (forced) return forced
+  return resolveEnding({
+    ...run.flags,
+    bascule_vue: endingsSeen().includes("bascule"),
+  })
+}
+
+/**
+ * The epilogue was read: the ending is recorded for good. La Bascule wipes
+ * the save (and leaves a scar), La Gratuité is recorded without a wipe, the
+ * other endings only close the run. Returns the secret ending to
+ * congratulate, if any.
+ */
+export function recordEnding(result: EndingResult): string | null {
+  if (result.fin === "bascule") {
+    vacuumDecayWipe({ ending: "bascule" })
+    // congratulated right now, not at the next start
+    takeCongratulation()
+    return "bascule"
+  }
+  const save = adventureSave()
+  save.ending = result.fin
+  save.run = null
+  writeAdventureSave(save)
+  if (result.fin === "gratuite") {
+    markEnding("gratuite")
+    return "gratuite"
+  }
+  return null
 }

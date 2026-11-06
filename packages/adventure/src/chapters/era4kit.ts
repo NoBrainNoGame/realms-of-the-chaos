@@ -1,5 +1,5 @@
 import { CHARACTERS, type CharacterPreset } from "@realms/engine"
-import { FLAGS, type FlagSpec } from "../flags"
+import { type FlagSpec, registerFlags } from "../flags"
 
 // Shared pieces of era IV (ch. 19 to 24): flags, presets, Lacune boards.
 
@@ -20,7 +20,6 @@ const ERA4_FLAGS: Record<string, FlagSpec> = {
   chroniqueur_rejoint: bool,
   squalor_rejoint: bool,
   nerea_retrouvee: bool,
-  cristal_rendu: bool,
   premier_cristal: text("aucun", "sauve", "perdu", "donne"),
   "cristaux.extraits": count(99),
   "lacunaire.forme": text("aucune", "brume", "pierre", "reflet"),
@@ -88,7 +87,7 @@ for (const l of [
   ERA4_FLAGS[`statut.${l}`] = text("absent", "reste", "hesite", "part")
 }
 
-for (const [k, v] of Object.entries(ERA4_FLAGS)) if (!(k in FLAGS)) FLAGS[k] = v
+registerFlags(ERA4_FLAGS)
 
 // ─── Presets ────────────────────────────────────────────────────────────────
 

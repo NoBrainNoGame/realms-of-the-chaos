@@ -38,7 +38,8 @@ describe("chapters", () => {
   test("ids are unique and ordered", () => {
     const ids = CHAPTERS.map((c) => c.id)
     expect(new Set(ids).size).toBe(ids.length)
-    expect(ERAS[0].chapters).toEqual(ids)
+    expect(ERAS.flatMap((e) => e.chapters)).toEqual(ids)
+    expect(ERAS.map((e) => e.id)).toEqual([1, 2, 3, 4, 5])
   })
   for (const c of CHAPTERS)
     test(`chapter ${c.id} "${c.title}" is valid`, () => {
@@ -126,11 +127,13 @@ describe("playthroughs", () => {
         }
       }
       expect(run.done).toBe(true)
-      expect(fights).toBeGreaterThan(0)
+      if (DEFEAT_LINES[c.id]) expect(fights).toBeGreaterThan(0)
       expect(run.retries).toBe(fights)
       expect(run.flags.defaite ?? false).toBe(false)
-      expect(Number(run.flags.usure ?? 0)).toBeGreaterThan(0)
-      expect(lines.some((l) => l.includes(DEFEAT_LINES[c.id]))).toBe(true)
+      if (DEFEAT_LINES[c.id]) {
+        expect(Number(run.flags.usure ?? 0)).toBeGreaterThan(0)
+        expect(lines.some((l) => l.includes(DEFEAT_LINES[c.id]))).toBe(true)
+      }
     }
   })
 
@@ -166,6 +169,7 @@ describe("exploration", () => {
       "4",
       "5",
       "6",
+      ...Array.from({ length: 22 }, (_, i) => String(i + 7)),
     ])
     for (const c of walked) expect(validateChapter(c)).toEqual([])
   })

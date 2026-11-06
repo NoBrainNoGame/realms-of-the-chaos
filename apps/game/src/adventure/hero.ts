@@ -4,7 +4,13 @@
  * is part of the run's state and never leaves the Adventure: the Atelier
  * does not see any of it. Stats rise outside the balance budget.
  */
-import type { Carry } from "@realms/adventure"
+import {
+  type Carry,
+  ERA2_GROWTH,
+  ERA3_GROWTH,
+  ERA4_GROWTH,
+  ERA5_GROWTH,
+} from "@realms/adventure"
 import {
   ACTIONS,
   type CharacterPreset,
@@ -55,7 +61,7 @@ export interface Growth {
 }
 
 /** What each item or unlock of the story does to the hero. */
-export const GROWTH: Record<string, Growth> = {
+const ERA1_GROWTH: Record<string, Growth> = {
   linge_d_aube: { look: { top: 1 } },
   sandales_de_jonc: { look: { legs: 2 }, stats: { speed: 1 } },
   cape_du_premier_matin: { look: { cape: 1 } },
@@ -81,6 +87,19 @@ export const GROWTH: Record<string, Growth> = {
   eclat_de_poussiere_noire: { stats: { magicalAttack: 1 } },
   carotte_lac_sourd: { trait: "La carotte du lac sourd", stats: { luck: 1 } },
   fil_dechirure: { trait: "Le fil déchiré" },
+}
+
+/** Eras II to V give looks and stats as plain records (the story package cannot see `Growth`). */
+export const GROWTH: Record<string, Growth> = {
+  ...ERA1_GROWTH,
+  // Items of era II without an entry of their own.
+  cire_des_pilotis: { stats: { physicalDefense: 1 } },
+  carte_des_lacunes: { trait: "Carte des Lacunes" },
+  mains_gercees: { trait: "Les mains gercées" },
+  ...(ERA2_GROWTH as Record<string, Growth>),
+  ...(ERA3_GROWTH as Record<string, Growth>),
+  ...(ERA4_GROWTH as Record<string, Growth>),
+  ...(ERA5_GROWTH as Record<string, Growth>),
 }
 
 const BASE_SPELLS = ["sprint", "kick"]

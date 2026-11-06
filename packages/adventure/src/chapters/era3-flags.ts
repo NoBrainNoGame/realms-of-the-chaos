@@ -1,4 +1,4 @@
-import { FLAGS, type FlagSpec } from "../flags"
+import { type FlagSpec, registerFlags } from "../flags"
 
 // The flags of era III (L'Âge du Verre), from the README of the era and the
 // chapters 13 to 18. The shared registry is extended at import time, and only
@@ -91,5 +91,4 @@ const ERA3_FLAGS: Record<string, FlagSpec> = {
   corin_evacue: bool,
 }
 
-for (const [key, spec] of Object.entries(ERA3_FLAGS))
-  if (!Object.hasOwn(FLAGS, key)) FLAGS[key] = spec
+registerFlags(ERA3_FLAGS)

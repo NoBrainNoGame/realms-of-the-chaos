@@ -1,9 +1,14 @@
 import type * as booyah from "@ghom/booyah"
-import type { FightReport, FightSpec, Run } from "@realms/adventure"
 import {
   chapterById,
+  ENDING_NAMES,
+  type EndingResult,
+  epilogueOf,
   explorationOf,
+  type FightReport,
+  type FightSpec,
   getFlag,
+  type Run,
   START_CARRY,
   teleportReaction,
 } from "@realms/adventure"
@@ -18,13 +23,16 @@ import { HERO_PARTS, STARTING_LOOK } from "../adventure/hero"
 import {
   beginChapter,
   continuation,
+  endingOf,
   newGame,
+  recordEnding,
   resumable,
 } from "../adventure/progress"
 import { SECRET_ENDINGS } from "../endings"
 import type { Params } from "../params"
 import {
   adventureSave,
+  scarCount,
   takeCongratulation,
   vacuumDecayWipe,
   writeAdventureSave,
@@ -34,6 +42,7 @@ import ArcadeRun from "./ArcadeRun"
 import Carnet from "./Carnet"
 import Chronicles from "./Chronicles"
 import Creator from "./Creator"
+import Epilogue from "./Epilogue"
 import ExplorationScene from "./ExplorationScene"
 import FightScene, { classicFight, type SceneOptions } from "./FightScene"
 import Gallery from "./Gallery"
@@ -56,7 +65,7 @@ export type Screen =
       options: SceneOptions
       picked?: PickerResult
       /** A fight of the Adventure: a vacuum decay there wipes the save. */
-      adventure?: { spec: FightSpec; seed: number; sandbox?: Run }
+      adventure?: { spec: FightSpec; seed: number; run: Run; sandbox?: Run }
     }
   /** « Chroniques »: the chapter selector. */
   | { type: "chronicles" }
@@ -84,6 +93,17 @@ export type Screen =
   | { type: "tutorial" }
   | { type: "settings" }
   | { type: "creator"; edit?: string }
+  /**
+   * The epilogue of the Adventure's ending, then the ending is recorded
+   * (La Bascule wipes the save). `forced`: the final fight decided it.
+   */
+  | {
+      type: "ending"
+      run: Run
+      forced?: EndingResult
+      /** A replay of chapter 28: the epilogue is read, nothing is recorded. */
+      sandbox?: boolean
+    }
   /** First start after a secret ending (shown once). */
   | { type: "congrats"; ending: string }
   /** After a vacuum decay wiped the save. */
@@ -240,7 +260,7 @@ export default class Game extends ViewChip {
     return {
       type: "fight",
       options: this._fightOptions(spec, run, seed),
-      adventure: { spec, seed, sandbox },
+      adventure: { spec, seed, run, sandbox },
     }
   }
 
@@ -309,8 +329,19 @@ export default class Game extends ViewChip {
           ),
         )
         this._subscribeOnce(scene, "vacuumDecay", () => {
-          // Anywhere in the Adventure (but the last scene) the forbidden
-          // spell wipes the whole save: no retry, no congratulation.
+          // In the last scene of the Adventure (`finale`) the forbidden spell
+          // is La Bascule: its epilogue, then the wipe and the congratulation.
+          if (adventure?.spec.rules.finale) {
+            this._deferred = {
+              type: "ending",
+              run: adventure.run,
+              forced: { fin: "bascule" },
+              sandbox: adventure.sandbox !== undefined,
+            }
+            return
+          }
+          // Anywhere else in the Adventure the forbidden spell wipes the
+          // whole save: no retry, no congratulation.
           this._collapsing = true
         })
         this._subscribeOnce(scene, "endAction", (id: string) => {
@@ -385,8 +416,15 @@ export default class Game extends ViewChip {
           this._subscribeOnce(island, "back", () =>
             this.show({ type: "chronicles" }),
           )
-          this._subscribeOnce(island, "vacuumDecay", () => {
-            this._collapsing = true
+          this._subscribeOnce(island, "vacuumDecay", (finale: boolean) => {
+            if (finale)
+              this._deferred = {
+                type: "ending",
+                run: island.run,
+                forced: { fin: "bascule" },
+                sandbox: replay,
+              }
+            else this._collapsing = true
           })
           this._subscribeOnce(
             island,
@@ -412,6 +450,9 @@ export default class Game extends ViewChip {
               ? { type: "story", start: id, sandbox: true }
               : { type: "story", start: id },
           ),
+        )
+        this._subscribeOnce(story, "ending", (r: Run) =>
+          this.show({ type: "ending", run: r, sandbox: replay }),
         )
         this._subscribeOnce(story, "fight", (spec: FightSpec, r: Run) =>
           this.show(this._adventureFight(spec, r, replay ? r : undefined)),
@@ -489,6 +530,23 @@ export default class Game extends ViewChip {
           this.show({ type: "arcade", team: screen.team }),
         )
         return run
+      }
+
+      case "ending": {
+        const result = endingOf(screen.run, screen.forced)
+        const epilogue = new Epilogue({
+          name: ENDING_NAMES[result.fin],
+          pages: epilogueOf(result),
+        })
+        this._subscribeOnce(epilogue, "done", () => {
+          if (screen.sandbox) return this.show({ type: "chronicles" })
+          const secret = recordEnding(result)
+          if (secret === "bascule") applyScars(scarCount())
+          this.show(
+            secret ? { type: "congrats", ending: secret } : { type: "title" },
+          )
+        })
+        return epilogue
       }
 
       case "congrats": {

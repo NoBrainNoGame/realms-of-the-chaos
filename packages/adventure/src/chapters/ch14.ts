@@ -9,9 +9,7 @@ import {
   hint,
   hub,
   is,
-  isnt,
   join,
-  lt,
   narr,
   not,
   opt,
@@ -924,5 +922,3 @@ export const ch14: Chapter = {
     },
   },
 }
-
-void [isnt, lt]

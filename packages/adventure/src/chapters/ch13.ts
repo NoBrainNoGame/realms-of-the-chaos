@@ -16,7 +16,6 @@ import {
   narr,
   not,
   opt,
-  redirect,
   say,
   set,
   stage,
@@ -1167,6 +1166,3 @@ export const ch13: Chapter = {
     },
   },
 }
-
-// Silence the unused import of `redirect`: the habitants are heard once each.
-void redirect

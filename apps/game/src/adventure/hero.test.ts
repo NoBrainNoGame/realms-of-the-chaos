@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { storyItems } from "@realms/adventure"
-import { GROWTH } from "./hero"
+import { LOOK_PARTS } from "@realms/engine"
+import { BASE_STATS, GROWTH } from "./hero"
 
 describe("the hero's growth covers the whole story", () => {
   test("every item the story gives has an entry in GROWTH", () => {
@@ -13,5 +14,16 @@ describe("the hero's growth covers the whole story", () => {
       (k) => !given.has(k) && !k.startsWith("action:"),
     )
     expect(dead).toEqual([])
+  })
+  test("every look piece is inside the puppet's parts, every stat a real one", () => {
+    for (const [id, g] of Object.entries(GROWTH)) {
+      for (const [part, n] of Object.entries(g.look ?? {})) {
+        expect(part in LOOK_PARTS).toBe(true)
+        const max = LOOK_PARTS[part as keyof typeof LOOK_PARTS]
+        expect([id, part, n >= 0 && n < max]).toEqual([id, part, true])
+      }
+      for (const k of Object.keys(g.stats ?? {}))
+        expect(k in BASE_STATS).toBe(true)
+    }
   })
 })

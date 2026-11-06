@@ -30,7 +30,12 @@ import {
   type Run,
   wanderFight,
 } from "@realms/adventure"
-import { Board, type CharacterPreset, type Point } from "@realms/engine"
+import {
+  Board,
+  CHARACTERS,
+  type CharacterPreset,
+  type Point,
+} from "@realms/engine"
 import { Container, Graphics, Sprite } from "pixi.js"
 import { allyTeam, puppetId, reportOf } from "../adventure/fight"
 import { saveRun } from "../adventure/progress"
@@ -63,8 +68,8 @@ interface ExplorationEvents extends booyah.BaseCompositeEvents {
   map: []
   /** The player opens the Carnet. */
   carnet: []
-  /** A vacuum decay in a fight of the island: the save is wiped. */
-  vacuumDecay: []
+  /** A vacuum decay in a fight of the island (`finale`: the last scene, La Bascule). */
+  vacuumDecay: [finale: boolean]
   /** The hero moved or the story did (a hook for the world map, the Carnet…). */
   changed: [run: Run]
 }
@@ -743,7 +748,9 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
     this._box.visible = false
     this._elan.visible = false
     this._activateChildChip(scene)
-    this._subscribeOnce(scene, "vacuumDecay", () => this.emit("vacuumDecay"))
+    this._subscribeOnce(scene, "vacuumDecay", () =>
+      this.emit("vacuumDecay", spec.rules.finale === true),
+    )
     this._subscribeOnce(scene, "quit", () => this._leaveFight(null, spec))
     this._subscribeOnce(scene, "endAction", () =>
       this._leaveFight(reportOf(spec, scene.combat), spec),
@@ -1054,7 +1061,9 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
       this._marks.addChild(this._speaker)
     } else this._speaking = null
 
-    const textX = who ? 84 : 20
+    const hasPortrait =
+      !!who && (who === "heros" || Object.hasOwn(CHARACTERS, who))
+    const textX = hasPortrait ? 84 : 20
     let y = 14
     if (name) {
       const n = text(name, 17, color, { fontWeight: "700" })
@@ -1076,7 +1085,7 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
     t.position.set(textX, y)
     rows.addChild(t)
     y += t.height + 14
-    if (who) {
+    if (who && hasPortrait) {
       const portrait = new Sprite(characterTexture(puppetId(who, this._run)))
       portrait.scale.set(3)
       portrait.position.set(16, 14)

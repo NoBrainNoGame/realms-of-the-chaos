@@ -1,6 +1,6 @@
 import { CHARACTERS, type CharacterPreset } from "@realms/engine"
 import { around } from "../dsl"
-import { FLAGS, type FlagSpec } from "../flags"
+import { type FlagSpec, registerFlags } from "../flags"
 import type { Effect, Encounter, ExamineLine, Influence, Spot } from "../types"
 
 // Shared by the chapters of era II ("Le Temps des Marées"): flags, presets and
@@ -80,7 +80,7 @@ export const ERA2_FLAGS: Record<string, FlagSpec> = {
   ch12_personne_derriere: bool,
   eclat_donne_neree: bool,
 }
-Object.assign(FLAGS, ERA2_FLAGS)
+registerFlags(ERA2_FLAGS)
 
 // ─── Presets ────────────────────────────────────────────────────────────────
 

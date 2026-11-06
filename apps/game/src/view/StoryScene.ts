@@ -16,7 +16,7 @@ import {
 import { CHARACTERS } from "@realms/engine"
 import { Container } from "pixi.js"
 import { HERO_NAME } from "../adventure/hero"
-import { completeChapter, saveRun } from "../adventure/progress"
+import { completeChapter, LAST_CHAPTER, saveRun } from "../adventure/progress"
 import { settings } from "../settings"
 import Backdrop from "./Backdrop"
 import { COLORS, TEAM_COLORS } from "./theme"
@@ -30,6 +30,8 @@ interface StoryEvents extends booyah.BaseCompositeEvents {
   back: []
   /** Opens the chapter that follows (its id). */
   chapter: [id: string]
+  /** The last chapter is over: the epilogue of the ending follows. */
+  ending: [run: Run]
 }
 
 const WIDTH = 680
@@ -317,9 +319,11 @@ export default class StoryScene extends ViewChip<StoryEvents> {
         id: "next",
         label: `Chapitre suivant : ${CHAPTERS.find((c) => c.id === this._nextId)?.title ?? ""}`,
       })
+    else if (this._run.chapter === LAST_CHAPTER)
+      items.push({ id: "ending", label: "Épilogue" })
     else
       addText(
-        "La suite arrive : l'Ère II n'est pas encore écrite.",
+        "La suite arrive : l'histoire n'est pas encore écrite.",
         15,
         COLORS.muted,
       )
@@ -327,7 +331,9 @@ export default class StoryScene extends ViewChip<StoryEvents> {
     addMenu(items, (id) =>
       id === "next" && this._nextId
         ? this.emit("chapter", this._nextId)
-        : this.emit("back"),
+        : id === "ending"
+          ? this.emit("ending", this._run)
+          : this.emit("back"),
     )
   }
 

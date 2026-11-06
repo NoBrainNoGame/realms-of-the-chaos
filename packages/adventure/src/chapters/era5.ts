@@ -18,7 +18,7 @@ export interface Era5Growth {
 }
 export const ERA5_GROWTH: Record<string, Era5Growth> = {
   // +5 % dodge while the hero has not acted this turn
-  "habit:echarpe-frangee": { trait: "L'écharpe frangée", look: { mark: 4 } },
+  "habit:echarpe-frangee": { trait: "L'écharpe frangée", look: { mark: 1 } },
   // the last warmth: a little luck, a better magical defence
   "habit:chale-de-la-derniere-chaleur": {
     trait: "Le châle de la dernière chaleur",
@@ -27,7 +27,7 @@ export const ERA5_GROWTH: Record<string, Era5Growth> = {
   // regenerates 1 HP at the start of each turn the hero has not moved
   "habit:mousse-de-la-friche": {
     trait: "La mousse de la Friche",
-    look: { mark: 5 },
+    look: { mark: 2 },
   },
 }
 

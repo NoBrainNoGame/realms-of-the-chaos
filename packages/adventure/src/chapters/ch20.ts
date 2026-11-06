@@ -709,7 +709,7 @@ export const ch20: Chapter = {
                 "La dernière couche est pleine de poussière de cristal. Elle vient de Vitrelle. Des fours. Le lac s'est tu peu après qu'on a brisé les Cristaux. Les deux traces se touchent.",
               ),
             ]),
-            when(is("cristal_rendu"), [
+            when(isnt("cristal_rendu", "aucun"), [
               say(
                 "nerea",
                 "Il y a une veine claire, juste avant le silence. Quelqu'un a rendu un Cristal au monde. Ça n'a pas suffi pour le lac. Ça a suffi pour qu'il reste un peu d'eau qui bouge, là où on est.",

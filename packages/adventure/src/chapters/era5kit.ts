@@ -4,7 +4,7 @@ import {
   generateCharacter,
 } from "@realms/engine"
 import { around } from "../dsl"
-import { FLAGS, type FlagSpec } from "../flags"
+import { FLAGS, type FlagSpec, registerFlags } from "../flags"
 import type {
   Chapter,
   Cond,
@@ -41,7 +41,6 @@ export const ERA5_FLAGS: Record<string, FlagSpec> = {
   chroniqueur_rejoint: bool,
   paix_des_lacunes: bool,
   sel_emportee: bool,
-  premier_cristal: bool,
   gorr_question: bool,
   couplage_ghom_dechu: bool,
   "confiance.eva": count(5, -5),
@@ -98,8 +97,7 @@ export const ERA5_FLAGS: Record<string, FlagSpec> = {
   gratuite_close: bool,
 }
 
-for (const [key, spec] of Object.entries(ERA5_FLAGS))
-  if (!Object.hasOwn(FLAGS, key)) FLAGS[key] = spec
+registerFlags(ERA5_FLAGS)
 
 // `nom` also names the other lineages at the Nomination (ch. 28).
 const nom = FLAGS.nom

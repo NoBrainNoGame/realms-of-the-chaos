@@ -1,5 +1,5 @@
 import type * as booyah from "@ghom/booyah"
-import { CHAPTERS } from "@realms/adventure"
+import { CHAPTERS, ERAS } from "@realms/adventure"
 import { Container, Graphics } from "pixi.js"
 import { unlockedChapters } from "../adventure/progress"
 import { settings } from "../settings"
@@ -25,16 +25,8 @@ export interface MapIsland {
   current: boolean
 }
 
-/** Where the Fragments float on the map (fractions of the screen). */
-const SPOTS = [
-  [0.14, 0.62],
-  [0.3, 0.38],
-  [0.46, 0.64],
-  [0.6, 0.36],
-  [0.74, 0.62],
-  [0.86, 0.36],
-  [0.5, 0.15],
-]
+/** Rows of a column: the most chapters one era has (the prologue counts with era I). */
+const ROWS = 7
 
 /**
  * The map of the Fragments: the floating islands of the Clair, one per
@@ -43,6 +35,7 @@ const SPOTS = [
  */
 export default class WorldMap extends ViewChip<WorldMapEvents> {
   private _islands: { data: MapIsland; node: Container }[] = []
+  private _heads: Container[] = []
   private _label!: Container
   private _size = { width: 0, height: 0 }
 
@@ -72,7 +65,7 @@ export default class WorldMap extends ViewChip<WorldMapEvents> {
       const node = new Container()
       const g = new Graphics()
       drawFloatingIsland(g, 4, 11 + i * 7)
-      g.scale.set(0.7)
+      g.label = "art"
       node.addChild(g)
       node.alpha = data.enabled ? 1 : 0.3
       if (data.enabled) {
@@ -82,17 +75,25 @@ export default class WorldMap extends ViewChip<WorldMapEvents> {
         node.on("pointerover", () => this._show(data))
       }
       node.label = `island:${data.id}`
-      const name = text(data.name, 14, data.current ? 0xffe066 : COLORS.muted, {
+      const name = text(data.name, 11, data.current ? 0xffe066 : COLORS.muted, {
         wordWrap: true,
-        wordWrapWidth: 170,
+        wordWrapWidth: 120,
         align: "center",
       })
+      name.label = "name"
       name.anchor.set(0.5, 0)
-      name.position.set(0, 70)
       node.addChild(name)
       this._container.addChild(node)
       this._islands.push({ data, node })
     })
+    for (const era of ERAS) {
+      const head = text(`Ère ${romanOf(era.id)}`, 14, COLORS.muted, {
+        fontWeight: "700",
+      })
+      head.anchor.set(0.5, 0)
+      this._heads.push(head)
+      this._container.addChild(head)
+    }
     this._subscribe(window, "keydown", (e: KeyboardEvent) => {
       if (e.key === "Escape" || e.key === "m" || e.key === "M")
         this.emit("back")
@@ -130,9 +131,33 @@ export default class WorldMap extends ViewChip<WorldMapEvents> {
     const { width, height } = this._size
     this._label.scale.set(settings().uiSize)
     this._label.position.set(24, height - 60 * settings().uiSize)
-    this._islands.forEach((it, i) => {
-      const [fx, fy] = SPOTS[i % SPOTS.length]
-      it.node.position.set(width * fx, height * fy)
+    // One column per era, the chapters stacked in it (a zigzag keeps the
+    // islands apart); everything shrinks to fit the screen.
+    const cols = ERAS.length
+    const cellW = width / cols
+    const top = 70
+    const cellH = Math.max(40, (height - top - 90 * settings().uiSize) / ROWS)
+    const k = Math.max(0.2, Math.min(0.7, cellW / 200, cellH / 130))
+    this._heads.forEach((h, c) => {
+      h.position.set(cellW * (c + 0.5), 52)
+    })
+    this._islands.forEach((it) => {
+      const chapter = CHAPTERS.find((c) => c.id === it.data.id)
+      const col = Math.max(
+        0,
+        ERAS.findIndex((e) => e.id === chapter?.era),
+      )
+      const row = Math.max(0, ERAS[col].chapters.indexOf(it.data.id))
+      const zig = row % 2 ? 0.18 : -0.18
+      it.node.position.set(
+        cellW * (col + 0.5 + zig),
+        top + cellH * (row + 0.35),
+      )
+      it.node.getChildByLabel("art")?.scale.set(k)
+      const name = it.node.getChildByLabel("name")
+      name?.position.set(0, 70 * k)
     })
   }
 }
+
+const romanOf = (n: number) => ["", "I", "II", "III", "IV", "V"][n] ?? String(n)

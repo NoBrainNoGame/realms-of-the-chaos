@@ -290,7 +290,7 @@ export const ch23: Chapter = {
             "Le Cristal rendu",
             "Une Lacune recousue par un lien donné.",
             "Une signature plus dense, comme si le Ghom tenait mieux là où l'on avait rendu.",
-            is("cristal_rendu"),
+            isnt("cristal_rendu", "aucun"),
           ),
           friseTopic(
             "felure",
@@ -593,7 +593,7 @@ export const ch23: Chapter = {
             stage("Distorsion du Puits : la lentille est plus profonde."),
           ],
         ),
-        when(any(is("cristal_rendu"), gte("cristaux.donnes", 1)), [
+        when(any(isnt("cristal_rendu", "aucun"), gte("cristaux.donnes", 1)), [
           fx(set("empreinte.seisme_ancrage")),
           stage(
             "Séisme d'ancrage : le rocher surgi empêche les cases adjacentes de s'effilocher pendant 3 tours.",

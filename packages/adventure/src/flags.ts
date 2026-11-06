@@ -88,6 +88,40 @@ export const FLAGS: Record<string, FlagSpec> = {
   ecoute_bords: count(3),
 }
 
+/**
+ * Adds the flags an era declares. A flag two eras both declare keeps the
+ * first default and the union of the values of a text flag; a flag declared
+ * with two different kinds is a bug in the story (it throws).
+ */
+export function registerFlags(specs: Record<string, FlagSpec>) {
+  for (const [key, spec] of Object.entries(specs)) {
+    const known = Object.hasOwn(FLAGS, key) ? FLAGS[key] : undefined
+    if (!known) {
+      FLAGS[key] = spec
+      continue
+    }
+    if (typeof known.default !== typeof spec.default)
+      throw new Error(`Flag "${key}" is declared with two different kinds`)
+    if (known.values && spec.values) {
+      for (const v of spec.values)
+        if (!known.values.includes(v))
+          FLAGS[key] = { ...known, values: [...known.values, v] }
+    }
+    if (
+      known.max !== undefined &&
+      spec.max !== undefined &&
+      spec.max > known.max
+    )
+      FLAGS[key] = { ...FLAGS[key], max: spec.max }
+    if (
+      known.min !== undefined &&
+      spec.min !== undefined &&
+      spec.min < known.min
+    )
+      FLAGS[key] = { ...FLAGS[key], min: spec.min }
+  }
+}
+
 const QUESTIONS = Array.from(
   { length: 29 },
   (_, i) => `Q${String(i).padStart(2, "0")}`,
