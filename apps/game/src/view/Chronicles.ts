@@ -18,6 +18,8 @@ export type ChroniclesChoice =
   | { kind: "chapter"; id: string }
   /** The map of the Fragments. */
   | { kind: "map" }
+  /** The Carnet des Questions. */
+  | { kind: "carnet" }
   | { kind: "back" }
 
 interface ChroniclesEvents extends booyah.BaseCompositeEvents {
@@ -129,7 +131,10 @@ export default class Chronicles extends ViewChip<ChroniclesEvents> {
         enabled: done,
       })
     }
-    if (save.body) items.push({ id: "map", label: "Carte des Fragments" })
+    if (save.body) {
+      items.push({ id: "map", label: "Carte des Fragments" })
+      items.push({ id: "carnet", label: "Le Carnet des Questions" })
+    }
     items.push({ id: "back", label: "Retour" })
 
     this._menu = new Menu(items, {
@@ -141,6 +146,7 @@ export default class Chronicles extends ViewChip<ChroniclesEvents> {
         else if (id.startsWith("chapter:"))
           this.emit("choose", { kind: "chapter", id: id.slice(8) })
         else if (id === "map") this.emit("choose", { kind: "map" })
+        else if (id === "carnet") this.emit("choose", { kind: "carnet" })
         else if (id === "new") this.emit("choose", { kind: "new" })
         else this.emit("choose", { kind: "back" })
       },

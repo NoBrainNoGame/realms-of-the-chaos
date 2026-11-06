@@ -3,6 +3,8 @@ import {
   activeEncounters,
   type Carry,
   CHAPTERS,
+  carnetChanges,
+  carnetEntries,
   choose,
   ELAN_MAX,
   ERAS,
@@ -221,5 +223,36 @@ describe("influences on the island", () => {
     expect(influence(run, "rosee", "timeWarp")).toMatchObject({
       reason: "unknown",
     })
+  })
+})
+
+describe("the Carnet", () => {
+  const withFlags = (flags: Record<string, string>) => ({
+    flags: { ...START_CARRY.flags, ...flags },
+  })
+  test("it lists the 29 questions of the reference, hidden until asked", () => {
+    const all = carnetEntries(withFlags({}))
+    expect(all).toHaveLength(29)
+    expect(all.map((e) => e.id)[28]).toBe("Q28")
+    expect(all.every((e) => e.state === "hidden")).toBe(true)
+    expect(all[6].kind).toBe("open")
+    expect(all[1].kind).toBe("late")
+  })
+  test("states follow the flags and changes are reported once", () => {
+    const a = withFlags({ "carnet.Q00": "ouverte" })
+    const b = withFlags({
+      "carnet.Q00": "fausse",
+      "carnet.Q05": "ouverte",
+    })
+    expect(carnetEntries(a)[0].state).toBe("open")
+    expect(carnetEntries(b)[0].state).toBe("false")
+    expect(carnetChanges(a, b).map((c) => [c.id, c.to])).toEqual([
+      ["Q00", "false"],
+      ["Q05", "open"],
+    ])
+    expect(carnetChanges(b, b)).toEqual([])
+    expect(
+      carnetEntries(withFlags({ "carnet.Q05": "repondue" }))[5].state,
+    ).toBe("closed")
   })
 })

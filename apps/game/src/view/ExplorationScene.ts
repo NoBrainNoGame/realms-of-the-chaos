@@ -1,6 +1,7 @@
 import type * as booyah from "@ghom/booyah"
 import {
   activeEncounters,
+  carnetChanges,
   choose,
   companionsOf,
   type Encounter,
@@ -60,6 +61,8 @@ interface ExplorationEvents extends booyah.BaseCompositeEvents {
   back: []
   /** The player opens the map of the Fragments. */
   map: []
+  /** The player opens the Carnet. */
+  carnet: []
   /** A vacuum decay in a fight of the island: the save is wiped. */
   vacuumDecay: []
   /** The hero moved or the story did (a hook for the world map, the Carnet…). */
@@ -152,6 +155,7 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
   constructor(private readonly _options: ExplorationOptions) {
     super()
     this._run = _options.run
+    this._carnetSeen = _options.run
   }
 
   // ─── What tests and the world map can read ────────────────────────────────
@@ -242,6 +246,13 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
   protected _onTick() {
     const dt = this._lastTickInfo.timeSinceLastTick
     this._time += dt
+    if (this._toastText) {
+      this._toastLeft -= dt
+      if (this._toastLeft <= 0) {
+        this._toastText.destroy({ children: true })
+        this._toastText = null
+      }
+    }
     if (this._fight) return
     for (const a of this._everyone()) this._move(a, dt)
     this._follow()
@@ -788,6 +799,46 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
 
   private _save() {
     if (!this._options.sandbox) saveRun(this._run)
+    this._noteCarnet()
+  }
+
+  /** « Carnet » toast when a question was opened, closed or got annotated. */
+  private _noteCarnet() {
+    const changes = carnetChanges(this._carnetSeen, this._run)
+    this._carnetSeen = this._run
+    this.notices = [...this.notices, ...changes.map((c) => c.text)]
+    if (!changes.length) return
+    const c = changes[changes.length - 1]
+    const what =
+      c.to === "open"
+        ? "Nouvelle question"
+        : c.to === "closed"
+          ? "Question refermée"
+          : c.to === "false"
+            ? "Une réponse tentante a été retenue"
+            : "Question annotée"
+    this._toast(`Carnet · ${what} : ${c.text}`)
+  }
+
+  /** Questions of the Carnet that changed, in order (read by the tests). */
+  notices: string[] = []
+  private _carnetSeen!: Run
+  private _toastText: Container | null = null
+  private _toastLeft = 0
+
+  private _toast(message: string) {
+    this._toastText?.destroy({ children: true })
+    const t = text(message, 14, 0xffe066, {
+      wordWrap: true,
+      wordWrapWidth: 520,
+    })
+    const box = new Container()
+    box.addChild(panel(t.width + 24, t.height + 16), t)
+    t.position.set(12, 8)
+    box.position.set(Math.round(this._size.width / 2 - box.width / 2), 16)
+    this._container.addChild(box)
+    this._toastText = box
+    this._toastLeft = 4200
   }
 
   /** Reads a line, skips a hint, a look or a debrief. */
@@ -847,6 +898,10 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
     if (this._mode === "walk" && ["1", "2", "3"].includes(e.key)) {
       const which = influencesOf(this._run)[Number(e.key) - 1]
       if (which) this.use(which)
+      return
+    }
+    if (this._mode === "walk" && (e.key === "c" || e.key === "C")) {
+      this.emit("carnet")
       return
     }
     if (this._mode === "walk" && (e.key === "m" || e.key === "M")) {
@@ -1061,7 +1116,7 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
     const here = pending(this._run)
     const t = text(
       here
-        ? `Clic : marcher · M : carte · à trouver : ${here.label}`
+        ? `Clic : marcher · M : carte · C : carnet · à trouver : ${here.label}`
         : "Clic : marcher, s'approcher, regarder",
       14,
       COLORS.muted,

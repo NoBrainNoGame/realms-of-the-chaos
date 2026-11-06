@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, test } from "bun:test"
-import { CHAPTERS } from "@realms/adventure"
+import { CHAPTERS, type Run } from "@realms/adventure"
 import { startEnergy } from "../adventure/fight"
 import { STARTING_LOOK } from "../adventure/hero"
-import { newGame, unlockedChapters } from "../adventure/progress"
+import { newGame, saveRun, unlockedChapters } from "../adventure/progress"
 import { parseParams } from "../params"
 import { resetSettings } from "../settings"
 import {
@@ -15,6 +15,7 @@ import {
 import { mount, tick } from "../test/harness"
 import { playLocally } from "../test/play"
 import type AppearanceEditor from "./AppearanceEditor"
+import type Carnet from "./Carnet"
 import type Chronicles from "./Chronicles"
 import ExplorationScene from "./ExplorationScene"
 import type FightScene from "./FightScene"
@@ -375,5 +376,43 @@ describe("the Ghom's Influences on the island", () => {
     expect((combat as any).teams[0].energy).toBe(5)
     startEnergy(spec, combat, 99)
     expect((combat as any).teams[0].energy).toBe(6)
+  })
+})
+
+describe("the Carnet", () => {
+  test("the Chronicles open it; it lists only the questions asked; Escape goes back", () => {
+    newGame(STARTING_LOOK)
+    game("chapter=prologue")
+    const run = adventureSave().run as Run
+    saveRun({
+      ...run,
+      flags: { ...run.flags, "carnet.Q00": "ouverte", "carnet.Q01": "ouverte" },
+    })
+    const g = game("mode=chronicles")
+    const sel = g.current as Chronicles
+    sel.menu.select(sel.menu.items.findIndex((i) => i.id === "carnet"))
+    expect(g.screen.type).toBe("carnet")
+    const c = g.current as Carnet
+    expect(c.entries.map((e) => e.id)).toEqual(["Q00", "Q01"])
+    expect(c.reading).toContain("Pourquoi suis-je là ?")
+    expect(c.reading).toContain("n'a pas de réponse")
+    c.menu?.setFocus(1)
+    expect(c.reading).toContain("Pas encore de réponse")
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))
+    expect(g.screen.type).toBe("chronicles")
+  })
+
+  test("a new question shows a notice on the island", () => {
+    const g = game("chapter=prologue")
+    const i = g.current as ExplorationScene
+    expect(i.notices).toEqual([])
+    // a scene writes the question in the Carnet (flag set by the story)
+    const scene = i as unknown as { _run: Run; _save(): void }
+    scene._run = {
+      ...scene._run,
+      flags: { ...scene._run.flags, "carnet.Q00": "ouverte" },
+    }
+    scene._save()
+    expect(i.notices[0]).toBe("Pourquoi suis-je là ?")
   })
 })

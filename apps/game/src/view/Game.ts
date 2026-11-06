@@ -31,6 +31,7 @@ import {
 } from "../storage"
 import AppearanceEditor from "./AppearanceEditor"
 import ArcadeRun from "./ArcadeRun"
+import Carnet from "./Carnet"
 import Chronicles from "./Chronicles"
 import Creator from "./Creator"
 import ExplorationScene from "./ExplorationScene"
@@ -61,6 +62,8 @@ export type Screen =
   | { type: "chronicles" }
   /** The map of the Fragments (the Ghom sends the hero). */
   | { type: "map" }
+  /** The Carnet des Questions (back goes to where it was opened). */
+  | { type: "carnet"; from: "chronicles" | "story" }
   /** The story player, on the saved run (`start`: opens that chapter first). */
   | {
       type: "story"
@@ -346,6 +349,8 @@ export default class Game extends ViewChip {
         this._subscribeOnce(chronicles, "choose", (choice) => {
           if (choice.kind === "back") this.show({ type: "title" })
           else if (choice.kind === "map") this.show({ type: "map" })
+          else if (choice.kind === "carnet")
+            this.show({ type: "carnet", from: "chronicles" })
           else if (choice.kind === "new") this.show({ type: "hero" })
           else if (choice.kind === "resume") {
             const next = continuation()
@@ -374,6 +379,9 @@ export default class Game extends ViewChip {
             arrival: screen.arrival,
           })
           this._subscribeOnce(island, "map", () => this.show({ type: "map" }))
+          this._subscribeOnce(island, "carnet", () =>
+            this.show({ type: "carnet", from: "story" }),
+          )
           this._subscribeOnce(island, "back", () =>
             this.show({ type: "chronicles" }),
           )
@@ -409,6 +417,18 @@ export default class Game extends ViewChip {
           this.show(this._adventureFight(spec, r, replay ? r : undefined)),
         )
         return story
+      }
+
+      case "carnet": {
+        const carnet = new Carnet()
+        this._subscribeOnce(carnet, "back", () =>
+          this.show(
+            screen.from === "story" && continuation()
+              ? { type: "story" }
+              : { type: "chronicles" },
+          ),
+        )
+        return carnet
       }
 
       case "map": {
