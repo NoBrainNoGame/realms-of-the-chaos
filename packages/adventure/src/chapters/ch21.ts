@@ -29,6 +29,7 @@ import {
   NEREA4,
   NYX4,
   SQUALOR4,
+  WILL,
 } from "./era4kit"
 
 // ─── The lineages that can leave ────────────────────────────────────────────
@@ -317,9 +318,9 @@ const epreuve: FightSpec = {
       side: "allies",
       fighters: [
         { preset: "@hero", at: { x: 4, y: 1 } },
-        { preset: BRUTUS4, at: { x: 2, y: 1 } },
-        { preset: LYRA4, at: { x: 6, y: 1 } },
-        { preset: EVA4, at: { x: 4, y: 0 } },
+        { preset: BRUTUS4, autonomy: WILL.brutus, at: { x: 2, y: 1 } },
+        { preset: LYRA4, autonomy: WILL.lyra, at: { x: 6, y: 1 } },
+        { preset: EVA4, autonomy: WILL.eva, at: { x: 4, y: 0 } },
       ],
     },
     {
@@ -348,9 +349,11 @@ const epreuve: FightSpec = {
       id: "ne-retenir-personne",
       mark: "★",
       label: "Ne retenir personne : aucune Influence sur la lèvre",
-      // SIMPLIFIED: the report has no log of orders or "Laisser agir"; the
-      // measurable hold on an ally is an Influence.
-      check: (r) => r.result !== "defeat" && nbInfluences(r) === 0,
+      check: (r) =>
+        r.result !== "defeat" &&
+        nbInfluences(r) === 0 &&
+        !!r.autonomy &&
+        r.autonomy.insisted.length === 0,
       success: "Ils sont restés, et tu ne les as pas tenus.",
       failure: "Tu as tenu la main de quelqu'un. Il l'a senti.",
       onSuccess: [set("rupture.respectee"), add("confiance", 2)],

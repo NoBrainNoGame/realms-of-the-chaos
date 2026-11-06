@@ -31,6 +31,7 @@ import {
   NYX4,
   SQUALOR4,
   UNSTABLE,
+  WILL,
 } from "./era4kit"
 
 // ─── Combat : La Paix des Lacunes ───────────────────────────────────────────
@@ -97,14 +98,14 @@ function bord(b: Bits): FightSpec {
         side: "allies",
         fighters: [
           { preset: "@hero", at: { x: 5, y: 1 } },
-          { preset: BRUTUS4, at: { x: 4, y: 2 } },
-          { preset: LYRA4, at: { x: 6, y: 2 } },
-          { preset: "gorr", at: { x: 5, y: 2 } },
+          { preset: BRUTUS4, autonomy: WILL.brutus, at: { x: 4, y: 2 } },
+          { preset: LYRA4, autonomy: WILL.lyra, at: { x: 6, y: 2 } },
+          { preset: "gorr", at: { x: 5, y: 2 }, autonomy: WILL.gorr },
           // SIMPLIFIED: the fourth ally is the Lacunaire IV if he joined, else
           // Eva IV; the others (Néréa, Squalor, Merlin) are not in the fight.
           b.lacunaire
             ? { preset: LACUNAIRE4, at: { x: 3, y: 1 } }
-            : { preset: EVA4, at: { x: 3, y: 1 } },
+            : { preset: EVA4, autonomy: WILL.eva, at: { x: 3, y: 1 } },
         ],
       },
       {
@@ -212,8 +213,7 @@ function bord(b: Bits): FightSpec {
         id: "aucune-insistance",
         mark: "◆",
         label: "Aucune Influence près d'un allié de tout le combat",
-        // SIMPLIFIED: the Insistances are not counted in the fight.
-        check: (r) => nbNear(r) === 0,
+        check: (r) => nbNear(r) === 0 && r.autonomy?.insisted.length === 0,
         onSuccess: [add("confiance")],
       },
     ],

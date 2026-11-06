@@ -268,7 +268,9 @@ export default class Game extends ViewChip {
   private _fightOptions(spec: FightSpec, run: Run, seed: number) {
     return fightOptions(spec, seed, this._params.speed, run, (combat) =>
       combat.winnerTeam === allyTeam(spec) ||
-      (combat.winnerTeam === null && combat.adventure?.report.timeUp)
+      (combat.winnerTeam === null &&
+        (combat.adventure?.report.timeUp ||
+          combat.adventure?.report.autonomy.withdrawn))
         ? [{ id: "continue", label: "Continuer l'histoire" }]
         : [{ id: "defeat", label: "Poursuivre" }],
     )

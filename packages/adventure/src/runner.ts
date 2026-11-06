@@ -1,4 +1,5 @@
 import { compile, type Op } from "./compile"
+import { autonomyEffects } from "./entries"
 import { clampFlag, defaultFlag, flagSpec } from "./flags"
 import type {
   Chapter,
@@ -305,6 +306,10 @@ export function finishFight(
     r.retries++
     applyEffects(r, op.fight.defeat ?? [])
   }
+  applyEffects(
+    r,
+    autonomyEffects(op.fight, report, (k) => getFlag(r, k)),
+  )
   const debrief: ObjectiveResult[] = []
   for (const o of op.fight.objectives) {
     const out = lost ? { ok: false, n: 0 } : o.check(report)

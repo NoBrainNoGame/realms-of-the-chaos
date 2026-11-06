@@ -185,6 +185,8 @@ export type SceneInput =
   | { type: "divine"; id: string }
   /** Avancer / Passer (`key`: Espace or Entrée). */
   | { type: "pass"; key?: boolean }
+  /** Laisser agir, Respecter, Insister, Se retirer (Adventure autonomy). */
+  | { type: "autonomy"; gesture: "letAct" | "insist" | "withdraw" }
   /** Back out of a selection or a planned walk (always harmless). */
   | { type: "cancel" }
   | { type: "camera" }
@@ -434,6 +436,13 @@ export default class FightScene extends ViewChip<SceneEvents> {
     this._subscribe(this._hud, "pass", () => {
       if (this.allows({ type: "pass" })) this._pass()
     })
+    for (const gesture of ["letAct", "insist", "withdraw"] as const) {
+      this._subscribe(this._hud, gesture, () => {
+        const fighter = this._activeHuman
+        if (fighter && this.allows({ type: "autonomy", gesture }))
+          this._command({ type: gesture, fighterId: fighter.id })
+      })
+    }
     this._subscribe(this._hud, "cancelWalk", () => this._cancelWalk())
     this._subscribe(this._hud, "hoverChoice", (choice) => {
       this._hoverChoice = choice
@@ -1688,6 +1697,39 @@ export default class FightScene extends ViewChip<SceneEvents> {
             this._refreshAll()
           }),
         ]
+
+      case "refused":
+        return [
+          new booyah.Lambda(() => {
+            const name = this.combat.getFighter(event.fighterId)?.name ?? "?"
+            this._hud.banner(`${name} refuse.`, 0xffd43b)
+            this._hud.log(`${name} refuse.`)
+          }),
+        ]
+
+      case "autonomous":
+        return [
+          new booyah.Lambda(() => {
+            const name = this.combat.getFighter(event.fighterId)?.name ?? "?"
+            this._hud.log(
+              event.why === "tier"
+                ? `${name} joue seul ce tour.`
+                : `${name} agit de lui-même.`,
+            )
+          }),
+        ]
+
+      case "insisted":
+        return [
+          new booyah.Lambda(() =>
+            this._hud.log(
+              `Le Ghom insiste (${event.cost} d'Élan) : ${this.combat.getFighter(event.fighterId)?.name ?? "?"} obéit, à contrecœur.`,
+            ),
+          ),
+        ]
+
+      case "withdrew":
+        return [new booyah.Lambda(() => this._hud.log("Le Ghom se retire."))]
 
       case "timeUp":
         return [new booyah.Lambda(() => this._hud.log("Le temps est écoulé."))]

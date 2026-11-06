@@ -31,6 +31,7 @@ import {
   lacuneBoard,
   NEREA4,
   UNSTABLE,
+  WILL,
 } from "./era4kit"
 
 // ─── Combat : Le Lac muet ───────────────────────────────────────────────────
@@ -85,10 +86,10 @@ const lacMuet: FightSpec = {
       side: "allies",
       fighters: [
         { preset: "@hero", at: { x: 5, y: 0 } },
-        { preset: "gorr", at: { x: 4, y: 0 } },
-        { preset: BRUTUS4, at: { x: 6, y: 0 } },
-        { preset: LYRA4, at: { x: 3, y: 1 } },
-        { preset: EVA4, at: { x: 7, y: 1 } },
+        { preset: "gorr", at: { x: 4, y: 0 }, autonomy: WILL.gorr },
+        { preset: BRUTUS4, autonomy: WILL.brutus, at: { x: 6, y: 0 } },
+        { preset: LYRA4, autonomy: WILL.lyra, at: { x: 3, y: 1 } },
+        { preset: EVA4, autonomy: WILL.eva, at: { x: 7, y: 1 } },
       ],
     },
     {

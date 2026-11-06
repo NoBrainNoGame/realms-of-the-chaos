@@ -197,9 +197,20 @@ function recomposition(
       id: "laisser-libre",
       mark: "◆",
       label: "Laisser libre",
-      // SIMPLIFIED: « Laisser agir » does not exist; read as no Influence at all.
-      check: (r) => Object.values(r.divineUsed).every((n) => n === 0),
+      check: (r) =>
+        Object.values(r.divineUsed).every((n) => n === 0) &&
+        !!r.autonomy &&
+        r.autonomy.insisted.length === 0 &&
+        r.autonomy.letAct.length > 0,
       onSuccess: [set("combat_final_libre")],
+    },
+    {
+      // The last Influence: the Ghom lets go and leaves the fight (Découplage).
+      id: "se-retirer",
+      mark: "◆",
+      label: "Se retirer",
+      check: (r) => !!r.autonomy?.withdrawn,
+      onSuccess: [set("fin", "decouplage"), set("geste_dernier")],
     },
     {
       id: "aucune-dispersion",
@@ -249,6 +260,7 @@ function recomposition(
       silent: LACUNE,
       silentDamage: 1,
       announce: true,
+      withdraw: true,
     },
     influences: ["earthquake", "timeWarp", "blessing"],
     startEnergy: 6,

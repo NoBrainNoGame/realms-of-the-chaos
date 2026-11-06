@@ -4,6 +4,7 @@ import {
   type FightReport,
   type FightSpec,
   fightRules,
+  getFlag,
 } from "@realms/adventure"
 import {
   CHARACTERS,
@@ -63,9 +64,12 @@ export function fightOptions(
   spec: FightSpec,
   seed: number,
   speed: number,
-  hero: Pick<Carry, "items" | "unlocks">,
+  hero: Pick<Carry, "items" | "unlocks"> & Partial<Pick<Carry, "flags">>,
   endActions: SceneOptions["endActions"],
 ): SceneOptions {
+  // allies with a will of their own are read from the trust the run carries
+  const carried = hero.flags
+  const flag = carried && ((key: string) => getFlag(hero as Carry, key))
   const known = new Set(spec.influences)
   const locked = Object.keys(DIVINE_ACTIONS).filter((id) => !known.has(id))
   return {
@@ -82,7 +86,7 @@ export function fightOptions(
     })),
     hold: spec.teams.flatMap((t, i) => (t.side === "neutral" ? [i] : [])),
     adventure: {
-      ...fightRules(spec),
+      ...fightRules(spec, flag),
       lockedDivine: spec.rules.lockedDivine ?? locked,
     },
     endActions,
@@ -112,7 +116,7 @@ export function reportOf(spec: FightSpec, combat: Combat): FightReport {
   const result =
     winner === mine
       ? "victory"
-      : winner === null && tracker?.timeUp
+      : winner === null && (tracker?.timeUp || tracker?.autonomy.withdrawn)
         ? "held"
         : "defeat"
   const presetOf = (f: Fighter) => f.presetId
@@ -129,6 +133,7 @@ export function reportOf(spec: FightSpec, combat: Combat): FightReport {
     fixed: [...(tracker?.fixed ?? [])],
     arrived: [...(tracker?.arrived ?? [])],
     switched: (tracker?.switched ?? []).map((s) => ({ ...s })),
+    autonomy: tracker && structuredClone(tracker.autonomy),
     fighters: combat.fighters.map((f) => ({
       id: f.id,
       preset: presetOf(f),

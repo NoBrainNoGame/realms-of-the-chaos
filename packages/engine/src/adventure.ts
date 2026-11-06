@@ -1,6 +1,6 @@
 import type { Combat } from "./combat"
 import { equals, keyOf, manhattan, type Point } from "./geometry"
-import type { FightEvent, Fighter } from "./types"
+import type { FightEvent, Fighter, RefusalReason } from "./types"
 
 /**
  * Opt-in combat rules of the Adventure ("Chroniques"). Every field is off by
@@ -53,6 +53,28 @@ export interface AdventureRules {
   lockedDivine?: string[]
   /** Time limit of a held position, in ticks, shown by the interface. */
   announce?: boolean
+  /** Allies with their own will: they refuse, act alone (see `AutonomyTier`). */
+  autonomy?: AutonomyRules
+  /** The Ghom may withdraw from the fight (Découplage): it stops at once. */
+  withdraw?: boolean
+}
+
+export interface AutonomyReport {
+  /** Autonomy tier of each fighter that has one. */
+  tiers: Record<string, AutonomyTier>
+  /** Allies that were given at least one accepted order. */
+  ordered: string[]
+  /** Allies the Ghom let act ("Laisser agir"). */
+  letAct: string[]
+  refused: string[]
+  /** Refusals that were respected (the ally then acted alone). */
+  respected: string[]
+  /** Allies the Ghom forced after a refusal ("Insister"). */
+  insisted: string[]
+  /** Turns an ally played alone because of its tier. */
+  autoTurns: Record<string, number>
+  /** The Ghom withdrew from the fight. */
+  withdrawn: boolean
 }
 
 /**
@@ -78,6 +100,45 @@ export interface SwitchRule {
   time?: number
 }
 
+/**
+ * How far the Ghom commands an ally (era IV "Autonomie"): bound (Lié) never
+ * refuses; confident (Confiant) refuses once; reserved (Réservé) refuses every
+ * contested order; wary (Méfiant) also plays every second turn alone; broken
+ * (Rompu) takes no order at all.
+ */
+export type AutonomyTier =
+  | "bound"
+  | "confident"
+  | "reserved"
+  | "wary"
+  | "broken"
+
+/** The autonomy of one fighter of the line-up. */
+export interface AutonomyEntry {
+  team: number
+  /** Index of the fighter in its team's line-up. */
+  index: number
+  tier: AutonomyTier
+  /** The contested orders it refuses (default: finish, influenced). */
+  refuses?: RefusalReason[]
+  /** Presets it refuses to strike (their own lineage, the Déliés). */
+  spares?: string[]
+}
+
+export interface AutonomyRules {
+  allies: AutonomyEntry[]
+  /** Élan paid to Insister (default 2). */
+  insistCost?: number
+}
+
+/** A contested order, as the ally is asked to carry it out. */
+export type AutonomyOrder =
+  | { type: "move"; destination: Point; append?: boolean }
+  | { type: "action"; actionId: string; target: Point }
+
+export const DEFAULT_REFUSALS: RefusalReason[] = ["finish", "influenced"]
+export const INSIST_COST = 2
+
 export type ZoneState = "active" | "silent" | "lost"
 
 /** What a fight did, for the Adventure to score its objectives. */
@@ -96,6 +157,7 @@ export interface AdventureReport {
   zonesLost: string[]
   zoneStates: Record<string, ZoneState>
   timeUp: boolean
+  autonomy: AutonomyReport
 }
 
 /** Rule state of one fight; owned by a `Combat`. */
@@ -116,7 +178,23 @@ export class AdventureTracker {
     zonesLost: [],
     zoneStates: {},
     timeUp: false,
+    autonomy: {
+      tiers: {},
+      ordered: [],
+      letAct: [],
+      refused: [],
+      respected: [],
+      insisted: [],
+      autoTurns: {},
+      withdrawn: false,
+    },
   }
+  /** The order the active ally refused, waiting for Respecter / Insister. */
+  pending: { fighterId: string; order: AutonomyOrder } | null = null
+  private _auto = new Map<string, AutonomyEntry>()
+  private _turns = new Map<string, number>()
+  private _refusedOnce = new Set<string>()
+  private _influenced = new Set<string>()
   private _idle = new Map<string, number>()
   private _worked = new Set<string>()
   private _nextTick: number
@@ -146,6 +224,11 @@ export class AdventureTracker {
         id: member(rule.team, rule.index),
         done: false,
       })
+    }
+    for (const entry of rules.autonomy?.allies ?? []) {
+      const id = member(entry.team, entry.index)
+      this._auto.set(id, entry)
+      this.report.autonomy.tiers[id] = entry.tier
     }
     for (const p of rules.silent ?? []) this.silent.add(keyOf(p))
     for (const zone of rules.zones ?? []) {
@@ -190,6 +273,14 @@ export class AdventureTracker {
       case "divineUsed": {
         const r = this.report
         r.divineUsed[event.divineId] = (r.divineUsed[event.divineId] ?? 0) + 1
+        const active = combat.activeFighter
+        if (
+          event.target &&
+          active &&
+          this._auto.has(active.id) &&
+          manhattan(active.position, event.target) <= 1
+        )
+          this._influenced.add(active.id)
         if (event.target) {
           for (const f of combat.aliveFighters) {
             if (
@@ -380,5 +471,123 @@ export class AdventureTracker {
 
   fixed(fighter: Fighter) {
     this.report.fixed.push(fighter.id)
+  }
+
+  // ─── Autonomy ─────────────────────────────────────────────────────────────
+
+  get insistCost() {
+    return this.rules.autonomy?.insistCost ?? INSIST_COST
+  }
+
+  hasAutonomy(fighter: Fighter) {
+    return this._auto.has(fighter.id)
+  }
+
+  /** The tier of a fighter, if it has a will of its own. */
+  tierOf(fighter: Fighter): AutonomyTier | null {
+    return this._auto.get(fighter.id)?.tier ?? null
+  }
+
+  /**
+   * A turn of a fighter begins: whether its tier plays it alone (the Rompu
+   * always, the Méfiant every second turn).
+   */
+  playsAlone(fighter: Fighter): boolean {
+    const entry = this._auto.get(fighter.id)
+    this._influenced.delete(fighter.id)
+    this.pending = null
+    if (!entry) return false
+    const turn = (this._turns.get(fighter.id) ?? 0) + 1
+    this._turns.set(fighter.id, turn)
+    const alone =
+      entry.tier === "broken" || (entry.tier === "wary" && turn % 2 === 0)
+    if (alone) {
+      const t = this.report.autonomy.autoTurns
+      t[fighter.id] = (t[fighter.id] ?? 0) + 1
+    }
+    return alone
+  }
+
+  /** The ally is asked something: the reason it refuses, if it does. */
+  refuse(fighter: Fighter, order: AutonomyOrder): RefusalReason | null {
+    const entry = this._auto.get(fighter.id)
+    if (!entry || entry.tier === "bound") return null
+    if (entry.tier === "confident" && this._refusedOnce.has(fighter.id))
+      return null
+    const reason = this._reason(fighter, entry, order)
+    if (!reason) return null
+    this._refusedOnce.add(fighter.id)
+    this.pending = { fighterId: fighter.id, order }
+    if (!this.report.autonomy.refused.includes(fighter.id))
+      this.report.autonomy.refused.push(fighter.id)
+    return reason
+  }
+
+  private _reason(
+    fighter: Fighter,
+    entry: AutonomyEntry,
+    order: AutonomyOrder,
+  ): RefusalReason | null {
+    const combat = this._combat
+    const refuses = entry.refuses ?? DEFAULT_REFUSALS
+    if (refuses.includes("influenced") && this._influenced.has(fighter.id))
+      return "influenced"
+    if (order.type === "action") {
+      const action = combat
+        .actionsOf(fighter)
+        .find((a) => a.id === order.actionId)
+      if (!action || !action.effects.some((e) => e.type === "damage"))
+        return null
+      const hit = combat
+        .getAffectedFighters(fighter, action, order.target)
+        .filter((t) => combat.isEnemy(fighter, t))
+      if (hit.some((t) => entry.spares?.includes(t.presetId))) return "spare"
+      if (
+        refuses.includes("finish") &&
+        hit.some(
+          (t) => t.hp / combat.maxHp(t) < 0.25 && !this.fleeing.has(t.id),
+        )
+      )
+        return "finish"
+      return null
+    }
+    if (refuses.includes("abandon")) {
+      for (const ally of combat.aliveFighters) {
+        if (ally === fighter || ally.team !== fighter.team) continue
+        if (manhattan(ally.position, fighter.position) > 1) continue
+        if (manhattan(ally.position, order.destination) <= 1) continue
+        const pressed = combat.aliveFighters.filter(
+          (e) =>
+            combat.isEnemy(ally, e) &&
+            manhattan(e.position, ally.position) <= 1,
+        )
+        if (pressed.length >= 2) return "abandon"
+      }
+    }
+    return null
+  }
+
+  /** An order was carried out: the ally was commanded. */
+  ordered(fighter: Fighter) {
+    const list = this.report.autonomy.ordered
+    if (!list.includes(fighter.id)) list.push(fighter.id)
+  }
+
+  /** The ally plays alone on the Ghom's word (Laisser agir / Respecter). */
+  letAct(fighter: Fighter) {
+    const a = this.report.autonomy
+    if (!a.letAct.includes(fighter.id)) a.letAct.push(fighter.id)
+    if (this.pending?.fighterId === fighter.id) {
+      if (!a.respected.includes(fighter.id)) a.respected.push(fighter.id)
+      this.pending = null
+    }
+  }
+
+  /** The Ghom forces the refused order. */
+  insisted(fighter: Fighter) {
+    const a = this.report.autonomy
+    if (!a.insisted.includes(fighter.id)) a.insisted.push(fighter.id)
+    this.ordered(fighter)
+    this.pending = null
   }
 }

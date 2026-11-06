@@ -26,6 +26,7 @@ import {
   LYRA4,
   lacuneBoard,
   TARN,
+  WILL,
 } from "./era4kit"
 
 // ─── Combat : Les Guetteurs ─────────────────────────────────────────────────
@@ -42,8 +43,6 @@ const { board: BOARD, silent: LACUNE } = lacuneBoard([
   "..1......",
 ])
 
-const nbInfluences = (r: FightReport) =>
-  Object.values(r.divineUsed).reduce((a, b) => a + b, 0)
 const deliesDown = (r: FightReport) =>
   r.fighters.filter((f) => f.team === 1 && f.hp <= 0 && !f.fled).length
 
@@ -58,10 +57,20 @@ const guetteurs: FightSpec = {
       side: "allies",
       fighters: [
         { preset: "@hero", at: { x: 4, y: 2 } },
-        { preset: "gorr", at: { x: 3, y: 2 } },
+        { preset: "gorr", at: { x: 3, y: 2 }, autonomy: WILL.gorr },
         // Brutus IV (turn 2) and Lyra IV (turn 3) enter by the west and north edges.
-        { preset: BRUTUS4, at: { x: 0, y: 3 }, arrives: { tick: 2 } },
-        { preset: LYRA4, at: { x: 4, y: 0 }, arrives: { tick: 3 } },
+        {
+          preset: BRUTUS4,
+          autonomy: WILL.brutus,
+          at: { x: 0, y: 3 },
+          arrives: { tick: 2 },
+        },
+        {
+          preset: LYRA4,
+          autonomy: WILL.lyra,
+          at: { x: 4, y: 0 },
+          arrives: { tick: 3 },
+        },
       ],
     },
     {
@@ -101,10 +110,17 @@ const guetteurs: FightSpec = {
       mark: "★",
       label:
         "Laisser libre : aucun ordre à l'Écho libre (Brutus IV, le moins confiant)",
-      // SIMPLIFIED: the report has no log of the orders. The one measurable
-      // way the Ghom interferes is an Influence, so "leave him free" is read
-      // as winning without a single Influence.
-      check: (r) => r.result !== "defeat" && nbInfluences(r) === 0,
+      check: (r) => {
+        const brutus = r.fighters.find((f) => f.preset === BRUTUS4.id)
+        const a = r.autonomy
+        return (
+          r.result !== "defeat" &&
+          !!brutus &&
+          !!a &&
+          !a.ordered.includes(brutus.id) &&
+          !a.insisted.includes(brutus.id)
+        )
+      },
       success: "Brutus IV a joué sa partie seul. Il s'en souvient.",
       failure: "Le Ghom a tenu la main de Brutus IV. Il l'a senti.",
       onSuccess: [add("confiance.brutus", 2), set("echo_libre_ok")],

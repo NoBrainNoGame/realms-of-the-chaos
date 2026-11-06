@@ -1,5 +1,9 @@
-import type { CharacterPreset } from "@realms/engine"
-import type { AdventureRules } from "@realms/engine/adventure"
+import type { CharacterPreset, RefusalReason } from "@realms/engine"
+import type {
+  AdventureRules,
+  AutonomyReport,
+  AutonomyTier,
+} from "@realms/engine/adventure"
 
 // ─── Flags, conditions, effects ─────────────────────────────────────────────
 
@@ -106,6 +110,22 @@ export interface FighterSpec {
   arrives?: { tick?: number; time?: number }
   /** Changes to the team of that index (and its controller) mid-fight. */
   switchTo?: { team: number; tick?: number; time?: number }
+  /**
+   * An ally with a will of its own (era IV "Autonomie"): its tier is read at
+   * the start of the fight from `confiance.<lineage>` and `confiance`.
+   */
+  autonomy?: {
+    /** Whose trust sets the tier; none: the tier is `tier`, fixed. */
+    lineage?: string
+    /** A fixed tier ("broken": takes no orders, plays alone every turn). */
+    tier?: AutonomyTier
+    /** Contested orders it refuses (default: finish a weak foe, obey a pushed order). */
+    refuses?: RefusalReason[]
+    /** Presets it will not strike (its own lineage, the Déliés). */
+    spares?: string[]
+    /** Without this flag set it has no will yet (Gorr before his question). */
+    needs?: string
+  }
 }
 
 export interface ObjectiveSpec {
@@ -283,6 +303,8 @@ export interface FightReport {
   arrived?: string[]
   /** Fighters that changed sides, with the team they went to. */
   switched?: { fighterId: string; to: number }[]
+  /** Era IV autonomy: orders, refusals, "Laisser agir", "Insister", withdrawal. */
+  autonomy?: AutonomyReport
   fighters: {
     id: string
     preset: string

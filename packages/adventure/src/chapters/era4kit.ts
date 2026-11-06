@@ -1,5 +1,6 @@
 import { CHARACTERS, type CharacterPreset } from "@realms/engine"
 import { type FlagSpec, registerFlags } from "../flags"
+import type { FighterSpec } from "../types"
 
 // Shared pieces of era IV (ch. 19 to 24): flags, presets, Lacune boards.
 
@@ -88,6 +89,25 @@ for (const l of [
 }
 
 registerFlags(ERA4_FLAGS)
+
+// ─── Autonomy (era IV) ──────────────────────────────────────────────────────
+
+type Will = NonNullable<FighterSpec["autonomy"]>
+
+/** The will of each ally of the era: what its trust decides (see the era's README). */
+export const WILL: Record<string, Will> = {
+  brutus: {
+    lineage: "brutus",
+    refuses: ["finish", "influenced", "abandon"],
+  },
+  lyra: { lineage: "lyra" },
+  eva: { lineage: "eva", refuses: ["finish", "influenced", "spare"] },
+  // Gorr has no autonomy before he asked his question (ch. 16 or 23)
+  gorr: { lineage: "gorr", needs: "gorr_question" },
+  lacunaire: { lineage: "lacunaire" },
+  /** Takes no order: plays every turn by itself. */
+  alone: { tier: "broken" },
+}
 
 // ─── Presets ────────────────────────────────────────────────────────────────
 

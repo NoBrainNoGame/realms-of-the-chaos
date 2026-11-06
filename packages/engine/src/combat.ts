@@ -1,4 +1,8 @@
-import { type AdventureRules, AdventureTracker } from "./adventure"
+import {
+  type AdventureRules,
+  AdventureTracker,
+  type AutonomyOrder,
+} from "./adventure"
 import { decide, decideDivine } from "./ai"
 import {
   Board,
@@ -70,12 +74,20 @@ export type Command =
     }
   | { type: "useAction"; fighterId: string; actionId: string; target: Point }
   | { type: "pass"; fighterId: string }
+  /** Adventure autonomy: the active ally plays its turn by itself (AI). */
+  | { type: "letAct"; fighterId: string }
+  /** Adventure autonomy: forces the order the active ally just refused. */
+  | { type: "insist"; fighterId: string }
+  /** Adventure autonomy: the Ghom withdraws, the fight stops. */
+  | { type: "withdraw"; fighterId: string }
   | {
       type: "useDivine"
       fighterId: string
       divineId: string
       target: Point | null
     }
+
+const WAITING_FOR_GHOM = "Cet Écho a refusé : le laisser agir, ou insister"
 
 const isVacuumDecay = (action: ActionDefinition) =>
   action.effects.some((e) => e.type === "vacuumDecay")
@@ -814,12 +826,17 @@ export class Combat {
 
     if (fighter.controller === "ai") {
       this._playAi(fighter)
+    } else if (this.adventure?.playsAlone(fighter)) {
+      // an ally with a will of its own: it plays this turn without the Ghom
+      this._emit({ type: "autonomous", fighterId: fighter.id, why: "tier" })
+      this._playAi(fighter, false)
     } else {
       this._state = "awaitingInput"
     }
   }
 
-  private _playAi(fighter: Fighter) {
+  /** `divine: false`: the fighter acts alone, the Ghom's Élan is not spent. */
+  private _playAi(fighter: Fighter, divine = true) {
     if (this.holding.has(fighter.team)) return this._pass(fighter)
     if (this.adventure?.fleeing.has(fighter.id)) {
       this.adventure.playFlee(fighter)
@@ -828,8 +845,8 @@ export class Combat {
       }
       return
     }
-    const divine = decideDivine(this, fighter)
-    if (divine) this._useDivine(fighter.team, divine.divineId, divine.target)
+    const spell = divine ? decideDivine(this, fighter) : null
+    if (spell) this._useDivine(fighter.team, spell.divineId, spell.target)
     if (this._state === "ended") return
 
     for (const command of decide(this, fighter)) {
@@ -888,6 +905,12 @@ export class Combat {
       destination: { ...destination },
     }
     if (append) command.append = true
+    const blocked = this._autonomyGate(fighter, command, {
+      type: "move",
+      destination,
+      append,
+    })
+    if (blocked) return blocked
     return this._logged(command, this._moveTo(fighter, destination, append))
   }
 
@@ -895,23 +918,113 @@ export class Combat {
   useAction(actionId: string, target: Point): CommandResult {
     const fighter = this._checkInput()
     if (typeof fighter === "string") return this._result(fighter)
-    return this._logged(
-      {
-        type: "useAction",
-        fighterId: fighter.id,
-        actionId,
-        target: { ...target },
-      },
-      this._useAction(fighter, actionId, target),
-    )
+    const command: Command = {
+      type: "useAction",
+      fighterId: fighter.id,
+      actionId,
+      target: { ...target },
+    }
+    const blocked = this._autonomyGate(fighter, command, {
+      type: "action",
+      actionId,
+      target: { ...target },
+    })
+    if (blocked) return blocked
+    return this._logged(command, this._useAction(fighter, actionId, target))
   }
 
   /** End the turn: plays again just after the next fighter. */
   pass(): CommandResult {
     const fighter = this._checkInput()
     if (typeof fighter === "string") return this._result(fighter)
+    if (this.adventure?.pending) return this._result(WAITING_FOR_GHOM)
+    this.adventure?.ordered(fighter)
     this._pass(fighter)
     return this._logged({ type: "pass", fighterId: fighter.id }, null)
+  }
+
+  /**
+   * Autonomy: an ally may refuse an order. A refused order is cancelled with
+   * no time spent (and logged, so a replay refuses it again); the Ghom must
+   * then let the ally act (`letAct`) or force it (`insist`). Returns the
+   * result to hand back when the order does not go through.
+   */
+  private _autonomyGate(
+    fighter: Fighter,
+    command: Command,
+    order: AutonomyOrder,
+  ): CommandResult | null {
+    const adventure = this.adventure
+    if (!adventure) return null
+    if (adventure.pending) return this._result(WAITING_FOR_GHOM)
+    const reason = adventure.refuse(fighter, order)
+    if (reason) {
+      this._emit({ type: "refused", fighterId: fighter.id, reason })
+      return this._logged(command, null)
+    }
+    adventure.ordered(fighter)
+    return null
+  }
+
+  /** The order the active ally refused, if the Ghom has not answered yet. */
+  get refusal() {
+    return this.adventure?.pending ?? null
+  }
+
+  /**
+   * "Laisser agir" (or "Respecter" after a refusal): the active ally plays
+   * its turn by itself, with the AI of the skirmishes. Always possible.
+   */
+  letAct(): CommandResult {
+    const fighter = this._checkInput()
+    if (typeof fighter === "string") return this._result(fighter)
+    const adventure = this.adventure
+    if (!adventure?.rules.autonomy) return this._result("Pas d'Autonomie ici")
+    adventure.letAct(fighter)
+    this._emit({ type: "autonomous", fighterId: fighter.id, why: "letAct" })
+    this._state = "running"
+    this._playAi(fighter, false)
+    return this._logged({ type: "letAct", fighterId: fighter.id }, null)
+  }
+
+  /**
+   * "Insister": forces the order the ally refused. Costs Élan; the ally
+   * obeys (the story pays the trust).
+   */
+  insist(): CommandResult {
+    const fighter = this._checkInput()
+    if (typeof fighter === "string") return this._result(fighter)
+    const adventure = this.adventure
+    const pending = adventure?.pending
+    if (!adventure || !pending || pending.fighterId !== fighter.id)
+      return this._result("Aucun refus auquel insister")
+    const team = this.teams[fighter.team]
+    const cost = adventure.insistCost
+    if (team.energy < cost) return this._result("Pas assez d'énergie divine")
+    const { order } = pending
+    const error =
+      order.type === "move"
+        ? this._moveTo(fighter, order.destination, order.append)
+        : this._useAction(fighter, order.actionId, order.target)
+    if (error) return this._result(error)
+    team.energy -= cost
+    adventure.insisted(fighter)
+    this._emit({ type: "energyChanged", team: team.index, energy: team.energy })
+    this._emit({ type: "insisted", fighterId: fighter.id, cost })
+    return this._logged({ type: "insist", fighterId: fighter.id }, null)
+  }
+
+  /** "Se retirer": the Ghom lets go, the fight stops with no winner. */
+  withdraw(): CommandResult {
+    const fighter = this._checkInput()
+    if (typeof fighter === "string") return this._result(fighter)
+    const adventure = this.adventure
+    if (!adventure?.rules.withdraw)
+      return this._result("Impossible de se retirer")
+    adventure.report.autonomy.withdrawn = true
+    this._emit({ type: "withdrew" })
+    this._end(null)
+    return this._logged({ type: "withdraw", fighterId: fighter.id }, null)
   }
 
   /** Divine (player) action of the active fighter's team. Free. */
@@ -949,6 +1062,12 @@ export class Combat {
         return this.useAction(command.actionId, command.target)
       case "pass":
         return this.pass()
+      case "letAct":
+        return this.letAct()
+      case "insist":
+        return this.insist()
+      case "withdraw":
+        return this.withdraw()
       case "useDivine":
         return this.useDivine(command.divineId, command.target)
     }

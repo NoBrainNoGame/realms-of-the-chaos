@@ -41,6 +41,12 @@ export function playLocally(scene: FightScene, maxTurns = 3000) {
             : { type: "pass", fighterId: me.id }
       internals._command(command)
       tickUntil(scene, () => !internals._playing && !internals._pending)
+      // an ally that refuses is let act (the Ghom respects it)
+      if (scene.combat.refusal) {
+        internals._command({ type: "letAct", fighterId: me.id })
+        tickUntil(scene, () => !internals._playing && !internals._pending)
+        ended = true
+      }
       if (command.type !== "moveTo") ended = true
       if (over() || scene.combat.activeFighter !== me) break
     }

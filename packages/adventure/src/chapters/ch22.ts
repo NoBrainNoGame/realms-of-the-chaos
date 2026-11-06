@@ -28,6 +28,7 @@ import {
   LYRA4,
   lacuneBoard,
   UNSTABLE,
+  WILL,
 } from "./era4kit"
 
 // ─── Combat : Les ancrages ──────────────────────────────────────────────────
@@ -74,10 +75,10 @@ const ancrages: FightSpec = {
       side: "allies",
       fighters: [
         { preset: "@hero", at: { x: 4, y: 6 } },
-        { preset: EVA4, at: { x: 5, y: 6 } },
-        { preset: BRUTUS4, at: { x: 2, y: 7 } },
-        { preset: LYRA4, at: { x: 3, y: 6 } },
-        { preset: "gorr", at: { x: 6, y: 6 } },
+        { preset: EVA4, autonomy: WILL.eva, at: { x: 5, y: 6 } },
+        { preset: BRUTUS4, autonomy: WILL.brutus, at: { x: 2, y: 7 } },
+        { preset: LYRA4, autonomy: WILL.lyra, at: { x: 3, y: 6 } },
+        { preset: "gorr", at: { x: 6, y: 6 }, autonomy: WILL.gorr },
         // SIMPLIFIED: the two Guetteurs of Nyx IV defend the anchor of Sel as
         // allies (the engine has one allied team); they take no orders in the
         // doc, here the player moves them.

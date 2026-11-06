@@ -180,6 +180,9 @@ export interface Team {
 
 // ─── Events emitted by the engine (consumed by the view) ────────────────────
 
+/** Why an ally refuses an order (Adventure autonomy). */
+export type RefusalReason = "finish" | "influenced" | "abandon" | "spare"
+
 export type FightEvent =
   | { type: "turnStarted"; fighterId: string; time: number }
   | { type: "destinationSet"; fighterId: string; path: Point[] }
@@ -234,6 +237,15 @@ export type FightEvent =
   | { type: "arrived"; fighterId: string; position: Point }
   /** Adventure rules: a fighter changes sides mid-fight. */
   | { type: "switched"; fighterId: string; from: number; to: number }
+  /**
+   * Adventure autonomy: an ally refuses an order (the order is cancelled, no
+   * time is spent), plays its turn alone, is forced (Insister) or the Ghom
+   * withdraws from the fight.
+   */
+  | { type: "refused"; fighterId: string; reason: RefusalReason }
+  | { type: "autonomous"; fighterId: string; why: "tier" | "letAct" }
+  | { type: "insisted"; fighterId: string; cost: number }
+  | { type: "withdrew" }
   | { type: "fleeing"; fighterId: string }
   | { type: "fled"; fighterId: string }
   | { type: "timeUp" }

@@ -38,6 +38,12 @@ export { describeAction }
 interface HudEvents extends booyah.BaseCompositeEvents {
   action: [actionId: string]
   pass: []
+  /** Autonomy: let the active ally act ("Laisser agir" / "Respecter"). */
+  letAct: []
+  /** Autonomy: force the refused order ("Insister"). */
+  insist: []
+  /** The Ghom withdraws from the fight ("Se retirer"). */
+  withdraw: []
   /** The line-up is done: the fight starts. */
   fight: []
   /** Cancel the planned walk of the active fighter. */
@@ -858,6 +864,13 @@ export default class Hud extends ViewChip<HudEvents> {
     }
 
     const size = 64
+    // an ally that refused an order: only two answers are left
+    const refusal = combat.refusal
+    if (refusal && refusal.fighterId === fighter.id) {
+      this._refusalButtons(fighter, combat, size)
+      this._layout()
+      return
+    }
     const actions = combat.actionsOf(fighter)
     actions.forEach((action, i) => {
       const cooldown = fighter.cooldowns[action.id] ?? 0
@@ -937,6 +950,12 @@ export default class Hud extends ViewChip<HudEvents> {
       0,
     )
     this._actionBar.addChild(pass.view)
+    const after = this._autonomyButtons(
+      fighter,
+      combat,
+      size,
+      pass.view.x + 96 + 8,
+    )
 
     // a planned walk: a click adds a stop, so cancelling needs a button
     if (fighter.path.length) {
@@ -955,11 +974,110 @@ export default class Hud extends ViewChip<HudEvents> {
           ),
         onOut: () => this.hideTooltip(),
       })
-      cancel.view.position.set(pass.view.x + 96 + 8, 0)
+      cancel.view.position.set(after, 0)
       cancel.view.label = "cancelWalk"
       this._actionBar.addChild(cancel.view)
     }
     this._layout()
+  }
+
+  /** The tier of an ally, in words (Adventure autonomy). */
+  static tierLabel(tier: string): string {
+    return (
+      {
+        bound: "Lié",
+        confident: "Confiant",
+        reserved: "Réservé",
+        wary: "Méfiant",
+        broken: "Rompu",
+      }[tier] ?? tier
+    )
+  }
+
+  /**
+   * "Laisser agir" and "Se retirer", after the pass button, when the fight
+   * has autonomy. Returns the x where the next button goes.
+   */
+  private _autonomyButtons(
+    fighter: Fighter,
+    combat: Combat,
+    size: number,
+    from: number,
+  ): number {
+    let x = from
+    const rules = combat.adventure?.rules
+    const gesture = (
+      label: string,
+      tip: string,
+      event: "letAct" | "withdraw",
+      width = 112,
+    ) => {
+      const b = button({
+        width,
+        height: size,
+        label,
+        onTap: () => this.emit(event),
+        onOver: () => this.showTooltip(tip, b.view.getGlobalPosition(), true),
+        onOut: () => this.hideTooltip(),
+      })
+      b.view.label = event
+      b.view.position.set(x, 0)
+      this._actionBar.addChild(b.view)
+      x += width + 8
+    }
+    if (rules?.autonomy)
+      gesture(
+        "Laisser\nagir",
+        `${fighter.name} joue son tour lui-même, comme il l'entend. Toujours possible. Ne rien lui ordonner de tout le combat renforce sa confiance.`,
+        "letAct",
+      )
+    if (rules?.withdraw)
+      gesture(
+        "Se retirer",
+        "Le Ghom lâche prise et quitte le combat : plus aucune Influence, plus aucun ordre.",
+        "withdraw",
+        104,
+      )
+    return x
+  }
+
+  /** After a refusal: "Respecter" (the ally acts alone) or "Insister". */
+  private _refusalButtons(fighter: Fighter, combat: Combat, size: number) {
+    const cost = combat.adventure?.insistCost ?? 0
+    const energy = combat.teams[fighter.team].energy
+    const respect = button({
+      width: 128,
+      height: size,
+      label: "Respecter\nson refus",
+      onTap: () => this.emit("letAct"),
+      onOver: () =>
+        this.showTooltip(
+          `${fighter.name} joue son tour lui-même. Sa confiance grandit.`,
+          respect.view.getGlobalPosition(),
+          true,
+        ),
+      onOut: () => this.hideTooltip(),
+    })
+    respect.view.label = "letAct"
+    this._actionBar.addChild(respect.view)
+    const insist = button({
+      width: 128,
+      height: size,
+      label: `Insister\n(${cost} d'Élan)`,
+      accent: COLORS.path,
+      onTap: () => this.emit("insist"),
+      onOver: () =>
+        this.showTooltip(
+          `Force l'ordre refusé. Coûte ${cost} d'Élan, et ${fighter.name} s'en souviendra : sa confiance baisse.`,
+          insist.view.getGlobalPosition(),
+          true,
+        ),
+      onOut: () => this.hideTooltip(),
+    })
+    insist.setState({ enabled: energy >= cost })
+    insist.view.label = "insist"
+    insist.view.position.set(136, 0)
+    this._actionBar.addChild(insist.view)
   }
 
   // ─── Character card ───────────────────────────────────────────────────────
@@ -978,8 +1096,11 @@ export default class Hud extends ViewChip<HudEvents> {
       fontWeight: "700",
     })
     name.position.set(64, 10)
+    const tier = combat.adventure?.tierOf(fighter)
     const title = text(
-      `${preset.title} · ${combat.teams[fighter.team].name}`,
+      `${preset.title} · ${combat.teams[fighter.team].name}${
+        tier ? ` · ${Hud.tierLabel(tier)}` : ""
+      }`,
       12,
       COLORS.muted,
     )
