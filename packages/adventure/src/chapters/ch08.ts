@@ -66,9 +66,8 @@ const ile: FightSpec = {
     },
   ],
   rules: {
-    // SIMPLIFIED: Squalor leaves under half his hit points; "after two Lacunaires eaten" does not
-    // exist, nor the recoherence of the cells around the Lacune after 3 idle turns.
-    flee: { team: 2, below: 0.5, exits: [{ x: 5, y: 7 }] },
+    // Squalor dives back after two Lacunaires eaten, or under half his hit points.
+    flee: { team: 2, below: 0.5, exits: [{ x: 5, y: 7 }], eaten: 2 },
     // The two Dédoublés are one body in two places; five cells of the east
     // half are uncertain until a fighter comes close or a shot crosses them.
     doubles: [{ team: 1, pair: [3, 4] }],
@@ -81,6 +80,9 @@ const ile: FightSpec = {
         { x: 5, y: 5 },
       ],
       pVoid: 0.3,
+      // near the small Lacune (north-west), a cell nobody came close to for
+      // 3 ticks goes back to being uncertain
+      recohere: { center: { x: 2, y: 0 }, radius: 2, idle: 3 },
     },
   },
   influences: [],

@@ -40,4 +40,20 @@ describe("Front de Marée and reach", () => {
     c.run()
     expect(c.winnerTeam).toBe(0)
   })
+
+  test("a settled cell near the centre is uncertain again when left alone", () => {
+    const c = fight({
+      clock: { period: 1, limit: 3, winner: 0 },
+      noDefeat: [0, 1],
+      superposition: {
+        cells: [{ x: 4, y: 0 }],
+        pVoid: 0,
+        decohereAt: 1,
+        recohere: { center: { x: 4, y: 0 }, radius: 1, idle: 1 },
+      },
+    })
+    c.run()
+    // settled at tick 1, uncertain again at tick 2, settled again at tick 3
+    expect(c.adventure?.report.measured.length).toBe(2)
+  })
 })

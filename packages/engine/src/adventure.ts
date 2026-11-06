@@ -121,6 +121,8 @@ export interface AdventureRules {
     own?: { index: number; below: number }[]
     /** Blocked by an adjacent enemy, the fleeing fighter fights its way out. */
     attackIfBlocked?: boolean
+    /** Also breaks off once it has dealt the last blow to this many fighters. */
+    eaten?: number
   }
   /**
    * Exit cells for a team: a fighter of `team` standing on one when its next
@@ -237,6 +239,11 @@ export interface SuperpositionRules {
   cells: Point[]
   pVoid?: number
   decohereAt?: number
+  /**
+   * Near a Lacune, order does not last: a settled cell within `radius` of
+   * `center` that nobody came close to for `idle` ticks is uncertain again.
+   */
+  recohere?: { center: Point; radius: number; idle: number }
 }
 
 /**
@@ -483,6 +490,7 @@ export class AdventureTracker {
   private _switches: { rule: SwitchRule; id: string; done: boolean }[] = []
   private _rng: Rng | null = null
   private _uncertain = new Set<string>()
+  private _settledAt = new Map<string, number>()
   private _doubles: {
     rule: DoubleRule
     ids: [string, string]
@@ -853,6 +861,7 @@ export class AdventureTracker {
   private _settle(cell: Point, by: string | null) {
     const key = keyOf(cell)
     if (!this._uncertain.delete(key)) return
+    this._settledAt.set(key, this.report.ticks)
     const combat = this._combat
     const occupied = combat.fightersAt(cell).length > 0
     const pVoid = this.rules.superposition?.pVoid ?? 0.5
@@ -978,6 +987,7 @@ export class AdventureTracker {
       this._chill()
       this._flood()
       this._decohere()
+      this._recohere()
       this._warm()
       this._combat.emitEvent({ type: "clockTick", tick: this.report.ticks })
       this._release(time)
@@ -1043,6 +1053,26 @@ export class AdventureTracker {
       null,
     )
     return { ...(best ?? fighter.position) }
+  }
+
+  /** Settled cells near the Lacune that nobody came close to go uncertain again. */
+  private _recohere() {
+    const rule = this.rules.superposition?.recohere
+    if (!rule) return
+    const now = this.report.ticks
+    const alive = this._combat.aliveFighters
+    for (const [key, at] of [...this._settledAt]) {
+      const p = this._keyPoint(key)
+      if (manhattan(p, rule.center) > rule.radius) continue
+      if (alive.some((f) => manhattan(f.position, p) <= 1)) {
+        this._settledAt.set(key, now)
+        continue
+      }
+      if (now - at < rule.idle) continue
+      this._settledAt.delete(key)
+      this._setVoid(p, false)
+      this._uncertain.add(key)
+    }
   }
 
   private _decohere() {
@@ -1133,6 +1163,19 @@ export class AdventureTracker {
       .indexOf(fighter)
     const below = flee.own?.find((o) => o.index === index)?.below ?? flee.below
     if (fighter.hp / this._combat.maxHp(fighter) >= below) return
+    this.fleeing.add(fighter.id)
+    this._combat.emitEvent({ type: "fleeing", fighterId: fighter.id })
+  }
+
+  /** A turn starts: a fighter that has eaten enough breaks off. */
+  breakOff(fighter: Fighter) {
+    const flee = this.rules.flee
+    if (flee?.eaten === undefined || fighter.team !== flee.team) return
+    if (!fighter.alive || this.fleeing.has(fighter.id)) return
+    const eaten = Object.values(this.trace.report.finalBlows).filter(
+      (b) => b.by === fighter.id,
+    ).length
+    if (eaten < flee.eaten) return
     this.fleeing.add(fighter.id)
     this._combat.emitEvent({ type: "fleeing", fighterId: fighter.id })
   }
