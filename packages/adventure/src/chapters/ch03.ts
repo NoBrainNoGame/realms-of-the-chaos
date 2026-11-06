@@ -162,6 +162,12 @@ const fightNuit: FightSpec = {
   },
   influences: ["earthquake", "timeWarp", "blessing"],
   startEnergy: 3,
+  defeat: [
+    set("defaite"),
+    add("usure", 1),
+    add("confiance", -1),
+    add("confiance.brutus", -2),
+  ],
   objectives: [
     {
       id: "laisser-partir",
@@ -740,6 +746,19 @@ export const ch03: Chapter = {
           "Dans la nuit, quelque chose se fend. Les Lacunaires ne viennent pas de la plaine : ils sortent du grenier, à l'intérieur des murs. Brutus court vers le mur nord, par réflexe, puis s'arrête.",
         ),
         { t: "fight", fight: fightNuit },
+        when(is("defaite"), [
+          stage(
+            "Les murs de Brutus ne tiennent pas ce qui est déjà dedans. Les Échos tombent l'un après l'autre sur les pavés, et les Lacunaires, qui cherchent la chaleur, vont droit aux bancs où les Assis n'ont pas bougé. Quand le froid se retire, une vieille femme ne s'est pas relevée : elle est morte de froid, sans un cri, la main encore ouverte sur son banc.",
+          ),
+          say(
+            "brutus",
+            "Je jure de garder, et je n'ai gardé personne. Je me suis tenu devant le mur pendant que ça venait de l'autre côté.",
+          ),
+          stage(
+            "Lyra pose une main sur son épaule ; il ne la repousse pas. Pim, debout dans l'ombre d'une porte, regarde le banc sans rien dire.",
+          ),
+          fx(set("defaite", false)),
+        ]),
       ],
       next: "grenier",
     },

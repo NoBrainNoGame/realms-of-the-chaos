@@ -138,6 +138,12 @@ const fightCoeur: FightSpec = {
   influences: ["earthquake", "timeWarp", "blessing"],
   // SIMPLIFIED: Réparation is available from the start (no unlock on event).
   startEnergy: 2,
+  defeat: [
+    set("defaite"),
+    add("usure", 1),
+    add("confiance.lyra", -1),
+    set("lyra_echec"),
+  ],
   objectives: [
     {
       id: "lyra-au-dessus",
@@ -435,6 +441,26 @@ export const ch02: Chapter = {
         // CUT: reminder line when hero and Lyra do not start on the same cell
         // (they start apart on purpose; the start line of the fight covers it).
         { t: "fight", fight: fightCoeur },
+        when(is("defaite"), [
+          stage(
+            "Lyra tombe à trois pas de la butte, les genoux dans la mousse grise. Les Lacunaires du bois, n'ayant plus rien de chaud à suivre, s'immobilisent. Elle n'a pas la force de se relever. Le héros la ramène par les épaules, hors du flou, dans l'air net où elle reprend peu à peu son souffle.",
+          ),
+          say(
+            "lyra",
+            "Je suis arrivée trop vide. C'est tout. Il n'y a rien à rattraper là-dedans.",
+          ),
+          stage(
+            "Derrière eux, la Lacune n'est pas recousue. Le bois reculera encore, un tronc après l'autre. Lyra regarde ses mains : le gris a gagné jusqu'à la deuxième phalange, à force d'avoir donné.",
+          ),
+          say("lyra", "Ça se refermera ailleurs. Pas ici. Pas cette année."),
+          fx(
+            add("lacunes.elargies", 1),
+            set("lyra_usure"),
+            unlock("influence:repair"),
+            set("defaite", false),
+          ),
+          go("veillee"),
+        ]),
       ],
       next: "couture",
     },

@@ -97,6 +97,43 @@ describe("playthroughs", () => {
     }
   })
 
+  /** One line written only for the defeat branch of each chapter. */
+  const DEFEAT_LINES: Record<string, string> = {
+    "1": "Les Échos tombent avant la fin du dixième tour",
+    "2": "Je suis arrivée trop vide. C'est tout.",
+    "3": "Je jure de garder, et je n'ai gardé personne",
+    "4": "La troisième marée emporte Néréa",
+    "5": "Vous êtes réels. Mais pas assez.",
+    "6": "Le Lacunaire géant prend toute la chaleur du cœur",
+  }
+
+  test("a lost fight is a narrative branch: every chapter still ends, the defeat flag is cleared", () => {
+    for (const c of CHAPTERS.filter((x) => x.id !== "prologue")) {
+      let run = startChapter(c.id, undefined, 4)
+      const lines: string[] = []
+      let fights = 0
+      for (let step = 0; step < 5000 && !run.done; step++) {
+        const f = frame(run)
+        if (f.kind === "done") break
+        if (f.kind === "choice") run = choose(run, f.options[0].id)
+        else if (f.kind === "hub") run = choose(run, f.topics[0].id)
+        else if (f.kind === "fight") {
+          fights++
+          run = finishFight(run, { ...report(step), result: "defeat" }).run
+        } else {
+          if (f.kind === "line") lines.push(f.text)
+          run = next(run)
+        }
+      }
+      expect(run.done).toBe(true)
+      expect(fights).toBeGreaterThan(0)
+      expect(run.retries).toBe(fights)
+      expect(run.flags.defaite ?? false).toBe(false)
+      expect(Number(run.flags.usure ?? 0)).toBeGreaterThan(0)
+      expect(lines.some((l) => l.includes(DEFEAT_LINES[c.id]))).toBe(true)
+    }
+  })
+
   test("the era plays through, chapter after chapter", () => {
     let carry: Carry | undefined
     for (const c of CHAPTERS) {

@@ -41,6 +41,9 @@ export const FLAGS: Record<string, FlagSpec> = {
   "transformation.1": text("aucune", "A", "B"),
   "ghom_dechu.verite": count(9),
 
+  // A fight was lost: read by the scene right after the fight, then cleared.
+  defaite: bool,
+
   // era I
   zones_prologue: count(3),
   lacunaire_approche: bool,

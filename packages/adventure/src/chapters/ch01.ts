@@ -121,6 +121,7 @@ const tenirLesBords: FightSpec = {
   },
   influences: ["earthquake", "timeWarp"],
   startEnergy: 3,
+  defeat: [set("defaite"), add("usure", 1), add("confiance", -1)],
   objectives: [
     {
       id: "zones",
@@ -493,7 +494,26 @@ export const ch01: Chapter = {
       kind: "combat",
       setting: "La frange orientale de l'île : le feu, la rigole, les semis.",
       next: "veillee",
-      beats: [{ t: "fight", fight: tenirLesBords }],
+      beats: [
+        { t: "fight", fight: tenirLesBords },
+        when(is("defaite"), [
+          stage(
+            "Les Échos tombent avant la fin du dixième tour. Le froid prend le feu, puis la rigole, puis les semis, comme un gel qui monte par la terre. Le héros, à genoux, ne voit plus que la frange avancer. Une main le saisit par le col : Lyra, qui se relève la première et le tire hors du gris, pas à pas, jusqu'à la butte où la chaleur tient encore.",
+          ),
+          say(
+            "lyra",
+            "Respire. Ce n'est pas toi qui as perdu. Le bord avance d'un pas chaque printemps : aujourd'hui il en a fait trois, voilà tout.",
+          ),
+          stage(
+            "Elle ne lâche pas son bras avant que les Lacunaires, n'ayant plus rien de chaud à suivre, se défassent d'eux-mêmes dans l'herbe grise.",
+          ),
+          say(
+            "lyra",
+            "On a perdu des champs. On n'a pas perdu le feu. Viens, il y a de quoi réchauffer deux personnes.",
+          ),
+          fx(set("defaite", false)),
+        ]),
+      ],
     },
     veillee: {
       id: "veillee",
@@ -503,8 +523,13 @@ export const ch01: Chapter = {
       next: "depart",
       beats: [
         stage(
-          "Le soir. Le feu, le seul point chaud à des centaines de pas. Lyra raccommode un pan de sa cape avec une aiguille d'os. Le héros a son Carnet sur les genoux. Derrière eux, le bord est un peu moins flou qu'à midi : ce qui a été tenu a tenu.",
+          "Le soir. Le feu, le seul point chaud à des centaines de pas. Lyra raccommode un pan de sa cape avec une aiguille d'os. Le héros a son Carnet sur les genoux.",
         ),
+        when(gte("zones_bords_froids", 1), [
+          stage(
+            "Derrière eux, le bord est un peu moins flou qu'à midi : ce qui a été tenu a tenu.",
+          ),
+        ]),
         when(
           is("zones_bords_froids", 3),
           [

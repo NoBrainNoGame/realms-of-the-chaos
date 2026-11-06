@@ -139,6 +139,7 @@ const lastFold: FightSpec = {
   },
   influences: [],
   startEnergy: 0,
+  defeat: [set("defaite"), add("confiance.nerea", -1)],
   objectives: [
     {
       id: "ne-pas-reecrire",
@@ -304,6 +305,7 @@ function giantFight(nyx: NyxMode, vesce: VesceMode, fewer: boolean): FightSpec {
   return {
     id: `ch6-lacune-geante-${nyx}-${vesce}-${fewer ? "1" : "2"}`,
     title: "La Lacune géante",
+    defeat: [set("defaite"), add("usure"), add("confiance", -1)],
     goal: "Tenir jusqu'à midi : faire reculer les Échos de la Dérive, ou tenir une case de la Lacune. Le Lacunaire géant attaque tout ce qui est chaud.",
     board: BOARD,
     teams,
@@ -726,6 +728,16 @@ export const ch06: Chapter = {
               "Reconstitution jouable : Le dernier pli. Le héros et Néréa rejouent, avec les traces pour seule règle, les dernières saisons de la Dérive avant que les plis s'arrêtent : quatre Échos d'alors, des zones qui se taisent, et dans le ciel, au-dessus de l'île, une lentille d'air courbé qui se relâche peu à peu, puis s'efface.",
             ),
             { t: "fight", fight: lastFold },
+            when(is("defaite"), [
+              stage(
+                "L'image se fissure. Les quatre Échos d'alors vacillent, puis se défont dans la vase. Le héros a voulu retenir un pli qui s'en allait : il a réécrit, et les couches ne disent plus la même chose. Néréa le tire vers la surface par la corde.",
+              ),
+              say(
+                "nerea",
+                "Ce n'est pas grave. La carotte, elle, n'a pas bougé. Ce que tu as perdu, c'est ta lecture, pas la vase.",
+              ),
+              fx(set("defaite", false)),
+            ]),
             say(
               "nerea",
               "Je n'ai pas vu de lentille, dans la vase. J'ai vu des plis qui s'arrêtent. La lentille, c'est ce que j'en déduis. Ce qui poussait la terre a arrêté de la pousser. Ce n'est pas un accident : un accident, ça fait un pli de travers. Là, c'est un geste. Quelqu'un a arrêté.",
@@ -829,6 +841,16 @@ export const ch06: Chapter = {
         when(all(is("nyx_epargnee"), lt("confiance.nyx", 3)), [
           stage("Le héros tend la main vers Nyx ; elle recule d'une case."),
           say("nyx", "Non. Pas encore."),
+        ]),
+        when(is("defaite"), [
+          stage(
+            "Le Lacunaire géant prend toute la chaleur du cœur. Les Échos tombent, des deux rives, l'un après l'autre : ce n'est pas un ennemi, c'est une faim sans visage, et elle ne choisit pas son camp. Quand elle se détourne enfin, le gris a gagné jusqu'au bord de la rive, et chacun est vivant, mais vidé.",
+          ),
+          say(
+            "lyra",
+            "Ça n'a pas voulu nous tuer. Ça a juste eu besoin de nous plus que nous.",
+          ),
+          fx(set("defaite", false)),
         ]),
       ],
       next: "5",

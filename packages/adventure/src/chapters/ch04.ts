@@ -10,6 +10,7 @@ import {
   hub,
   is,
   join,
+  lt,
   narr,
   opt,
   redirect,
@@ -121,6 +122,7 @@ const mareeDuLent: FightSpec = {
   influences: ["earthquake", "timeWarp", "blessing"],
   startEnergy: 3,
   goal: "Tenir jusqu'à la troisième marée haute : fixer ou faire fuir les Lacunaires, sans perdre Néréa.",
+  defeat: [set("defaite"), add("usure", 1), add("confiance.nerea", -1)],
   objectives: [
     {
       id: "fonds",
@@ -535,6 +537,19 @@ export const ch04: Chapter = {
         ),
         fx(unlock("mecanique:eau")),
         { t: "fight", fight: mareeDuLent },
+        when(is("defaite"), [
+          stage(
+            "La troisième marée emporte Néréa. Le Lent la prend d'un coup, noir et froid, avec ce qui remontait du fond. Brutus, qui ne nage pas, entre dans l'eau jusqu'à la poitrine et la ramène par le bras, toussant, sans trident.",
+          ),
+          say(
+            "nerea",
+            "J'ai lu ce lac toute ma vie. Il m'a quand même eue. Les fonds sont remués : cette année, la couche sera illisible.",
+          ),
+          stage(
+            "Les Lacunaires, n'ayant plus de chaleur à suivre, se défont dans la vase. Le lac redescend, trouble, et garde sa couche brouillée.",
+          ),
+          fx(set("defaite", false)),
+        ]),
       ],
     },
 
@@ -548,7 +563,13 @@ export const ch04: Chapter = {
         stage(
           "Le soir. Le lac est redescendu. Un feu sur la berge, que Néréa regarde avec méfiance (« ça sèche »). Elle a gardé les pieds dans l'eau.",
         ),
-        say("nerea", "Je viens avec vous."),
+        when(gte("confiance.nerea", 0), [say("nerea", "Je viens avec vous.")]),
+        when(lt("confiance.nerea", 0), [
+          say(
+            "nerea",
+            "Je viens avec vous. Ne croyez pas que ce soit de la gratitude.",
+          ),
+        ]),
         stage("Personne n'a rien demandé."),
         say(
           "nerea",

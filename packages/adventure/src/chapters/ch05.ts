@@ -93,6 +93,7 @@ const jointure: FightSpec = {
   influences: ["earthquake", "timeWarp", "blessing"],
   startEnergy: 4,
   goal: "Repousser l'équipe de la Dérive : chacun doit être dispersé ou s'en aller.",
+  defeat: [set("defaite"), add("usure", 1), add("confiance.brutus", -1)],
   objectives: [
     {
       id: "nyx-epargnee",
@@ -491,6 +492,26 @@ export const ch05: Chapter = {
         // full Élan gauge of the enemy Ghom, Nyx refusing every Intrication
         // and the hidden "ne pas toucher la jointure" objective.
         { t: "fight", fight: jointure },
+        when(is("defaite"), [
+          stage(
+            "Les Échos de l'île natale cèdent sur la jointure. Nyx n'achève personne : elle recule d'un pas quand le dernier genou touche le sol, et baisse sa lame de verre noir.",
+          ),
+          say("nyx", "Vous êtes réels. Mais pas assez. Allez."),
+          stage(
+            "Merlin note quelque chose sur son bâton, puis le range sans commentaire. Vesce, derrière lui, regarde les blessés sans oser approcher. Ils repartent tous vers la Dérive, vivants. Brutus, adossé à son bouclier fendu, regarde la paroi noire s'éloigner.",
+          ),
+          say(
+            "brutus",
+            "Ils nous ont laissés partir. Je ne sais pas ce qui est le pire : avoir perdu, ou avoir été épargné.",
+          ),
+          fx(
+            set("nyx_epargnee"),
+            set("vesce_fuie"),
+            set("vesce_dispersee", false),
+            set("defaite", false),
+          ),
+          go("s5"),
+        ]),
       ],
     },
 
