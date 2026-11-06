@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { Board, MAX_ELEVATION, MIN_ELEVATION } from "./board"
+import { Board, MAX_ELEVATION, MIN_ELEVATION, MIN_STEP_COST } from "./board"
 import { keyOf } from "./geometry"
 import { createRng } from "./random"
 
@@ -59,11 +59,11 @@ describe("Heights and movement", () => {
     expect(board.canStep({ x: 0, y: 0 }, { x: -1, y: 0 })).toBe(false)
   })
 
-  test("climbing costs one more, going down does not", () => {
+  test("climbing costs one more, going down one less (never free)", () => {
     const board = Board.fromAscii([".1~"])
     expect(board.stepCost({ x: 0, y: 0 }, { x: 1, y: 0 })).toBe(2)
-    expect(board.stepCost({ x: 1, y: 0 }, { x: 0, y: 0 })).toBe(1)
-    expect(board.stepCost({ x: 1, y: 0 }, { x: 2, y: 0 })).toBe(2) // water
+    expect(board.stepCost({ x: 1, y: 0 }, { x: 0, y: 0 })).toBe(MIN_STEP_COST)
+    expect(board.stepCost({ x: 1, y: 0 }, { x: 2, y: 0 })).toBe(1) // down into water
     expect(board.stepCost({ x: 0, y: 0 }, { x: 9, y: 0 })).toBe(Infinity)
     expect(board.moveCost({ x: 2, y: 0 })).toBe(2)
     expect(board.moveCost({ x: 9, y: 0 })).toBe(Infinity)

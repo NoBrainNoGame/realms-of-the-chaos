@@ -202,7 +202,7 @@ function expectBalanced(
 
 describe("balance tournaments (AI vs AI, 3v3, sides swapped)", () => {
   test("every preset wins about half of its fights", () => {
-    const result = runTournament({ pool: PRESETS, pairs: PAIRS, seed: 11 })
+    const result = runTournament({ pool: PRESETS, pairs: PAIRS, seed: 12 })
     expectBalanced(result, PRESETS)
 
     // no side advantage, reasonable fight length

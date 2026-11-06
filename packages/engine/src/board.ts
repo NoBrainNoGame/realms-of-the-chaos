@@ -26,6 +26,8 @@ export const MIN_ELEVATION = -3
 export const MAX_ELEVATION = 3
 /** Highest difference of level a walker can climb or jump down in one step. */
 export const MAX_STEP = 1
+/** Cheapest step (going down onto ground is quick, never free). */
+export const MIN_STEP_COST = 0.5
 /** Water surface level. */
 export const WATER_LEVEL = 0
 
@@ -273,11 +275,14 @@ export class Board {
     return Math.abs(this.standHeight(to) - this.standHeight(from)) <= MAX_STEP
   }
 
-  /** Cost of a step: terrain cost for this locomotion, +1 when climbing. */
+  /**
+   * Cost of a step: terrain cost for this locomotion, +1 per level climbed,
+   * -1 per level gone down (never below MIN_STEP_COST).
+   */
   stepCost(from: Point, to: Point, locomotion: Locomotion = "walker") {
     if (!this.inBounds(to)) return Infinity
-    const climb = Math.max(0, this.standHeight(to) - this.standHeight(from))
-    return this.moveCost(to, locomotion) + climb
+    const rise = this.standHeight(to) - this.standHeight(from)
+    return Math.max(MIN_STEP_COST, this.moveCost(to, locomotion) + rise)
   }
 
   /** Cost of entering a cell, ignoring climbing. */

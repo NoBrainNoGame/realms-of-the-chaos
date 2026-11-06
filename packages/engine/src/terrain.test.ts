@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { Board } from "./board"
+import { Board, MIN_STEP_COST } from "./board"
 import {
   COLLISION_DAMAGE,
   Combat,
@@ -75,16 +75,17 @@ describe("height in combat", () => {
     expect(combat.useAction("arrow", gorr.position).ok).toBe(false)
   })
 
-  test("climbing slows steps down", () => {
+  test("climbing slows steps down, going down speeds them up", () => {
     const board = Board.fromAscii([".1"])
     const combat = setup(
       [[["eva", { x: 0, y: 0 }]], [["gorr", { x: 1, y: 0 }]]],
       board,
     )
     const [eva] = combat.fighters
-    const flat = combat.stepDelay(eva, { x: 1, y: 0 }, { x: 0, y: 0 })
+    const flat = combat.baseStepDelay(eva) * STEP_DELAY_RATIO
+    const down = combat.stepDelay(eva, { x: 1, y: 0 }, { x: 0, y: 0 })
     const climb = combat.stepDelay(eva, { x: 0, y: 0 }, { x: 1, y: 0 })
-    expect(flat).toBeCloseTo(combat.baseStepDelay(eva) * STEP_DELAY_RATIO)
+    expect(down).toBeCloseTo(flat * MIN_STEP_COST)
     expect(climb).toBeCloseTo(flat * 2)
   })
 
