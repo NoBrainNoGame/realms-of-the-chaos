@@ -91,13 +91,15 @@ const ancrages: FightSpec = {
       fighters: [
         // The two Dédoublés are one body in two places (a double). Some cells
         // of the bowl are uncertain until measured (see the rules).
-        // SIMPLIFIED: the four unstable ones are single bodies: a second
-        // displayed position for each would put eight more fighters on a
-        // bowl of ten by nine, so only the two Dédoublés have two positions.
+        // Each of the four unstable ones is one body in two places (a pair).
         { preset: UNSTABLE, at: { x: 3, y: 3 } },
+        { preset: UNSTABLE, at: { x: 2, y: 4 } },
         { preset: UNSTABLE, at: { x: 6, y: 3 } },
+        { preset: UNSTABLE, at: { x: 7, y: 4 } },
         { preset: UNSTABLE, at: { x: 3, y: 5 } },
+        { preset: UNSTABLE, at: { x: 7, y: 3 } },
         { preset: UNSTABLE, at: { x: 6, y: 5 } },
+        { preset: UNSTABLE, at: { x: 1, y: 4 } },
         {
           preset: {
             ...UNSTABLE,
@@ -135,8 +137,12 @@ const ancrages: FightSpec = {
     silentDamage: 1,
     neutral: [2],
     doubles: [
+      { team: 1, pair: [0, 1] },
+      { team: 1, pair: [2, 3] },
       { team: 1, pair: [4, 5] },
-      { team: 1, pair: [6, 7], found: 0.55 },
+      { team: 1, pair: [6, 7] },
+      { team: 1, pair: [8, 9] },
+      { team: 1, pair: [10, 11], found: 0.55 },
     ],
     superposition: {
       cells: [
