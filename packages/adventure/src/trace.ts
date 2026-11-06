@@ -59,6 +59,8 @@ export type TraceCond =
     }
   /** `by` was the first to come next to (a fighter of another team) `of`. */
   | { firstTouch: { of: Who; by: Who } }
+  /** `by` came next to `of` (any time, or by clock tick `before`). */
+  | { touched: { of: Who; by: Who; before?: number } }
   /** The fighter(s) stood in the region at some moment. */
   | { visited: { region: string; who: Who } }
   | { not: TraceCond }
@@ -177,6 +179,15 @@ export function readTrace(
     const first = t?.touches.find((x) => targets.some((f) => f.id === x.of))
     return !!first && is(report, by, first.by, first.byTeam)
   }
+  if ("touched" in cond) {
+    const { of, by, before } = cond.touched
+    return (t?.touches ?? []).some(
+      (x) =>
+        is(report, of, x.of, null) &&
+        is(report, by, x.by, x.byTeam) &&
+        (before === undefined || x.tick <= before),
+    )
+  }
   if ("noFinalBlowBy" in cond) {
     const { by, target } = cond.noFinalBlowBy
     const fallen = rowsOf(report, target).filter((f) => t.finalBlows[f.id])
@@ -293,6 +304,9 @@ export function traceProblems(spec: FightSpec): string[] {
     } else if ("firstTouch" in c) {
       who(c.firstTouch.of, where)
       who(c.firstTouch.by, where)
+    } else if ("touched" in c) {
+      who(c.touched.of, where)
+      who(c.touched.by, where)
     } else if ("noFinalBlowBy" in c) {
       who(c.noFinalBlowBy.by, where)
       who(c.noFinalBlowBy.target, where)

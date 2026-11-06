@@ -134,6 +134,7 @@ export interface FighterSpec {
    * Only on the board when this flag is set (a Double spared, an heir who came
    * back). Give it to the last fighters of a team: the later ones keep their
    * place in the line-up, and so the indexes the rules use.
+   * Also read: "!flag" (flag not set), "flag=value" and "flag!=value" (text flags).
    */
   needs?: string
   /**
@@ -239,6 +240,11 @@ export interface FightSpec {
   rules: AdventureRules
   /** Argumenter / Certitude, turned into `rules.debate` by `fightRules`. */
   debate?: DebateSpec
+  /**
+   * Rules added (over `rules`, key by key) when a flag condition holds, with
+   * the same syntax as `FighterSpec.needs`.
+   */
+  rulesIf?: { needs: string; rules: AdventureRules }[]
   /** Influences the Ghom has from the start of this fight. */
   influences: string[]
   /** Élan of the Ghom at the start of the fight. */

@@ -43,19 +43,32 @@ export function resolveFight(
   spec: FightSpec,
   flag?: (key: string) => FlagValue,
 ): FightSpec {
-  if (!spec.teams.some((t) => t.fighters.some((f) => f.needs))) return spec
-  const set = (key: string) => {
-    try {
-      return flag?.(key) === true
-    } catch {
-      return false
+  const hasNeeds = spec.teams.some((t) => t.fighters.some((f) => f.needs))
+  if (!hasNeeds && !spec.rulesIf?.length) return spec
+  const holds = (cond: string) => {
+    const value = (key: string) => {
+      try {
+        return flag?.(key)
+      } catch {
+        return undefined
+      }
     }
+    const m = /^([^!=]+)(!?=)(.*)$/.exec(cond)
+    if (m) return (value(m[1]) === m[3]) === (m[2] === "=")
+    if (cond.startsWith("!")) return value(cond.slice(1)) !== true
+    return value(cond) === true
   }
+  const rules = (spec.rulesIf ?? []).reduce(
+    (acc, r) => (holds(r.needs) ? { ...acc, ...r.rules } : acc),
+    spec.rules,
+  )
   return {
     ...spec,
+    rules,
+    rulesIf: undefined,
     teams: spec.teams.map((t) => ({
       ...t,
-      fighters: t.fighters.filter((f) => !f.needs || set(f.needs)),
+      fighters: t.fighters.filter((f) => !f.needs || holds(f.needs)),
     })),
   }
 }

@@ -27,6 +27,7 @@ import {
   COEUR,
   DEDOUBLE,
   EFFILOCHEUR,
+  FORMES_STABILISE,
   GIANT,
   ILSE,
   kitOf,
@@ -74,8 +75,18 @@ function marree(ile: Ile, squalor: boolean, ombres: boolean): FightSpec {
   const allies: FighterSpec[] = [
     { preset: "@hero", at: { x: 3, y: 4 } },
     { preset: "nerea", at: { x: 4, y: 2 } },
-    { preset: "eva", at: { x: 6, y: 2 } },
-    { preset: STABILISE, at: { x: 4, y: 6 } },
+    { preset: "eva", at: { x: 6, y: 7 } },
+    // the form it took in ch. 10 (one only is on the board; the index stays)
+    ...Object.entries(FORMES_STABILISE).map(([forme, preset]) => ({
+      preset,
+      at: { x: 4, y: 6 },
+      needs: `lacunaire.forme=${forme}`,
+    })),
+    {
+      preset: STABILISE,
+      at: { x: 4, y: 6 },
+      needs: "lacunaire.forme=aucune",
+    },
   ]
   if (squalor) allies.push({ preset: "squalor", at: { x: 6, y: 6 } })
   if (ombres) {
@@ -109,11 +120,12 @@ function marree(ile: Ile, squalor: boolean, ombres: boolean): FightSpec {
       id: "ile-entiere",
       mark: "◆",
       label: "Une île entière",
-      // SIMPLIFIED: the cells fixed as ground do not exist; the Heart stands
-      // and nobody on the allied side is dispersed.
+      // Every cell of the island stayed ground: none of the cells the tide
+      // and the ring left uncertain settled into water (an ally standing on
+      // one, or next to it, keeps it solid).
       check: (r) =>
-        r.fighters.filter((f) => f.team === 0).every((f) => f.hp > 0) &&
-        r.fighters.some((f) => f.preset === "coeur_ile" && f.hp > 0),
+        r.fighters.some((f) => f.preset === "coeur_ile" && f.hp > 0) &&
+        !(r.measured ?? []).some((m) => m.state === "void"),
       success: "Pas une case dans l'eau. Ilse, note.",
       onSuccess: [set("ch12_ile_entiere")],
     },
@@ -123,8 +135,9 @@ function marree(ile: Ile, squalor: boolean, ombres: boolean): FightSpec {
       id: "personne-derriere",
       mark: "★",
       label: "Personne derrière",
-      // SIMPLIFIED: Ilse is alive at the end; Eva's walk to the Tower before
-      // the third wave is not checked.
+      // Eva reaches Ilse before the third wave (tick 8) and Ilse is alive at
+      // the end.
+      when: { touched: { of: "ilse", by: "eva", before: 8 } },
       check: (r) => r.fighters.some((f) => f.preset === "ilse" && f.hp > 0),
       success: "Ta mesure, c'est moi qui la finirai.",
       onSuccess: [set("ch12_personne_derriere")],
@@ -149,21 +162,107 @@ function marree(ile: Ile, squalor: boolean, ombres: boolean): FightSpec {
           { preset: DEDOUBLE, at: { x: 1, y: 3 }, arrives: { tick: 4 } },
           { preset: DEDOUBLE, at: { x: 9, y: 5 }, arrives: { tick: 4 } },
           // wave 3 (tick 8)
-          { preset: EFFILOCHEUR, at: { x: 3, y: 7 }, arrives: { tick: 8 } },
-          { preset: EFFILOCHEUR, at: { x: 7, y: 7 }, arrives: { tick: 8 } },
+          // (none when Peut-Être was mended)
+          {
+            preset: EFFILOCHEUR,
+            at: { x: 3, y: 7 },
+            arrives: { tick: 8 },
+            needs: "peut_etre!=recousue",
+          },
+          {
+            preset: EFFILOCHEUR,
+            at: { x: 7, y: 7 },
+            arrives: { tick: 8 },
+            needs: "peut_etre!=recousue",
+          },
           // wave 4 (tick 12)
           { preset: GIANT, at: { x: 8, y: 6 }, arrives: { tick: 12 } },
+          // wave 3, with the instables (3), and wave 4's two instables
+          { preset: UNSTABLE, at: { x: 2, y: 7 }, arrives: { tick: 8 } },
+          { preset: UNSTABLE, at: { x: 5, y: 7 }, arrives: { tick: 8 } },
+          { preset: UNSTABLE, at: { x: 8, y: 7 }, arrives: { tick: 8 } },
+          { preset: UNSTABLE, at: { x: 1, y: 5 }, arrives: { tick: 12 } },
+          { preset: UNSTABLE, at: { x: 9, y: 3 }, arrives: { tick: 12 } },
+          // the Seuil does not hold: a wave from the Hole between 3 and 4
+          {
+            preset: UNSTABLE,
+            at: { x: 4, y: 7 },
+            arrives: { tick: 10 },
+            needs: "!lacune_geante_habitee",
+          },
+          {
+            preset: UNSTABLE,
+            at: { x: 5, y: 7 },
+            arrives: { tick: 10 },
+            needs: "!lacune_geante_habitee",
+          },
+          {
+            preset: UNSTABLE,
+            at: { x: 6, y: 7 },
+            arrives: { tick: 10 },
+            needs: "!lacune_geante_habitee",
+          },
+          // Peut-Être widened: two more instables at wave 3
+          {
+            preset: UNSTABLE,
+            at: { x: 1, y: 6 },
+            arrives: { tick: 8 },
+            needs: "peut_etre=elargie",
+          },
+          {
+            preset: UNSTABLE,
+            at: { x: 9, y: 6 },
+            arrives: { tick: 8 },
+            needs: "peut_etre=elargie",
+          },
         ],
       },
     ],
     // The two Dédoublés of wave 2 are one body in two places (a double); a
     // ring of cells around the Heart is uncertain until measured or until
     // tick 10.
-    // SIMPLIFIED: no Front de Marée, no engulfment
-    // scripted at the end of wave 4 (it is told in the next scene), no
-    // adjustments from `lacune_geante_habitee`, from Peut-Être's heart or
-    // from the star of ch. 7. The clock stands for "hold the four waves".
+    // The Front de Marée comes from the east (wave 2 side), one column every
+    // four ticks. The flags adjust the waves (`needs`) and the rules
+    // (`rulesIf`): the ring is uncertain from the start if the star of ch. 7
+    // failed, and Peut-Être inhabited lets a fallen ally reform once. The
+    // clock stands for "hold the four waves"; the engulfment that ends wave 4
+    // is told in the next scene.
+    rulesIf: [
+      {
+        needs: "!ch7_etoile",
+        rules: {
+          superposition: {
+            cells: [
+              { x: 2, y: 3 },
+              { x: 8, y: 3 },
+              { x: 2, y: 5 },
+              { x: 8, y: 5 },
+              { x: 4, y: 7 },
+              { x: 6, y: 7 },
+              { x: 2, y: 2 },
+              { x: 8, y: 2 },
+              { x: 2, y: 6 },
+              { x: 8, y: 6 },
+              { x: 4, y: 1 },
+              { x: 6, y: 1 },
+            ],
+            pVoid: 0.3,
+            decohereAt: 10,
+          },
+        },
+      },
+      {
+        needs: "peut_etre=habitee",
+        rules: {
+          recompose: [
+            { team: 0, index: 1, after: 3, times: 1 },
+            { team: 0, index: 2, after: 3, times: 1 },
+          ],
+        },
+      },
+    ],
     rules: {
+      tide: { axis: "x", from: 10, dir: -1, every: 4, start: 4 },
       neutral: [1],
       clock: { period: 1, limit: 16, winner: 0 },
       doubles: [{ team: 2, pair: [4, 5] }],
@@ -176,6 +275,7 @@ function marree(ile: Ile, squalor: boolean, ombres: boolean): FightSpec {
           { x: 4, y: 7 },
           { x: 6, y: 7 },
         ],
+        pVoid: 0.3,
         decohereAt: 10,
       },
     },

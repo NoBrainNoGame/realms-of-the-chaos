@@ -125,7 +125,7 @@ export const UNSTABLE = lacunaire(
   {},
   ["kick"],
 )
-/** SIMPLIFIED: the two candidate positions of a "dédoublé" do not exist; it is a plain, slightly tougher one. */
+/** A "dédoublé": ch. 12 plays the two bodies as a pair of `doubles`. */
 export const DEDOUBLE = lacunaire(
   "lacunaire_dedouble",
   "Lacunaire dédoublé",
@@ -160,9 +160,8 @@ export const SQUALE: CharacterPreset = {
 }
 
 /**
- * The stabilised Lacunaire. SIMPLIFIED: the six forms (ondine, aiguille,
- * squale, miroir, récif, brume) and the Hésitation trait do not exist as
- * presets, so one kit stands for all of them.
+ * The stabilised Lacunaire, before it took a form. The Hésitation trait (it
+ * wavers between two gestures) is its low luck.
  */
 export const STABILISE: CharacterPreset = {
   id: "lacunaire_stabilise",
@@ -177,9 +176,46 @@ export const STABILISE: CharacterPreset = {
     physicalDefense: 4,
     magicalAttack: 5,
     magicalDefense: 5,
-    luck: 5,
+    luck: 3,
   },
   actions: ["bubble", "kick"],
+}
+
+/**
+ * The six forms the Lacunaire took in ch. 10 (`lacunaire.forme`): same body
+ * and same Hésitation, a different way of fighting.
+ */
+export const FORMES_STABILISE: Record<string, CharacterPreset> = {
+  ondine: {
+    ...STABILISE,
+    stats: { ...STABILISE.stats, magicalAttack: 6, magicalDefense: 6 },
+    actions: ["bubble", "kick"],
+  },
+  aiguille: {
+    ...STABILISE,
+    stats: { ...STABILISE.stats, speed: 7, physicalAttack: 6, health: 5 },
+    actions: ["kick", "bubble"],
+  },
+  squale: {
+    ...STABILISE,
+    stats: { ...STABILISE.stats, health: 7, physicalAttack: 7, speed: 4 },
+    actions: ["bite", "kick"],
+  },
+  miroir: {
+    ...STABILISE,
+    stats: { ...STABILISE.stats, magicalDefense: 7, physicalDefense: 6 },
+    actions: ["bubble", "kick"],
+  },
+  recif: {
+    ...STABILISE,
+    stats: { ...STABILISE.stats, health: 8, physicalDefense: 7, speed: 3 },
+    actions: ["kick", "bubble"],
+  },
+  brume: {
+    ...STABILISE,
+    stats: { ...STABILISE.stats, speed: 6, magicalAttack: 7, health: 5 },
+    actions: ["frost", "bubble"],
+  },
 }
 
 /** The unfixed drifting Lacunaire of ch. 10 (neutral, never fights). */
