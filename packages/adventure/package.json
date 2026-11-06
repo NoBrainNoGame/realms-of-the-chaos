@@ -1,0 +1,16 @@
+{
+  "name": "@realms/adventure",
+  "description": "Chapters of the Adventure (Chroniques) as typed data, and the pure runner that plays them",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@realms/engine": "workspace:*"
+  }
+}

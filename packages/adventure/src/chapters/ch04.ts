@@ -1,0 +1,526 @@
+import {
+  add,
+  choice,
+  fx,
+  give,
+  go,
+  gte,
+  hint,
+  hub,
+  is,
+  join,
+  narr,
+  opt,
+  redirect,
+  say,
+  set,
+  stage,
+  topic,
+  unlock,
+  when,
+} from "../dsl"
+import { type Chapter, END, type FightSpec } from "../types"
+
+// Lacunaires of the Lent: swimmers rising from the abyss.
+const unstable = (n: number) => ({
+  id: `lacunaire-instable-${n}`,
+  name: "Lacunaire instable",
+  title: "Nageur de l'abysse",
+  affinity: "shadow" as const,
+  locomotion: "swimmer" as const,
+  stats: {
+    health: 4,
+    speed: 5,
+    physicalAttack: 4,
+    physicalDefense: 2,
+    magicalAttack: 1,
+    magicalDefense: 2,
+    luck: 2,
+  },
+  actions: ["bite", "kick"],
+})
+
+const effilocheur = {
+  id: "lacunaire-effilocheur",
+  name: "Lacunaire effilocheur",
+  title: "Nageur de l'abysse",
+  affinity: "shadow" as const,
+  locomotion: "swimmer" as const,
+  stats: {
+    health: 7,
+    speed: 5,
+    physicalAttack: 5,
+    physicalDefense: 3,
+    magicalAttack: 3,
+    magicalDefense: 3,
+    luck: 2,
+  },
+  actions: ["blade", "kick"],
+}
+
+const mareeDuLent: FightSpec = {
+  id: "ch4-maree-du-lent",
+  title: "La marée du Lent",
+  board: [
+    "..~~~~~..",
+    ".~~www~~.",
+    "~~wwWww~1",
+    "~wwWWWww~",
+    "1~wwWww~~",
+    "~~~www~~.",
+    ".~~~w~~1.",
+    "..~~~~~..",
+    ".........",
+  ],
+  teams: [
+    {
+      name: "Alliés",
+      side: "allies",
+      fighters: [
+        { preset: "@hero", at: { x: 3, y: 8 } },
+        { preset: "lyra", at: { x: 4, y: 8 } },
+        { preset: "brutus", at: { x: 5, y: 8 } },
+        { preset: "nerea", at: { x: 4, y: 5 } },
+      ],
+    },
+    {
+      name: "Lacunaires de l'abysse",
+      side: "enemies",
+      fighters: [
+        // SIMPLIFIED: no respawn at each high tide; everyone is there from the
+        // start (the swarm of the doc is 3 + 2 per tide + 1 effilocheur).
+        { preset: unstable(1), at: { x: 3, y: 3 } },
+        { preset: unstable(2), at: { x: 5, y: 3 } },
+        { preset: unstable(3), at: { x: 4, y: 4 } },
+        { preset: effilocheur, at: { x: 4, y: 2 } },
+      ],
+    },
+  ],
+  rules: {
+    // SIMPLIFIED: the tide (shallows turning deep every 4 actions, walkers
+    // carried back to the ground) does not exist in the engine. Three clock
+    // ticks stand for the three high tides: the fight is held when the third
+    // one is over, and the allies win.
+    clock: { period: 12, limit: 3, winner: 0 },
+    // The Lacunaires set into a rock when they fall, like in chapter 3.
+    fixOnDeath: [1],
+    // The one who flees dives back toward the abyss (the W cells).
+    flee: {
+      team: 1,
+      below: 0.3,
+      exits: [
+        { x: 4, y: 2 },
+        { x: 3, y: 3 },
+        { x: 4, y: 3 },
+        { x: 5, y: 3 },
+        { x: 4, y: 4 },
+      ],
+    },
+  },
+  influences: ["earthquake", "timeWarp", "blessing"],
+  startEnergy: 3,
+  goal: "Tenir jusqu'à la troisième marée haute : fixer ou faire fuir les Lacunaires, sans perdre Néréa.",
+  objectives: [
+    {
+      id: "fonds",
+      mark: "◆",
+      label: "Ne pas remuer les fonds",
+      // SIMPLIFIED: no Séisme at all and no Lacunaire fixed (the engine does
+      // not say whether a fixed one lay in deep water).
+      check: (r) =>
+        (r.divineUsed.earthquake ?? 0) === 0 && r.fixed.length === 0,
+      success: "Le lac n'a rien perdu de ses couches.",
+      onSuccess: [add("confiance.nerea", 2), set("fonds_intacts")],
+    },
+    {
+      id: "intrication-eau",
+      mark: "◆",
+      label: "Une Intrication dans l'eau",
+      // SIMPLIFIED: any Intrication counts (the cell's depth is not reported).
+      check: (r) => r.intrications > 0,
+      success: "Deux Échos sur la même case d'eau.",
+      onSuccess: [add("intrications"), set("intrication_eau")],
+    },
+    {
+      id: "fuyards",
+      mark: "★",
+      label: "Laisser partir ceux qui fuient",
+      check: (r) => {
+        const n = r.fighters.filter((f) => f.team === 1 && f.fled).length
+        return { ok: n > 0, n }
+      },
+      success: "Ils sont rentrés dans le fond.",
+      onSuccess: [{ add: "lacunaires.epargnes", by: 1, perUnit: true }],
+    },
+  ],
+  lines: [
+    {
+      when: "start",
+      who: "nerea",
+      text: "Ils remontent du fond. Le fond, c'est l'endroit le plus froid, le plus noir, le plus lent. Ce qui vit au bord du rien. Comme moi, en fait.",
+    },
+    { when: "start", who: "brutus", text: "Je ne nage pas." },
+    { when: "start", who: "nerea", text: "Je sais. Tu as une tête à couler." },
+    {
+      when: "tick:1",
+      who: "lyra",
+      text: "L'eau monte ! Sur les rochers, vite !",
+    },
+    // CUT: lines tied to events the engine does not report (carried walker,
+    // tidal wave pushing a Lacunaire to the abyss, Séisme in water, effilocheur's ice).
+    {
+      when: "end",
+      who: "nerea",
+      text: "La marée redescend. Ils redescendent avec elle. Le lac respire, maintenant. Il n'avait jamais respiré.",
+    },
+  ],
+}
+
+export const ch04: Chapter = {
+  id: "4",
+  era: 1,
+  number: 4,
+  title: "Les abysses",
+  quote: {
+    who: "nerea",
+    text: "Tout ce qui tombe finit par se déposer. Même vous. Surtout vous, si vous continuez à remuer ma vase.",
+  },
+  place: "Le Lac de Néréa, que les ondines appellent le Lent",
+  question: {
+    id: "Q04",
+    text: "Que gardent les profondeurs de ce qui a été ?",
+  },
+  start: "s1",
+  scenes: {
+    s1: {
+      id: "s1",
+      title: "Le lac qui respire",
+      kind: "rencontre",
+      setting: "Un lac rond au milieu d'une cuvette boisée",
+      next: "s2",
+      beats: [
+        stage(
+          "Un lac rond au milieu d'une cuvette boisée. L'eau est noire, si calme qu'on y voit le ciel. Mais sur la berge, une ligne de vase humide montre que l'eau était plus haute il y a peu. Des roseaux sont couchés dans le même sens. On entend un bruit très lent, comme une respiration : l'eau revient.",
+        ),
+        say(
+          "brutus",
+          "Il n'a jamais fait ça. Mon grand-père pêchait ici. Le lac ne bougeait pas.",
+        ),
+        say("lyra", "Tout bouge, Brutus."),
+        say("brutus", "Pas les lacs."),
+        stage("L'eau monte de deux pieds en quelques minutes, puis s'arrête."),
+        choice("lac", [
+          opt("pourquoi", "Pourquoi il monte ?", [
+            say("lyra", "Je ne sais pas. Quelque chose le tire."),
+          ]),
+          opt("ile", "Regarder l'île du ciel.", [
+            narr(
+              "L'île de l'est est là, au-dessus des arbres, en plein jour maintenant. Le lac monte vers elle. Ou c'est l'impression que ça donne.",
+            ),
+          ]),
+        ]),
+      ],
+    },
+
+    s2: {
+      id: "s2",
+      title: "La remontée",
+      kind: "rencontre",
+      setting: "Un remous au centre du lac",
+      next: "s3",
+      beats: [
+        stage(
+          "Un remous au centre du lac. Une silhouette jaillit de l'eau, se hisse sur un rocher plat, et secoue la tête. Peau bleu-vert, longs cheveux plaqués, une écharpe de vase sur les épaules et un trident à la main. Elle est furieuse, et parle lentement, ce qui la rend encore plus effrayante.",
+        ),
+        say("nerea", "Qui. A. Jeté. Des cailloux."),
+        say("brutus", "… Personne."),
+        say(
+          "nerea",
+          "Le lac a monté. Trois fois en une semaine. Il a remué les fonds. Et ce matin, quelqu'un a jeté des cailloux. Trois siècles de vase, brouillés. Trois siècles que je lisais comme on lit un visage.",
+        ),
+        stage(
+          "Brutus a, effectivement, un caillou à la main. Il le pose, discrètement.",
+        ),
+        choice("remontee", [
+          opt("pardon", "Pardon. On ne savait pas.", [
+            say(
+              "nerea",
+              "On ne sait jamais. C'est pour ça qu'il faut lire avant de jeter.",
+            ),
+          ]),
+          opt("lire", "Lire la vase ?", [
+            say(
+              "nerea",
+              "Les couches. Ce qui tombe au fond d'un lac s'y dépose, un peu chaque année. Le pollen au printemps, les feuilles en automne, la poussière quand il fait sec. Une couche par an. Au fond du Lent, il y en a des milliers. C'est l'histoire de l'île, écrite par tout ce qui y est tombé.",
+            ),
+          ]),
+          opt("lui", "C'est lui. (désigner Brutus)", [
+            fx(add("confiance.brutus", -1), add("confiance.nerea", 1)),
+            say("brutus", "…"),
+            say(
+              "nerea",
+              "Je sais. Il avait la tête de quelqu'un qui jette des cailloux.",
+            ),
+          ]),
+        ]),
+      ],
+    },
+
+    // The Écoute: four steps, one can leave at each of them.
+    s3: {
+      id: "s3",
+      title: "Les couches",
+      kind: "rencontre",
+      setting: "Néréa, les pieds dans l'eau",
+      next: "s4",
+      beats: [
+        stage(
+          "Néréa s'assoit sur son rocher, les pieds dans l'eau. Elle est apaisée, maintenant qu'on l'écoute, et elle parle avec une lenteur infinie.",
+        ),
+        // Step 1
+        say(
+          "nerea",
+          "Vous voulez savoir ce qu'est l'île du ciel. Les gens de Demeure envoient toujours quelqu'un aux ondines quand le ciel change. Tous les trois cents ans, à peu près. Ma lignée tient le compte. Pour bien comprendre, il faut commencer par le fond.",
+        ),
+        say("brutus", "Le fond de quoi ?"),
+        say("nerea", "Du lac."),
+        choice("ecoute1", [
+          opt("ecoute", "Je t'écoute.", [
+            // Step 2
+            say(
+              "nerea",
+              "Au fond, tout en bas, les couches sont claires. Du pollen, du sable fin, des coquilles minuscules. Une île jeune, chaude, pleine de choses. Puis, en remontant… il y a mille ans, peut-être… une première couche noire. Fine comme un cil. De la poussière qui ne vient pas d'ici : on ne trouve pas cette roche sur notre île.",
+            ),
+            say("nerea", "Elle est tombée du ciel."),
+            stage("Brutus soupire et s'assoit dans les roseaux."),
+            say("brutus", "Il va falloir un moment."),
+            choice("ecoute2", [
+              opt("continue", "Continue.", [
+                fx(add("confiance.nerea", 1)),
+                // Step 3
+                say(
+                  "nerea",
+                  "Puis une autre couche noire, deux siècles plus haut. Puis une autre, un siècle plus haut. Puis tous les cinquante ans. Puis tous les dix ans. Puis tous les ans. Les dernières sont épaisses comme un doigt.",
+                ),
+                say(
+                  "nerea",
+                  "Quelque chose, là-haut, s'effrite. Depuis mille ans. Et ses miettes tombent chez nous de plus en plus souvent, parce qu'elle est de plus en plus près.",
+                ),
+                say("lyra", "L'île du ciel."),
+                say(
+                  "nerea",
+                  "L'île du ciel. Elle perd ses bords. Comme vos bords froids, Lyra. Mais en plus vieux.",
+                ),
+                stage("Le héros sort le Carnet."),
+                choice("ecoute3", [
+                  opt("pourquoi", "Pourquoi elle s'effrite ?", [
+                    // Step 4
+                    say(
+                      "nerea",
+                      "Ça, mes couches ne le disent pas. Elles disent qu'il est tombé quelque chose. Pas pourquoi. Une couche, c'est une trace, pas une raison. Pour savoir pourquoi elle s'effrite, il faudrait lire ses fonds à elle. Ses lacs. Ses vases. Si elle a des lacs.",
+                    ),
+                    say(
+                      "nerea",
+                      "Si un jour elle vient assez près… Elle regarde le ciel. Et elle vient.",
+                    ),
+                    narr(
+                      "Elle parle de l'île qui va nous heurter comme on parle d'un livre qu'on va enfin pouvoir ouvrir.",
+                    ),
+                    fx(
+                      set("archive_derive", "disponible"),
+                      add("confiance.nerea", 1),
+                      add("confiance", 1),
+                    ),
+                    say("brutus", "Fini ?"),
+                    say(
+                      "nerea",
+                      "Non. Mais vous avez écouté plus longtemps que tous les autres en mille ans. Je peux m'arrêter là.",
+                    ),
+                  ]),
+                  opt("tard3", "Plus tard.", [
+                    fx(set("archive_derive", "aucune")),
+                    go("s4"),
+                  ]),
+                ]),
+              ]),
+              opt("tard2", "Plus tard.", [
+                fx(set("archive_derive", "aucune")),
+                go("s4"),
+              ]),
+            ]),
+          ]),
+          opt("court", "Tu peux faire court ?", [
+            say("nerea", "Non."),
+            // Does not close anything: she goes on at step 2.
+            redirect("ecoute"),
+          ]),
+          opt("tard1", "Plus tard.", [
+            fx(set("archive_derive", "aucune")),
+            go("s4"),
+          ]),
+        ]),
+      ],
+    },
+
+    s4: {
+      id: "s4",
+      title: "La marée du Lent",
+      kind: "combat",
+      setting: "Le Lent, noir et profond",
+      next: "s5",
+      beats: [
+        stage(
+          "La marée monte encore. Au centre du lac, l'eau devient plus noire, et des formes remontent de l'abysse.",
+        ),
+        hint(
+          "L'eau",
+          "Les marcheurs pataugent dans l'eau peu profonde (déplacement plus cher) et ne vont pas en eau profonde. Néréa est aquatique : elle va partout sans pénalité. Son Raz-de-marée repousse et ralentit.",
+        ),
+        fx(unlock("mecanique:eau")),
+        { t: "fight", fight: mareeDuLent },
+      ],
+    },
+
+    s5: {
+      id: "s5",
+      title: "Sur la berge",
+      kind: "veillee",
+      setting: "Le soir. Un feu sur la berge",
+      next: "s6",
+      beats: [
+        stage(
+          "Le soir. Le lac est redescendu. Un feu sur la berge, que Néréa regarde avec méfiance (« ça sèche »). Elle a gardé les pieds dans l'eau.",
+        ),
+        say("nerea", "Je viens avec vous."),
+        stage("Personne n'a rien demandé."),
+        say(
+          "nerea",
+          "Si l'île du ciel arrive, je veux être la première à mettre la main dans sa vase.",
+        ),
+        stage("Néréa I rejoint l'équipe."),
+        fx(join("nerea")),
+        when(is("fonds_intacts"), [
+          say(
+            "nerea",
+            "Vous avez combattu sur mon lac sans salir mes fonds. Je ne savais pas que c'était possible.",
+          ),
+        ]),
+        when(is("intrication_eau"), [
+          say("nerea", "On tient à deux là où on se noierait seul."),
+        ]),
+        hub("berge", [
+          topic("heros", "Le héros", [
+            stage("Néréa observe le héros longtemps, la tête penchée."),
+            say("nerea", "Toi, tu n'as pas de couches."),
+            choice("couches", [
+              opt("comment", "Comment ça ?", [
+                say(
+                  "nerea",
+                  "Tout le monde a des couches. Lyra a des doigts gris, des cals de soigneuse, une cicatrice au menton qu'elle s'est faite à six ans. Brutus a les épaules d'un homme qui porte des pierres depuis douze hivers. Ce qui nous arrive se dépose en nous.",
+                ),
+                when(
+                  gte("usure", 1),
+                  [
+                    say(
+                      "nerea",
+                      "Toi… tu as une ligne grise au bout des doigts. Une seule. Elle est toute neuve. Sous elle, rien.",
+                    ),
+                  ],
+                  [
+                    say(
+                      "nerea",
+                      "Toi… rien. Pas une ride, pas un cal. Comme une vase qui vient de se poser.",
+                    ),
+                  ],
+                ),
+              ]),
+              opt("reveil", "Je me suis réveillé il y a quelques jours.", [
+                say("nerea", "Alors tu es très jeune, ou très bien lavé."),
+                say("nerea", "Les couches viendront. Elles viennent toujours."),
+              ]),
+            ]),
+          ]),
+          topic("ghom", "Le Ghom", [
+            say(
+              "nerea",
+              "Les gens de Demeure disent qu'il est immobile. Les ondines n'en savent rien. Nous, on attend qu'il tombe.",
+            ),
+            choice("tombe", [
+              opt("quil", "Qu'il tombe ?", [
+                say(
+                  "nerea",
+                  "Tout ce qui existe laisse quelque chose au fond, un jour. Une poussière, une chaleur, une trace. S'il existe, il laisse une couche. Je la cherche.",
+                ),
+                stage("Elle sourit, pour la première fois."),
+                say(
+                  "nerea",
+                  "Je ne l'ai pas encore trouvée. Ça ne prouve rien. Le fond est grand.",
+                ),
+              ]),
+            ]),
+          ]),
+          topic(
+            "question",
+            "La question",
+            [
+              say(
+                "nerea",
+                "Lyra dit que tu écris des questions. Écris la mienne. Elle est vieille. Ma mère l'avait, sa mère aussi.",
+              ),
+              say("nerea", "Que gardent les profondeurs de ce qui a été ?"),
+              choice("q04", [
+                opt("ecrire", "L'écrire.", [
+                  fx(set("carnet.Q04", "ouverte"), add("confiance.nerea", 1)),
+                ]),
+                opt("tout", "Elles gardent tout, non ? Tu viens de le dire.", [
+                  say(
+                    "nerea",
+                    "J'ai dit qu'elles gardent ce qui est tombé. Pas ce qui s'est passé. Une couche de cendre, ce n'est pas un incendie. C'est ce qui reste d'un incendie.",
+                  ),
+                  stage("Le héros écrit."),
+                  fx(set("carnet.Q04", "ouverte")),
+                ]),
+              ]),
+            ],
+            { last: true },
+          ),
+        ]),
+      ],
+    },
+
+    s6: {
+      id: "s6",
+      title: "Le quart du ciel",
+      kind: "fin",
+      setting: "L'aube",
+      beats: [
+        stage(
+          "L'aube. L'île de l'est n'est plus une tache : elle occupe un quart du ciel. On distingue ses falaises sombres, des reflets froids sur ses crêtes, et, sur ses bords, une sorte de brume qui s'effiloche vers le Clair. Le lac monte, plus haut que la veille. Puis le sol tremble, longuement, sans secousse brutale : un grondement sourd, comme une porte immense qu'on ouvre très lentement.",
+        ),
+        say("brutus", "Elle va nous toucher."),
+        say(
+          "nerea",
+          "Elle va nous toucher à l'est, là où vos bords sont les plus froids. Les couches de poussière sont plus épaisses du côté est du lac.",
+        ),
+        say("lyra", "La Lisière. On y va ?"),
+        choice("fin", [
+          opt("allons", "On y va.", []),
+          opt("faire", "Pour faire quoi ?", [
+            say(
+              "lyra",
+              "Être là. C'est déjà beaucoup, être là quand les choses arrivent.",
+            ),
+          ]),
+        ]),
+        narr(
+          "Une île entière vient vers nous. Je devrais avoir peur. J'ai surtout envie de savoir qui vit dessus.",
+        ),
+        when(is("archive_derive", "disponible"), [
+          fx(give("eclat_de_poussiere_noire")),
+        ]),
+        fx(give("sandales_de_jonc")),
+        go(END),
+      ],
+    },
+  },
+}
