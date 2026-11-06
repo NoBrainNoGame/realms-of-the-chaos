@@ -152,3 +152,10 @@ describe("unproject", () => {
     }
   })
 })
+
+describe("text style", () => {
+  test("a non-zero letter spacing keeps Pixelify Sans from drawing 'fi' as 'A'", async () => {
+    const { style } = await import("./ui")
+    expect(style(16).letterSpacing).not.toBe(0)
+  })
+})

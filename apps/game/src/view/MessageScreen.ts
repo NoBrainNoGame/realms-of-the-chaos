@@ -47,6 +47,9 @@ export default class MessageScreen extends ViewChip<MessageEvents> {
     const heading = text(title, 34, color, {
       fontWeight: "700",
       stroke: { color: 0x000000, width: 6 },
+      align: "center",
+      wordWrap: true,
+      wordWrapWidth: WIDTH - 48,
     })
     heading.anchor.set(0.5, 0)
     heading.position.set(WIDTH / 2, 22)
@@ -58,7 +61,7 @@ export default class MessageScreen extends ViewChip<MessageEvents> {
       wordWrapWidth: WIDTH - 48,
     })
     body.anchor.set(0.5, 0)
-    body.position.set(WIDTH / 2, 82)
+    body.position.set(WIDTH / 2, Math.max(82, heading.y + heading.height + 16))
 
     const menuTop = body.y + body.height + 26
     this._menu = new Menu(choices, {

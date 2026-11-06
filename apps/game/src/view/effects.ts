@@ -464,6 +464,7 @@ export function floatingText(
     text,
     style: {
       fontFamily: FONT,
+      letterSpacing: 0.01,
       fontSize: size,
       fontWeight: "700",
       fill: color,

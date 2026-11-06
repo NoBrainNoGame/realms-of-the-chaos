@@ -27,6 +27,9 @@ export const style = (
     // a little room around the glyphs: wrapped lines measured right at the
     // wrap width were clipped on their last letters
     padding: 4,
+    // Pixelify Sans draws its "fi" ligature as an "A" ("fin" read "An"); any
+    // non-zero letter spacing turns the optional ligatures off
+    letterSpacing: 0.01,
     ...extra,
     fontSize: Math.round(size * k),
     ...(extra.lineHeight

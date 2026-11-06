@@ -64,7 +64,12 @@ export default class Gallery extends ViewChip<GalleryEvents> {
       portrait.position.set(ox, oy - 54)
       const name = new Text({
         text: `#${this._seed * 1000 + i}`,
-        style: { fontFamily: FONT, fontSize: 11, fill: 0x9d92b8 },
+        style: {
+          fontFamily: FONT,
+          letterSpacing: 0.01,
+          fontSize: 11,
+          fill: 0x9d92b8,
+        },
       })
       name.position.set(ox, oy - 4)
       this._container.addChild(portrait, name)
@@ -107,7 +112,12 @@ export default class Gallery extends ViewChip<GalleryEvents> {
       })
       const name = new Text({
         text: CHARACTERS[id].name,
-        style: { fontFamily: FONT, fontSize: 18, fill: 0xffffff },
+        style: {
+          fontFamily: FONT,
+          letterSpacing: 0.01,
+          fontSize: 18,
+          fill: 0xffffff,
+        },
       })
       name.position.set(10, 90 + row * 112)
       this._container.addChild(name)
@@ -118,12 +128,22 @@ export default class Gallery extends ViewChip<GalleryEvents> {
   private _finishActivate() {
     this._label = new Text({
       text: "",
-      style: { fontFamily: FONT, fontSize: 22, fill: 0xffe066 },
+      style: {
+        fontFamily: FONT,
+        letterSpacing: 0.01,
+        fontSize: 22,
+        fill: 0xffe066,
+      },
     })
     this._label.position.set(10, 10)
     const back = new Text({
       text: "← Retour (Échap)",
-      style: { fontFamily: FONT, fontSize: 16, fill: 0x9d92b8 },
+      style: {
+        fontFamily: FONT,
+        letterSpacing: 0.01,
+        fontSize: 16,
+        fill: 0x9d92b8,
+      },
     })
     back.position.set(320, 14)
     back.eventMode = "static"
