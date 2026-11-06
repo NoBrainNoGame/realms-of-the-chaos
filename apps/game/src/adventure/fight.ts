@@ -43,6 +43,15 @@ function fighterOf(
   return resolveFighters([preset])[0] ?? preset
 }
 
+/** The art id of a character walking the island ("heros" is the dedicated hero). */
+export function puppetId(
+  who: string | CharacterPreset,
+  hero: Pick<Carry, "items" | "unlocks">,
+): string {
+  const preset = fighterOf(who === "heros" ? "@hero" : who, hero)
+  return typeof preset === "string" ? preset : preset.id
+}
+
 /** The scene of a fight: allies are played, the others by the AI. */
 export function fightOptions(
   spec: FightSpec,

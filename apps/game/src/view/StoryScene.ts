@@ -35,7 +35,7 @@ interface StoryEvents extends booyah.BaseCompositeEvents {
 const WIDTH = 680
 
 /** Speaker colours: the fighters' own, by lineage. */
-const VOICE: Record<string, number> = {
+export const VOICE: Record<string, number> = {
   heros: TEAM_COLORS[0],
   lyra: 0x69db7c,
   brutus: 0xff922b,

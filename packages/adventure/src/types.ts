@@ -151,6 +151,68 @@ export interface FightSpec {
   seed?: number
 }
 
+// ─── Exploration ────────────────────────────────────────────────────────────
+
+export interface Spot {
+  x: number
+  y: number
+}
+
+/** A line read when something is examined. */
+export interface ExamineLine {
+  /** A character id; without it the line is the hero's narration. */
+  who?: string
+  style?: "say" | "narr" | "stage"
+  text: string
+}
+
+/** An optional enemy that wanders on the island and can be avoided. */
+export interface Wanderer {
+  preset: string | CharacterPreset
+  title: string
+  goal: string
+  /** How far from its place it strays (cells). */
+  range: number
+  /** Half-side of the board cut out around the meeting (cells). */
+  radius: number
+  /** What the hero gains for good by overcoming it. */
+  effects: Effect[]
+  /** Said in the debrief. */
+  success: string
+}
+
+/**
+ * Something to meet on the island. With a `scene`, it is the place where
+ * that story scene happens (the story waits for it); otherwise it is
+ * optional: something to examine, or an enemy to avoid.
+ */
+export interface Encounter {
+  id: string
+  at: Spot
+  /** What the hero sees there ("la Borne", "le feu"). */
+  label: string
+  /** The scene of the chapter this triggers. */
+  scene?: string
+  /** A character stands there and can be walked up to. */
+  actor?: string
+  /** Stepping on one of these cells triggers it (default: next to `at`). */
+  zone?: Spot[]
+  /** Triggers by itself as soon as the hero is free to act. */
+  auto?: boolean
+  examine?: { lines: ExamineLine[]; effects?: Effect[] }
+  wander?: Wanderer
+  if?: Cond
+}
+
+export interface Exploration {
+  /** `Board.fromAscii` rows: the whole island. */
+  island: string[]
+  start: Spot
+  /** Characters (of the team) who walk behind the hero here. */
+  companions?: string[]
+  encounters: Encounter[]
+}
+
 // ─── Chapters ───────────────────────────────────────────────────────────────
 
 export interface Chapter {
@@ -165,6 +227,8 @@ export interface Chapter {
   question?: { id: string; text: string }
   start: string
   scenes: Record<string, Scene>
+  /** The places and encounters of the chapter, walked on the island. */
+  exploration?: Exploration
 }
 
 export interface Era {

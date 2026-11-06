@@ -77,6 +77,33 @@ export function validateChapter(chapter: Chapter): string[] {
     })
   }
 
+  const ex = chapter.exploration
+  if (ex) {
+    const w = ex.island[0].length
+    const inside = (p: { x: number; y: number }) =>
+      p.x >= 0 && p.y >= 0 && p.x < w && p.y < ex.island.length
+    if (ex.island.some((r) => r.length !== w))
+      err("island rows differ in length")
+    if (!inside(ex.start)) err("island start is outside")
+    const ids = new Set<string>()
+    for (const e of ex.encounters) {
+      if (ids.has(e.id)) err(`encounter "${e.id}" is twice`)
+      ids.add(e.id)
+      if (!inside(e.at)) err(`encounter "${e.id}" is outside the island`)
+      for (const z of e.zone ?? [])
+        if (!inside(z)) err(`encounter "${e.id}": zone cell outside`)
+      if (e.scene !== undefined && !chapter.scenes[e.scene])
+        err(`encounter "${e.id}": unknown scene "${e.scene}"`)
+      if (e.if) cond(e.if, `encounter ${e.id}`)
+      effects(e.examine?.effects ?? [], `encounter ${e.id}`)
+      effects(e.wander?.effects ?? [], `encounter ${e.id}`)
+    }
+    // the story must never wait for something the hero cannot find
+    for (const id of Object.keys(chapter.scenes))
+      if (!ex.encounters.some((e) => e.scene === id))
+        err(`scene "${id}" has no place on the island`)
+  }
+
   // reachability from the start, and a way to the end from everywhere
   const seen = new Set<string>()
   const stack = [chapter.start]

@@ -29,6 +29,10 @@ export interface Run extends Carry {
   /** Defeats suffered in the fight being played. */
   retries: number
   done: boolean
+  /** The scene the hero walked into (exploration): the story waits otherwise. */
+  entry?: string
+  /** Optional things already examined or overcome (encounter ids). */
+  seen?: string[]
 }
 
 export type Frame =
@@ -315,4 +319,21 @@ export function finishFight(
   }
   r.pc++
   return { run: settle(r), debrief }
+}
+
+/** The chapter a run is in. */
+export const chapterOfRun = (run: Run): Chapter => lookup(run.chapter)
+
+/** Applies effects for the game layer (examining, overcoming a wanderer). */
+export function withEffects(run: Run, effects: Effect[]): Run {
+  const r = copy(run)
+  applyEffects(r, effects)
+  return r
+}
+
+/** Marks an optional encounter as done. */
+export function markSeen(run: Run, id: string): Run {
+  const r = copy(run)
+  if (!(r.seen ?? []).includes(id)) r.seen = [...(r.seen ?? []), id]
+  return r
 }

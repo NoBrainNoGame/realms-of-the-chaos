@@ -174,6 +174,125 @@ export const prologue: Chapter = {
     "Une prairie de l'île natale, au bord d'une mare, à l'aube, au printemps",
   question: { id: "Q00", text: "Pourquoi suis-je là ?" },
   start: "eveil",
+  exploration: {
+    // The meadow of the tutorial fight is the island itself.
+    island: prairie.board,
+    start: { x: 4, y: 4 },
+    encounters: [
+      {
+        id: "eveil",
+        label: "L'herbe haute",
+        scene: "eveil",
+        at: { x: 4, y: 4 },
+        auto: true,
+      },
+      {
+        id: "reflet",
+        label: "La mare",
+        scene: "reflet",
+        at: { x: 2, y: 2 },
+        zone: [
+          { x: 1, y: 4 },
+          { x: 2, y: 4 },
+          { x: 3, y: 4 },
+          { x: 0, y: 1 },
+          { x: 0, y: 2 },
+          { x: 0, y: 3 },
+          { x: 4, y: 1 },
+          { x: 4, y: 2 },
+          { x: 4, y: 3 },
+          { x: 1, y: 0 },
+          { x: 2, y: 0 },
+          { x: 3, y: 0 },
+        ],
+      },
+      {
+        id: "aube",
+        label: "Le tertre",
+        scene: "aube",
+        at: { x: 7, y: 3 },
+        zone: [
+          { x: 6, y: 2 },
+          { x: 7, y: 2 },
+          { x: 8, y: 2 },
+          { x: 6, y: 3 },
+          { x: 7, y: 3 },
+          { x: 8, y: 3 },
+          { x: 6, y: 4 },
+          { x: 7, y: 4 },
+          { x: 8, y: 4 },
+        ],
+      },
+      {
+        id: "coin_froid",
+        label: "Le bord qui pâlit",
+        scene: "coin_froid",
+        at: { x: 8, y: 6 },
+        zone: [
+          { x: 8, y: 5 },
+          { x: 8, y: 6 },
+          { x: 8, y: 7 },
+          { x: 7, y: 6 },
+        ],
+      },
+      {
+        id: "couplage",
+        label: "Le Clair",
+        scene: "couplage",
+        at: { x: 8, y: 4 },
+        auto: true,
+      },
+      {
+        id: "carnet",
+        label: "Les rochers",
+        scene: "carnet",
+        at: { x: 4, y: 8 },
+        zone: [
+          { x: 3, y: 7 },
+          { x: 4, y: 7 },
+          { x: 5, y: 7 },
+          { x: 3, y: 6 },
+          { x: 4, y: 6 },
+          { x: 5, y: 6 },
+        ],
+      },
+      {
+        id: "fin",
+        label: "L'aube",
+        scene: "fin",
+        at: { x: 4, y: 4 },
+        auto: true,
+      },
+      {
+        id: "fleurs",
+        label: "Des fleurs fermées",
+        at: { x: 6, y: 2 },
+        examine: {
+          lines: [
+            {
+              text: "Des fleurs fermées, couvertes de rosée. Elles attendent le soleil ; elles n'ont pas l'air d'attendre quelqu'un.",
+            },
+          ],
+        },
+      },
+      {
+        id: "clair",
+        label: "Le bord de l'herbe",
+        at: { x: 8, y: 1 },
+        examine: {
+          lines: [
+            {
+              style: "stage",
+              text: "Au-delà, l'herbe s'arrête net. Après, c'est le Clair : un vide clair et immense, avec, très loin, de petites îles comme des étoiles.",
+            },
+            {
+              text: "Je ne sais pas ce que c'est. Je sais que je veux y regarder encore.",
+            },
+          ],
+        },
+      },
+    ],
+  },
   scenes: {
     eveil: {
       id: "eveil",

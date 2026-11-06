@@ -214,6 +214,113 @@ export const ch01: Chapter = {
     text: "Que devient une chose quand plus rien ne la touche ?",
   },
   start: "borne",
+  exploration: {
+    // The fight's meadow is the island: feu (NW), rigole (E), semis (SE).
+    island: tenirLesBords.board,
+    start: { x: 0, y: 7 },
+    companions: ["lyra"],
+    encounters: [
+      {
+        id: "borne",
+        label: "La Borne de Demeure",
+        scene: "borne",
+        at: { x: 0, y: 5 },
+        zone: [
+          { x: 0, y: 4 },
+          { x: 0, y: 5 },
+          { x: 0, y: 6 },
+          { x: 1, y: 5 },
+        ],
+      },
+      {
+        id: "lyra",
+        label: "Lyra, au feu",
+        scene: "lyra",
+        at: { x: 2, y: 2 },
+        actor: "lyra",
+        zone: [
+          { x: 1, y: 2 },
+          { x: 3, y: 2 },
+          { x: 2, y: 3 },
+          { x: 2, y: 1 },
+        ],
+      },
+      {
+        id: "bords",
+        label: "Les bords froids",
+        scene: "bords",
+        at: { x: 8, y: 4 },
+        auto: true,
+      },
+      {
+        id: "veillee",
+        label: "Le feu de Lyra",
+        scene: "veillee",
+        at: { x: 2, y: 2 },
+        zone: [
+          { x: 1, y: 3 },
+          { x: 2, y: 3 },
+          { x: 3, y: 3 },
+          { x: 3, y: 2 },
+          { x: 1, y: 2 },
+        ],
+      },
+      {
+        id: "depart",
+        label: "Le chemin du nord",
+        scene: "depart",
+        at: { x: 4, y: 0 },
+        zone: [
+          { x: 3, y: 0 },
+          { x: 4, y: 0 },
+          { x: 5, y: 0 },
+          { x: 4, y: 1 },
+        ],
+      },
+      {
+        id: "herbe_grise",
+        label: "L'herbe grise",
+        at: { x: 4, y: 4 },
+        examine: {
+          lines: [
+            {
+              text: "L'herbe est grise et raide, couverte d'une rosée qui ne sèche pas. Pas un insecte.",
+            },
+          ],
+          effects: [{ add: "ecoute", by: 1 }],
+        },
+      },
+      {
+        id: "frange",
+        label: "Le sol qui se défait",
+        at: { x: 8, y: 3 },
+        examine: {
+          lines: [
+            {
+              style: "stage",
+              text: "Au loin, le sol se défait : ses derniers mètres sont flous, comme vus à travers une vitre sale, et derrière il n'y a que le Clair.",
+            },
+          ],
+          effects: [{ add: "ecoute", by: 1 }],
+        },
+      },
+      {
+        id: "errant",
+        label: "Un Lacunaire isolé",
+        at: { x: 7, y: 7 },
+        wander: {
+          preset: lacunaireInstable,
+          title: "Un Lacunaire égaré",
+          goal: "Le toucher pour qu'il se décide.",
+          range: 2,
+          radius: 4,
+          effects: [{ add: "ecoute", by: 1 }],
+          success:
+            "Il s'est décidé en un galet, sous la main. Il n'y a rien à ajouter.",
+        },
+      },
+    ],
+  },
   scenes: {
     borne: {
       id: "borne",

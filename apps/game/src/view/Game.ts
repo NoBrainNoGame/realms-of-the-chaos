@@ -1,5 +1,6 @@
 import type * as booyah from "@ghom/booyah"
 import type { FightReport, FightSpec, Run } from "@realms/adventure"
+import { explorationOf } from "@realms/adventure"
 import type { CustomLook } from "@realms/engine"
 import {
   allyTeam,
@@ -21,6 +22,7 @@ import AppearanceEditor from "./AppearanceEditor"
 import ArcadeRun from "./ArcadeRun"
 import Chronicles from "./Chronicles"
 import Creator from "./Creator"
+import ExplorationScene from "./ExplorationScene"
 import FightScene, { classicFight, type SceneOptions } from "./FightScene"
 import Gallery from "./Gallery"
 import { resolveFighters } from "./looks"
@@ -52,6 +54,8 @@ export type Screen =
       report?: FightReport
       /** A past chapter replayed: the run lives here, not in the save. */
       sandbox?: Run | true
+      /** A chapter just over (the walked island hands it over). */
+      done?: Run
     }
   /** Which saved Écho plays the hero. */
   | { type: "hero" }
@@ -214,18 +218,28 @@ export default class Game extends ViewChip {
   /** The fight screen of an Adventure fight node. */
   private _adventureFight(spec: FightSpec, run: Run, sandbox?: Run): Screen {
     const seed = randomSeed()
-    const options = fightOptions(
-      spec,
-      seed,
-      this._params.speed,
-      run,
-      (combat) =>
-        combat.winnerTeam === allyTeam(spec) ||
-        (combat.winnerTeam === null && combat.adventure?.report.timeUp)
-          ? [{ id: "continue", label: "Continuer l'histoire" }]
-          : [{ id: "defeat", label: "Poursuivre" }],
+    return {
+      type: "fight",
+      options: this._fightOptions(spec, run, seed),
+      adventure: { spec, seed, sandbox },
+    }
+  }
+
+  /** The scene options of an Adventure fight (the story's end actions). */
+  private _fightOptions(spec: FightSpec, run: Run, seed: number) {
+    return fightOptions(spec, seed, this._params.speed, run, (combat) =>
+      combat.winnerTeam === allyTeam(spec) ||
+      (combat.winnerTeam === null && combat.adventure?.report.timeUp)
+        ? [{ id: "continue", label: "Continuer l'histoire" }]
+        : [{ id: "defeat", label: "Poursuivre" }],
     )
-    return { type: "fight", options, adventure: { spec, seed, sandbox } }
+  }
+
+  /** A fight played on the island, over the exploration (no screen change). */
+  private _siteFight(spec: FightSpec, run: Run): FightScene {
+    const scene = new FightScene(this._fightOptions(spec, run, randomSeed()))
+    startEnergy(spec, scene.combat)
+    return scene
   }
 
   private _build(screen: Screen): booyah.Chip {
@@ -329,11 +343,34 @@ export default class Game extends ViewChip {
       case "story": {
         const replay = screen.sandbox !== undefined
         let run: Run | null
-        if (screen.sandbox && screen.sandbox !== true) run = screen.sandbox
+        if (screen.done) run = screen.done
+        else if (screen.sandbox && screen.sandbox !== true) run = screen.sandbox
         else if (screen.start)
           run = beginChapter(screen.start, undefined, replay)
         else run = resumable()
         if (!run) return this._build({ type: "chronicles" })
+        if (explorationOf(run) && !run.done) {
+          const island = new ExplorationScene({
+            run,
+            sandbox: replay,
+            makeFight: (spec, r) => this._siteFight(spec, r),
+          })
+          this._subscribeOnce(island, "back", () =>
+            this.show({ type: "chronicles" }),
+          )
+          this._subscribeOnce(island, "vacuumDecay", () => {
+            this._collapsing = true
+          })
+          this._subscribeOnce(
+            island,
+            "done",
+            (r: Run) =>
+              (this._deferred = replay
+                ? { type: "story", sandbox: r }
+                : { type: "story", done: r }),
+          )
+          return island
+        }
         const story = new StoryScene({
           run,
           report: screen.report,

@@ -1,6 +1,7 @@
 export { CHAPTERS, chapterById, ERAS, nextChapter } from "./catalog"
 export { compile } from "./compile"
 export * from "./dsl"
+export * from "./exploration"
 export * from "./flags"
 export * from "./runner"
 export * from "./types"
