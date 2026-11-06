@@ -94,10 +94,14 @@ function evacuation(
       {
         name: "Les habitants",
         side: "neutral",
-        // CUT: groups following the allies, autonomous groups (Odile, Tobin,
-        // Pia, Corin), the Fêlure growing in steps, Pont de cristal, Rendre,
+        // The groups follow the hero (a scripted walk).
+        // CUT: autonomous groups (Odile, Tobin, Pia, Corin), the Fêlure growing in steps, Pont de cristal, Rendre,
         // lampadaires. Habitants are neutral units that must survive.
-        fighters: GROUPES.map((at) => ({ preset: HABITANTS, at })),
+        fighters: GROUPES.map((at) => ({
+          preset: HABITANTS,
+          at,
+          script: [{ act: { do: "follow", team: 0, index: 0 } }],
+        })),
       },
     ],
     rules: {

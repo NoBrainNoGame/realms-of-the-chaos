@@ -103,6 +103,14 @@ const fight: FightSpec = {
   rules: {
     clock: { period: 1, limit: 10, winner: 0 },
     announce: true,
+    // La Tiédeur: only the heart of the stage is still hot; elsewhere the
+    // heat has equalised, and every turn spent there costs a little. Acting,
+    // healing and blessing keep a cell hot a few ticks.
+    warmth: {
+      hot: [3, 4, 5].flatMap((x) => [3, 4, 5].map((y) => ({ x, y }))),
+      startTicks: 4,
+      loss: 1,
+    },
     crystals: {
       crystals: [
         {

@@ -119,19 +119,52 @@ function chambre(ally: Ally, rallie: boolean, lacune: Lacune): FightSpec {
       {
         name: "La Mine",
         side: "neutral",
-        // CUT: Gorr's scripted AI (Écrasement every second beat), his being
-        // untargetable, and Brutus holding a beam from time 30.
+        // CUT: Gorr being untargetable, and Brutus holding a beam from time 30.
         fighters: [
-          { preset: GORR, at: { x: 11, y: 3 } },
+          {
+            preset: GORR,
+            at: { x: 11, y: 3 },
+            // Gorr obeys the rhythm: Écrasement at every second beat
+            script: [
+              { every: 2, act: { do: "use", action: "smash", at: "nearest" } },
+              { act: { do: "stand" } },
+            ],
+          },
           { preset: BRUTUS_MINE, at: { x: 10, y: 7 } },
           { preset: MINEUR, at: { x: 2, y: 7 } },
           { preset: MINEUR, at: { x: 9, y: 7 } },
         ],
       },
     ],
-    // CUT: the shifting relief (Séismes at times 15 to 75, damage from level
-    // changes, the final collapse); a clock stands for the collapse.
+    // CUT: damage from level changes and the final collapse; a clock stands
+    // for the collapse. The relief shifts by scripted Séismes.
     rules: {
+      scripted: [
+        {
+          tick: 3,
+          kind: "earthquake",
+          at: [
+            { x: 5, y: 6 },
+            { x: 6, y: 6 },
+          ],
+        },
+        {
+          tick: 6,
+          kind: "earthquake",
+          at: [
+            { x: 4, y: 3 },
+            { x: 7, y: 3 },
+          ],
+        },
+        {
+          tick: 9,
+          kind: "earthquake",
+          at: [
+            { x: 5, y: 8 },
+            { x: 6, y: 8 },
+          ],
+        },
+      ],
       neutral: [2],
       clock: { period: 1, limit: 12, winner: 0 },
       flee: { team: 1, below: 0.3, exits: [{ x: 0, y: 0 }] },

@@ -5,7 +5,7 @@ import {
   type CrystalGain,
   type CrystalOp,
 } from "./adventure"
-import { decide, decideDivine } from "./ai"
+import { type AiCommand, decide, decideDivine } from "./ai"
 import {
   Board,
   type Locomotion,
@@ -858,7 +858,8 @@ export class Combat {
 
   /** `divine: false`: the fighter acts alone, the Ghom's Élan is not spent. */
   private _playAi(fighter: Fighter, divine = true) {
-    if (this.holding.has(fighter.team)) return this._pass(fighter)
+    const scripted = this.adventure?.script.hasScript(fighter) ?? false
+    if (this.holding.has(fighter.team) && !scripted) return this._pass(fighter)
     if (this.adventure?.fleeing.has(fighter.id)) {
       this.adventure.playFlee(fighter)
       if (this._activeFighter === fighter && this._state === "running") {
@@ -866,16 +867,22 @@ export class Combat {
       }
       return
     }
+    const plan = scripted ? this.adventure?.script.command(fighter) : null
     const raid = this.adventure?.crystals
-    if (raid?.raid(fighter)) {
+    if (!plan && raid?.raid(fighter)) {
       this._finishCrystal(fighter, raid.cost("extract"))
       return
     }
-    const spell = divine ? decideDivine(this, fighter) : null
+    const spell = divine && !plan ? decideDivine(this, fighter) : null
     if (spell) this._useDivine(fighter.team, spell.divineId, spell.target)
     if (this._state === "ended") return
 
-    for (const command of decide(this, fighter)) {
+    const commands: AiCommand[] =
+      plan ??
+      (this.holding.has(fighter.team)
+        ? [{ type: "pass" }]
+        : decide(this, fighter))
+    for (const command of commands) {
       if (this._activeFighter !== fighter) break
       switch (command.type) {
         case "move":
@@ -1546,27 +1553,8 @@ export class Combat {
 
       case "earthquake": {
         if (!target) return "Cible requise"
-        const cell = this.board.get(target)
-        if (!cell) return "Case invalide"
-        if (this.fightersAt(target).length > 0) return "La case est occupée"
-        const previous = { ...cell }
-        // raise low cells, collapse high ones
-        const delta = cell.elevation < 1 ? EARTHQUAKE_DELTA : -EARTHQUAKE_DELTA
-        cell.elevation = Math.max(
-          MIN_ELEVATION,
-          Math.min(MAX_ELEVATION, cell.elevation + delta),
-        )
-        cell.terrain =
-          cell.elevation < 0 && previous.terrain === "water"
-            ? "water"
-            : "ground"
-        this._regions.clear()
-        if (!this._fightersCanMeet()) {
-          Object.assign(cell, previous)
-          this._regions.clear()
-          return "Le terrain serait coupé en deux"
-        }
-        this._emit({ type: "terrainChanged", cell: target })
+        const error = this.quake(target)
+        if (error) return error
         break
       }
 
@@ -1697,6 +1685,53 @@ export class Combat {
    * Every alive fighter can still reach the main land, the area all
    * walkers share (aquatic fighters may stay in their own waters).
    */
+  /**
+   * A Séisme on one cell: a low cell rises, a high one collapses. Returns the
+   * reason it did not happen, or null (also used by scripted earthquakes).
+   */
+  quake(target: Point): string | null {
+    const cell = this.board.get(target)
+    if (!cell) return "Case invalide"
+    if (this.fightersAt(target).length > 0) return "La case est occupée"
+    const previous = { ...cell }
+    // raise low cells, collapse high ones
+    const delta = cell.elevation < 1 ? EARTHQUAKE_DELTA : -EARTHQUAKE_DELTA
+    cell.elevation = Math.max(
+      MIN_ELEVATION,
+      Math.min(MAX_ELEVATION, cell.elevation + delta),
+    )
+    cell.terrain =
+      cell.elevation < 0 && previous.terrain === "water" ? "water" : "ground"
+    this._regions.clear()
+    if (!this._fightersCanMeet()) {
+      Object.assign(cell, previous)
+      this._regions.clear()
+      return "Le terrain serait coupé en deux"
+    }
+    this._emit({ type: "terrainChanged", cell: { ...target } })
+    return null
+  }
+
+  /**
+   * Adventure recomposition: a fallen fighter stands again at `position`
+   * with `hp` hit points, and plays soon.
+   */
+  reform(fighter: Fighter, position: Point, hp: number) {
+    if (fighter.alive || this._state === "ended") return
+    fighter.alive = true
+    fighter.hp = Math.max(1, Math.min(hp, this.maxHp(fighter)))
+    fighter.position = { ...position }
+    fighter.statuses = []
+    fighter.cooldowns = {}
+    this._clearWalk(fighter)
+    fighter.nextActionAt = this._time + this.baseDelay(fighter) * 0.65
+    this._emit({
+      type: "recomposed",
+      fighterId: fighter.id,
+      position: { ...position },
+    })
+  }
+
   private _fightersCanMeet() {
     const land = this.board.mainRegion("walker")
     return this.aliveFighters.every((f) => {
@@ -1746,7 +1781,9 @@ export class Combat {
   private _checkVictory() {
     // a team still to come is not beaten
     const waiting = this.fighters.filter(
-      (f) => f.alive && this.offstage.has(f.id),
+      (f) =>
+        (f.alive && this.offstage.has(f.id)) ||
+        (!f.alive && this.adventure?.script.pending(f)),
     )
     const teams = new Set(
       [...this.aliveFighters, ...waiting]

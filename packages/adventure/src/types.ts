@@ -3,6 +3,9 @@ import type {
   AdventureRules,
   AutonomyReport,
   AutonomyTier,
+  RecomposeRule,
+  ScriptReport,
+  ScriptStep,
   TraceReport,
 } from "@realms/engine/adventure"
 
@@ -111,6 +114,19 @@ export interface FighterSpec {
    * time, on `at` (or the closest free cell). Until then its team is not beaten.
    */
   arrives?: { tick?: number; time?: number }
+  /**
+   * Only on the board when this flag is set (a Double spared, an heir who came
+   * back). Give it to the last fighters of a team: the later ones keep their
+   * place in the line-up, and so the indexes the rules use.
+   */
+  needs?: string
+  /**
+   * Acts by a script instead of the AI (Gorr's rhythm), even in a neutral team
+   * on hold. See `ScriptStep` in the engine.
+   */
+  script?: ScriptStep[]
+  /** Reforms after a few ticks when it falls (see `RecomposeRule`). */
+  recompose?: Omit<RecomposeRule, "team" | "index">
   /** Changes to the team of that index (and its controller) mid-fight. */
   switchTo?: { team: number; tick?: number; time?: number }
   /**
@@ -351,6 +367,8 @@ export interface FightReport {
   bridged?: { x: number; y: number }[]
   /** Final blows, strikes, regions held (see `trace.ts` conditions). */
   trace?: TraceReport
+  /** Scripted turns and earthquakes, fighters that reformed, tepid cells. */
+  script?: ScriptReport
   /** Cold: fighters frozen, cells iced, what thawed. */
   gel?: {
     frozen: { fighterId: string; by: string | null; until: number }[]

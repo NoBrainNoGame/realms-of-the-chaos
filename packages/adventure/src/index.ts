@@ -19,6 +19,7 @@ export {
   entryProblems,
   fightRules,
   generalShift,
+  resolveFight,
 } from "./entries"
 export {
   DISPERSION_WORLDS,

@@ -124,6 +124,15 @@ function recomposition(
   ]
   if (issue === "laisse" || issue === "couple")
     allies.push(at(GHOM_DECHU, 2, 3))
+  // Those who came back stand with the team (appended last: indexes keep).
+  allies.push(
+    { ...at("eva", 1, 3), needs: "retour.eva" },
+    { ...at("nerea", 1, 7), needs: "retour.nerea" },
+    { ...at("squalor", 2, 7), needs: "retour.squalor" },
+    { ...at("nyx", 2, 4), needs: "paix_des_lacunes" },
+  )
+  // A spared Double joins the team as an Écho.
+  if (doubleSpared) allies.push(at(doubleOf(8801, "merlin", "Écho de"), 2, 6))
   const enemies: FighterSpec[] = [
     at(doubleOf(8802, "lyra"), 9, 4),
     at(doubleOf(8803, "brutus"), 9, 6),
@@ -769,7 +778,23 @@ export const ch28: Chapter = {
         when(is("derniere_lacune", "aucune"), [
           fx(set("derniere_lacune", "recousue"), add("lacunes.recousues", 2)),
         ]),
+        // The Ghom withdrew from the fight: the Découplage, no answer asked.
+        when(is("fin", "decouplage"), [go("11")]),
         go("5"),
+      ],
+    },
+    "11": {
+      id: "11",
+      title: "Le Découplage",
+      kind: "fin",
+      setting: "Le Cœur, sans le Ghom",
+      beats: [
+        stage(
+          "La pression s'allège, puis s'efface. Personne ne tient plus la main du Ghom : le Cœur se tient seul.",
+        ),
+        say("gorr", "Gorr reste. Le sol reste."),
+        fx(set("geste_dernier")),
+        go(END),
       ],
     },
     "5": {
@@ -1063,6 +1088,7 @@ export const ch28: Chapter = {
       { id: "9c", label: "Ce qu'on se doit" },
       { id: "9d", label: "La question" },
       { id: "10", label: "La Gratuité" },
+      { id: "11", label: "Le Découplage" },
     ],
     ["lyra", "brutus", "gorr"],
   ),

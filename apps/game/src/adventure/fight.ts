@@ -5,6 +5,7 @@ import {
   type FightSpec,
   fightRules,
   getFlag,
+  resolveFight,
 } from "@realms/adventure"
 import {
   CHARACTERS,
@@ -61,7 +62,7 @@ export function puppetId(
 
 /** The scene of a fight: allies are played, the others by the AI. */
 export function fightOptions(
-  spec: FightSpec,
+  full: FightSpec,
   seed: number,
   speed: number,
   hero: Pick<Carry, "items" | "unlocks"> & Partial<Pick<Carry, "flags">>,
@@ -70,6 +71,8 @@ export function fightOptions(
   // allies with a will of their own are read from the trust the run carries
   const carried = hero.flags
   const flag = carried && ((key: string) => getFlag(hero as Carry, key))
+  // fighters that need a flag (heirs, a spared Double) join only if it is set
+  const spec = resolveFight(full, flag)
   const known = new Set(spec.influences)
   const locked = Object.keys(DIVINE_ACTIONS).filter((id) => !known.has(id))
   return {
@@ -142,6 +145,7 @@ export function reportOf(spec: FightSpec, combat: Combat): FightReport {
     bridged: tracker && structuredClone(tracker.bridged),
     gel: tracker && structuredClone(tracker.gel),
     trace: tracker && structuredClone(tracker.trace),
+    script: tracker && structuredClone(tracker.script),
     fighters: combat.fighters.map((f) => ({
       id: f.id,
       preset: presetOf(f),

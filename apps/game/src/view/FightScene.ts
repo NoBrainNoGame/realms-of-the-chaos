@@ -1761,6 +1761,23 @@ export default class FightScene extends ViewChip<SceneEvents> {
           }),
         ]
 
+      case "quaked":
+        return [new booyah.Lambda(() => this._hud.log("Le sol se souleve."))]
+
+      case "recomposed":
+        return [
+          new booyah.Lambda(() => {
+            this._hud.log(`✧ ${name(event.fighterId)} se recompose`)
+            this._showEntry(event.fighterId, event.position)
+          }),
+        ]
+
+      case "warmed":
+        return [new booyah.Lambda(() => this._hud.log("La chaleur gagne."))]
+
+      case "cooled":
+        return [new booyah.Lambda(() => this._hud.log("La chaleur retombe."))]
+
       case "frayed":
         return [new booyah.Lambda(() => this._hud.log("Le bord s'effiloche."))]
 

@@ -29,6 +29,31 @@ export function autonomyTier(lineage: number, general: number): AutonomyTier {
  * The rules the engine plays: the spec's rules plus the `arrives` / `switchTo`
  * of its fighters, turned into the engine's `arrivals` / `switches`.
  */
+/**
+ * The fight as it is played with these flags: the fighters that need a flag
+ * which is not set are not on the board.
+ */
+export function resolveFight(
+  spec: FightSpec,
+  flag?: (key: string) => FlagValue,
+): FightSpec {
+  if (!spec.teams.some((t) => t.fighters.some((f) => f.needs))) return spec
+  const set = (key: string) => {
+    try {
+      return flag?.(key) === true
+    } catch {
+      return false
+    }
+  }
+  return {
+    ...spec,
+    teams: spec.teams.map((t) => ({
+      ...t,
+      fighters: t.fighters.filter((f) => !f.needs || set(f.needs)),
+    })),
+  }
+}
+
 export function fightRules(
   spec: FightSpec,
   flag?: (key: string) => FlagValue,
@@ -36,6 +61,8 @@ export function fightRules(
   const arrivals: NonNullable<AdventureRules["arrivals"]> = []
   const switches: NonNullable<AdventureRules["switches"]> = []
   const allies: AutonomyEntry[] = []
+  const scripts: NonNullable<AdventureRules["scripts"]> = []
+  const recompose: NonNullable<AdventureRules["recompose"]> = []
   const num = (key: string) => {
     try {
       const v = flag?.(key)
@@ -46,6 +73,8 @@ export function fightRules(
   }
   spec.teams.forEach((team, t) => {
     team.fighters.forEach((f, index) => {
+      if (f.script) scripts.push({ team: t, index, steps: f.script })
+      if (f.recompose) recompose.push({ team: t, index, ...f.recompose })
       if (f.arrives) arrivals.push({ team: t, index, ...f.arrives })
       if (f.switchTo) {
         const { team: toTeam, tick, time } = f.switchTo
@@ -75,9 +104,22 @@ export function fightRules(
   const autonomy = allies.length
     ? { ...spec.rules.autonomy, allies }
     : spec.rules.autonomy
-  if (!arrivals.length && !switches.length && !allies.length) return spec.rules
+  if (
+    !arrivals.length &&
+    !switches.length &&
+    !allies.length &&
+    !scripts.length &&
+    !recompose.length
+  )
+    return spec.rules
   return {
     ...spec.rules,
+    ...(scripts.length
+      ? { scripts: [...(spec.rules.scripts ?? []), ...scripts] }
+      : {}),
+    ...(recompose.length
+      ? { recompose: [...(spec.rules.recompose ?? []), ...recompose] }
+      : {}),
     ...(autonomy ? { autonomy } : {}),
     arrivals: [...(spec.rules.arrivals ?? []), ...arrivals],
     switches: [...(spec.rules.switches ?? []), ...switches],
@@ -100,9 +142,27 @@ export function entryProblems(spec: FightSpec): string[] {
     )
       out.push(`${what}: tick ${when.tick} is never reached`)
   }
+  const limit = clock?.limit
+  const tickOk = (what: string, tick: number) => {
+    if (!clock) out.push(`${what}: a tick needs a clock`)
+    else if (limit !== undefined && tick >= limit)
+      out.push(`${what}: tick ${tick} is never reached`)
+  }
+  for (const e of spec.rules.scripted ?? [])
+    tickOk(`${spec.id} scripted ${e.kind}`, e.tick)
+  if (spec.rules.warmth && !clock) out.push(`${spec.id} warmth needs a clock`)
   spec.teams.forEach((team, t) => {
     team.fighters.forEach((f, i) => {
       const what = `${spec.id} team ${t} fighter ${i}`
+      for (const step of f.script ?? []) {
+        if (step.from !== undefined) tickOk(`${what} script`, step.from)
+        if (step.every !== undefined && step.every < 1)
+          out.push(`${what} script: every must be >= 1`)
+      }
+      if (f.recompose) {
+        if (!clock) out.push(`${what} recompose needs a clock`)
+        if (f.recompose.after < 1) out.push(`${what} recompose: after >= 1`)
+      }
       if (f.arrives) check(`${what} arrives`, f.arrives)
       if (f.switchTo) {
         check(`${what} switchTo`, f.switchTo)

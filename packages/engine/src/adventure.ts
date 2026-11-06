@@ -9,6 +9,15 @@ import {
 } from "./crystals"
 import { equals, keyOf, manhattan, type Point } from "./geometry"
 import { createRng, type Rng } from "./random"
+import {
+  emptyScriptReport,
+  type RecomposeRule,
+  type ScriptedEvent,
+  ScriptKit,
+  type ScriptReport,
+  type ScriptRule,
+  type WarmthRules,
+} from "./script"
 import { emptyTrace, TraceKit, type TraceReport } from "./trace"
 import type { FightEvent, Fighter, RefusalReason } from "./types"
 
@@ -22,6 +31,16 @@ export {
   type CrystalState,
   type GelRules,
 } from "./crystals"
+export type {
+  RecomposeRule,
+  ScriptAct,
+  ScriptAim,
+  ScriptedEvent,
+  ScriptReport,
+  ScriptRule,
+  ScriptStep,
+  WarmthRules,
+} from "./script"
 /**
  * Opt-in combat rules of the Adventure ("Chroniques"). Every field is off by
  * default: skirmish, duel, arcade and the balance tests never set them, so
@@ -79,6 +98,14 @@ export interface AdventureRules {
   autonomy?: AutonomyRules
   /** The Ghom may withdraw from the fight (Découplage): it stops at once. */
   withdraw?: boolean
+  /** Fighters that act by a script instead of the AI (Gorr's rhythm). */
+  scripts?: ScriptRule[]
+  /** Earthquakes at set ticks (a shifting relief). */
+  scripted?: ScriptedEvent[]
+  /** Fallen fighters that reform after a few ticks (the Recomposition). */
+  recompose?: RecomposeRule[]
+  /** Hot and tepid cells (the Tiédeur). */
+  warmth?: WarmthRules
   /** Lacune cells that grow, and that a fighter's action can mend. */
   lacunes?: LacuneRules
   /** Uncertain cells, settled by a measurement (see `SuperpositionRules`). */
@@ -304,6 +331,8 @@ export interface AdventureReport {
   gel: GelReport
   /** Final blows, strikes, cells stood on, regions held. */
   trace: TraceReport
+  /** Scripted turns, scripted earthquakes, recompositions, tepid cells. */
+  script: ScriptReport
 }
 
 /** Rule state of one fight; owned by a `Combat`. */
@@ -352,9 +381,12 @@ export class AdventureTracker {
     bridged: [],
     gel: { frozen: [], iced: [], thawed: [] },
     trace: emptyTrace(),
+    script: emptyScriptReport(),
   }
   /** Where and by whom things happened. */
   readonly trace: TraceKit
+  /** Scripted fighters, earthquakes, recompositions and the Tiédeur. */
+  readonly script: ScriptKit
   /** Crystals, glass, bridges and ice (null without those rules). */
   readonly crystals: CrystalKit | null = null
   /** The order the active ally refused, waiting for Respecter / Insister. */
@@ -384,6 +416,13 @@ export class AdventureTracker {
     this.rules = rules
     this.trace = new TraceKit(_combat, rules.regions, () => this.report.ticks)
     this.report.trace = this.trace.report
+    this.script = new ScriptKit(
+      _combat,
+      rules,
+      () => this.report.ticks,
+      (fighter) => this._entryCell(fighter),
+    )
+    this.report.script = this.script.report
     this.locked = new Set(rules.lockedDivine)
     this._nextTick = rules.clock?.period ?? Infinity
     const member = (team: number, index: number) => {
@@ -473,6 +512,7 @@ export class AdventureTracker {
   observe(event: FightEvent) {
     const combat = this._combat
     this.trace.observe(event)
+    this.script.observe(event)
     switch (event.type) {
       case "moved": {
         const f = combat.getFighter(event.fighterId)
@@ -756,6 +796,7 @@ export class AdventureTracker {
       this._tick()
       this._grow()
       this._fray()
+      this.script.tick(this.report.ticks)
       this._decohere()
       this._warm()
       this._combat.emitEvent({ type: "clockTick", tick: this.report.ticks })
@@ -873,7 +914,9 @@ export class AdventureTracker {
   turnStart(fighter: Fighter): number {
     const cold =
       this.silent.has(keyOf(fighter.position)) || this._inHalo(fighter)
-    return cold ? (this.rules.silentDamage ?? 2) : 0
+    return (
+      (cold ? (this.rules.silentDamage ?? 2) : 0) + this.script.drain(fighter)
+    )
   }
 
   private _inHalo(fighter: Fighter) {

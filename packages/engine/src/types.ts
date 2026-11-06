@@ -311,6 +311,13 @@ export type FightEvent =
   | { type: "thawed"; fighterId?: string; cell?: Point; by: string | null }
   /** A frozen fighter lets its turn go by. */
   | { type: "frozenTurn"; fighterId: string }
+  /** Adventure script: a scripted earthquake hit cells. */
+  | { type: "quaked"; cells: Point[] }
+  /** Adventure recomposition: a fallen fighter reformed. */
+  | { type: "recomposed"; fighterId: string; position: Point }
+  /** Adventure tiédeur: cells came up hot / went tepid. */
+  | { type: "warmed"; cells: Point[] }
+  | { type: "cooled"; cells: Point[] }
   | { type: "fleeing"; fighterId: string }
   | { type: "fled"; fighterId: string }
   | { type: "timeUp" }
