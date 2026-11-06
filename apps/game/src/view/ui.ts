@@ -24,6 +24,9 @@ export const style = (
   return {
     fontFamily: FONT,
     fill: color,
+    // a little room around the glyphs: wrapped lines measured right at the
+    // wrap width were clipped on their last letters
+    padding: 4,
     ...extra,
     fontSize: Math.round(size * k),
     ...(extra.lineHeight
