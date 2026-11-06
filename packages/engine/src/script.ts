@@ -87,6 +87,19 @@ export type ScriptedEvent =
       cells: { x: number; y: number; level: number }[]
       /** Hurts a fighter whose cell moves by 2 levels or more. */
       damage?: number
+      /**
+       * A fighter left where it cannot stand (a walker in deep water) is
+       * carried to the nearest cell where it can, and its next turn is
+       * delayed by this much (the tide).
+       */
+      carry?: number
+    }
+  | {
+      tick: number
+      /** Water cells freeze (ground for a while); they melt `lasts` ticks later. */
+      kind: "ice"
+      cells: Point[]
+      lasts?: number
     }
 
 /**
@@ -390,7 +403,13 @@ export class ScriptKit {
         const hit = event.cells.filter((c) =>
           combat.reshape(c, c.level, event.damage ?? 0),
         )
-        if (hit.length === 0) continue
+        if (event.carry !== undefined) {
+          for (const f of combat.aliveFighters) {
+            if (combat.board.canStand(f.position, f.locomotion)) continue
+            combat.carry(f, event.carry)
+          }
+        }
+        if (hit.length === 0 || event.carry !== undefined) continue
         this.report.quakes.push(...hit.map((p) => ({ x: p.x, y: p.y })))
         combat.emitEvent({
           type: "quaked",
@@ -398,10 +417,19 @@ export class ScriptKit {
         })
         continue
       }
+      if (event.kind === "ice") {
+        for (const c of event.cells) combat.adventure?.crystals?.ice(c)
+        continue
+      }
       const hit = event.at.filter((cell) => combat.quake(cell) === null)
       if (hit.length === 0) continue
       this.report.quakes.push(...hit.map((p) => ({ ...p })))
       combat.emitEvent({ type: "quaked", cells: hit.map((p) => ({ ...p })) })
+    }
+    for (const event of this._rules.scripted ?? []) {
+      if (event.kind !== "ice" || event.tick + (event.lasts ?? 1) !== tick)
+        continue
+      for (const c of event.cells) combat.adventure?.crystals?.melt(c)
     }
     for (const entry of this._recompose) {
       if (entry.due === null || tick < entry.due) continue

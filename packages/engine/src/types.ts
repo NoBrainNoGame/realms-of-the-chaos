@@ -320,6 +320,8 @@ export type FightEvent =
   | { type: "thawed"; fighterId?: string; cell?: Point; by: string | null }
   /** A frozen fighter lets its turn go by. */
   | { type: "frozenTurn"; fighterId: string }
+  /** Adventure tide: a fighter that could not stand was carried elsewhere. */
+  | { type: "carried"; fighterId: string; from: Point; to: Point }
   /** Adventure script: a scripted earthquake hit cells. */
   | { type: "quaked"; cells: Point[] }
   /** Adventure recomposition: a fallen fighter reformed. */

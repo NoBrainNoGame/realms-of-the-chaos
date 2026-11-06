@@ -139,6 +139,8 @@ export function reportOf(spec: FightSpec, combat: Combat): FightReport {
     zoneStates: { ...(tracker?.zoneStates ?? {}) },
     fixed: [...(tracker?.fixed ?? [])],
     fixedFleeing: [...(tracker?.fixedFleeing ?? [])],
+    fixedAt: [...(tracker?.fixedAt ?? [])],
+    intricationAt: [...(tracker?.intricationAt ?? [])],
     arrived: [...(tracker?.arrived ?? [])],
     switched: (tracker?.switched ?? []).map((s) => ({ ...s })),
     autonomy: tracker && structuredClone(tracker.autonomy),

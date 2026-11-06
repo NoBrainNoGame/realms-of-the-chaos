@@ -213,6 +213,11 @@ export interface FightLine {
     | "intrication"
     /** A fallen foe set into a rock (a fixed Lacunaire). */
     | "fixed"
+    /** A walker was carried off where it could not stand (the tide) / water froze. */
+    | "carried"
+    | "iced"
+    /** A foe was fixed in deep water. */
+    | "fixedDeep"
   who: string
   text: string
 }
@@ -384,6 +389,8 @@ export interface FightReport {
   fixed: string[]
   /** Those of them that were fleeing when they fell. */
   fixedFleeing?: string[]
+  fixedAt?: { x: number; y: number }[]
+  intricationAt?: { x: number; y: number }[]
   /** Ids of the fighters that entered mid-fight (waves, reinforcements). */
   arrived?: string[]
   /** Fighters that changed sides, with the team they went to. */

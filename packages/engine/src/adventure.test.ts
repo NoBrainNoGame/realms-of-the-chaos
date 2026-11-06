@@ -377,3 +377,37 @@ describe("holding a spot and giving of oneself", () => {
     expect(rep?.lowest["brutus-0-1"] ?? 1).toBeLessThan(1)
   })
 })
+
+describe("the tide and the ice", () => {
+  test("a scripted tide carries a walker off the deepened cell", () => {
+    const c = fight({
+      clock: { period: 10, limit: 3, winner: 0 },
+      scripted: [
+        {
+          tick: 1,
+          kind: "reshape",
+          cells: [{ x: 1, y: 1, level: -2 }],
+          carry: 4,
+        },
+      ],
+      noDefeat: [0, 1],
+    })
+    const cell = c.board.get({ x: 1, y: 1 })!
+    cell.terrain = "water"
+    cell.elevation = -1
+    c.holding.add(0)
+    c.holding.add(1)
+    c.run()
+    const lyra = c.fighters.find((f) => f.team === 0)!
+    expect(lyra.position.x === 1 && lyra.position.y === 1).toBe(false)
+  })
+
+  test("a scripted ice event is accepted on land without effect", () => {
+    const c = fight({
+      clock: { period: 10, limit: 3, winner: 0 },
+      scripted: [{ tick: 1, kind: "ice", cells: [{ x: 3, y: 3 }], lasts: 1 }],
+    })
+    c.run()
+    expect(c.state).toBe("ended")
+  })
+})

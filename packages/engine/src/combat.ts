@@ -1744,6 +1744,8 @@ export class Combat {
     const cell = this.board.get(target)
     if (!cell) return "Case invalide"
     if (this.fightersAt(target).length > 0) return "La case est occupée"
+    if (this.adventure && cell.terrain === "water" && cell.elevation <= -2)
+      return "Trop profond."
     const previous = { ...cell }
     // raise low cells, collapse high ones
     const delta = cell.elevation < 1 ? EARTHQUAKE_DELTA : -EARTHQUAKE_DELTA
@@ -2027,6 +2029,35 @@ export class Combat {
         this._applyDamage(f, damage, null, false)
     }
     return true
+  }
+
+  /**
+   * Adventure tide: a fighter left where it cannot stand is carried to the
+   * nearest free cell where it can, and loses `delay` of time.
+   */
+  carry(fighter: Fighter, delay: number): Point | null {
+    const at = fighter.position
+    const free = this.board.cells
+      .filter(
+        (c) =>
+          this.board.canStand(c, fighter.locomotion) &&
+          this.fightersAt(c).filter((o) => o.alive).length === 0 &&
+          !this.board.voids.has(`${c.x},${c.y}`),
+      )
+      .map((c) => ({ x: c.x, y: c.y }))
+      .sort(
+        (a, b) =>
+          Math.abs(a.x - at.x) +
+          Math.abs(a.y - at.y) -
+          (Math.abs(b.x - at.x) + Math.abs(b.y - at.y)),
+      )[0]
+    if (!free) return null
+    fighter.position = free
+    this._clearWalk(fighter)
+    fighter.nextActionAt += delay
+    this._emit({ type: "carried", fighterId: fighter.id, from: at, to: free })
+    this._emit({ type: "delayed", fighterId: fighter.id, amount: delay })
+    return free
   }
 
   /** The terrain changed under the rules (a hole opened or closed). */

@@ -60,6 +60,26 @@ const effilocheur = {
   actions: ["blade", "kick"],
 }
 
+const MAREE_BOARD = [
+  "..~~~~~..",
+  ".~~www~~.",
+  "~~wwWww~1",
+  "~wwWWWww~",
+  "1~wwWww~~",
+  "~~~www~~.",
+  ".~~~w~~1.",
+  "..~~~~~..",
+  ".........",
+]
+const cellsOf = (ch: string) =>
+  MAREE_BOARD.flatMap((row, y) =>
+    [...row].flatMap((c, x) => (c === ch ? [{ x, y }] : [])),
+  )
+const SHALLOWS = cellsOf("~")
+const DEEP = [...cellsOf("w"), ...cellsOf("W")]
+const WATER = [...SHALLOWS, ...DEEP]
+const tideCells = (level: number) => SHALLOWS.map((c) => ({ ...c, level }))
+
 const mareeDuLent: FightSpec = {
   id: "ch4-maree-du-lent",
   title: "La marée du Lent",
@@ -103,11 +123,26 @@ const mareeDuLent: FightSpec = {
     },
   ],
   rules: {
-    // SIMPLIFIED: the tide (shallows turning deep every 4 actions, walkers
-    // carried back to the ground) does not exist in the engine. Three clock
-    // ticks stand for the three high tides: the fight is held when the third
-    // one is over, and the allies win.
-    clock: { period: 10, limit: 3, winner: 0 },
+    // The Lent breathes: at each high tide (ticks 1, 3, 5) the shallows
+    // turn deep, walkers are carried to the nearest ground and lose time;
+    // the water goes back down on the next tick. Cold and slow, the
+    // effilocheur freezes the surface around it for a tick (ticks 2, 4).
+    clock: { period: 10, limit: 7, winner: 0 },
+    regions: { eau: WATER },
+    scripted: [
+      ...[1, 3, 5].flatMap((tick) => [
+        { tick, kind: "reshape" as const, cells: tideCells(-2), carry: 4 },
+        { tick: tick + 1, kind: "reshape" as const, cells: tideCells(-1) },
+      ]),
+      ...[2, 4].map((tick) => ({
+        tick,
+        kind: "ice" as const,
+        cells: SHALLOWS.filter(
+          (c) => Math.abs(c.x - 4) + Math.abs(c.y - 2) <= 2,
+        ),
+        lasts: 1,
+      })),
+    ],
     // The Lacunaires set into a rock when they fall, like in chapter 3.
     fixOnDeath: [1],
     // The one who flees dives back toward the abyss (the W cells).
@@ -132,10 +167,13 @@ const mareeDuLent: FightSpec = {
       id: "fonds",
       mark: "◆",
       label: "Ne pas remuer les fonds",
-      // SIMPLIFIED: no Séisme at all and no Lacunaire fixed (the engine does
-      // not say whether a fixed one lay in deep water).
+      // No Séisme on the water (refused in deep water anyway), and no
+      // Lacunaire set into a rock in the deep.
+      when: { not: { castOn: { region: "eau", divine: "earthquake" } } },
       check: (r) =>
-        (r.divineUsed.earthquake ?? 0) === 0 && r.fixed.length === 0,
+        !(r.fixedAt ?? []).some((p) =>
+          DEEP.some((d) => d.x === p.x && d.y === p.y),
+        ),
       success: "Le lac n'a rien perdu de ses couches.",
       onSuccess: [add("confiance.nerea", 2), set("fonds_intacts")],
     },
@@ -143,8 +181,10 @@ const mareeDuLent: FightSpec = {
       id: "intrication-eau",
       mark: "◆",
       label: "Une Intrication dans l'eau",
-      // SIMPLIFIED: any Intrication counts (the cell's depth is not reported).
-      check: (r) => r.intrications > 0,
+      check: (r) =>
+        (r.intricationAt ?? []).some((p) =>
+          SHALLOWS.some((d) => d.x === p.x && d.y === p.y),
+        ),
       success: "Deux Échos sur la même case d'eau.",
       onSuccess: [add("intrications"), set("intrication_eau")],
     },
@@ -173,8 +213,18 @@ const mareeDuLent: FightSpec = {
       who: "lyra",
       text: "L'eau monte ! Sur les rochers, vite !",
     },
-    // CUT: lines tied to events the engine does not report (carried walker,
-    // tidal wave pushing a Lacunaire to the abyss, Séisme in water, effilocheur's ice).
+    {
+      when: "carried",
+      who: "lyra",
+      text: "Il est parti avec l'eau ! Reviens, on te couvre !",
+    },
+    { when: "act:tidalWave", who: "nerea", text: "Rentre chez toi." },
+    { when: "cast:earthquake", who: "nerea", text: "Mes fonds !" },
+    {
+      when: "iced",
+      who: "brutus",
+      text: "Le lac gèle. Bien. Enfin un sol.",
+    },
     {
       when: "end",
       who: "nerea",

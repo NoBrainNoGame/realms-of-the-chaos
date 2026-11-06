@@ -653,6 +653,24 @@ export class CrystalKit {
     return true
   }
 
+  /** A rule of the story ices a water cell (the effilocheur's breath). */
+  ice(p: Point): boolean {
+    if (!this._freezeCell(p)) return false
+    this._combat.emitEvent({ type: "frozen", cell: { ...p }, by: null })
+    return true
+  }
+
+  /** The ice of a cell melts away. */
+  melt(p: Point): boolean {
+    const key = keyOf(p)
+    if (!this._ice.has(key)) return false
+    this._ice.delete(key)
+    this._combat.board.bridges.delete(key)
+    this._combat.refreshTerrain()
+    this._combat.emitEvent({ type: "thawed", cell: { ...p }, by: null })
+    return true
+  }
+
   private _gel(fighter: Fighter, target: Point) {
     const combat = this._combat
     const victim = combat

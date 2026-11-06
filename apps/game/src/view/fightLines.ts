@@ -75,6 +75,10 @@ export class FightVoice {
         return this._take(`certitude:${event.certitude}`)
       case "fixed":
         return this._take("fixed")
+      case "carried":
+        return this._take("carried")
+      case "frozen":
+        return event.cell ? this._take("iced") : []
       case "fleeing":
         return this._take("fleeing")
       case "fled":

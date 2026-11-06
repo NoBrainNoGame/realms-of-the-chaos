@@ -1,4 +1,4 @@
-import { type CharacterPreset, HP_PER_HEALTH } from "@realms/engine"
+import type { CharacterPreset } from "@realms/engine"
 import {
   add,
   around,
@@ -75,8 +75,6 @@ const effilocheur: CharacterPreset = {
 }
 
 // ─── Fight: Jusqu'au cœur ───────────────────────────────────────────────────
-
-const lyraMax = 8.75 * HP_PER_HEALTH
 
 const fightCoeur: FightSpec = {
   id: "ch2-jusqu-au-coeur",

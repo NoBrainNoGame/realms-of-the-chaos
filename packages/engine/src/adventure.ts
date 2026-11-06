@@ -392,6 +392,10 @@ export interface AdventureReport {
   fixed: string[]
   /** Fighters that were fleeing when they fell and set into a rock. */
   fixedFleeing: string[]
+  /** Cells where fixed foes set into rocks. */
+  fixedAt: Point[]
+  /** Cells of the Echo that received each Intrication. */
+  intricationAt: Point[]
   /** Ids of the fighters that entered mid-fight, in order. */
   arrived: string[]
   /** Fighters that changed sides, in order. */
@@ -457,6 +461,8 @@ export class AdventureTracker {
     fled: [],
     fixed: [],
     fixedFleeing: [],
+    fixedAt: [],
+    intricationAt: [],
     arrived: [],
     switched: [],
     zonesLost: [],
@@ -714,7 +720,10 @@ export class AdventureTracker {
         if (f) this._mend(f)
         for (const c of [event.target, ...event.cells])
           this._measureCell(c, f?.id ?? null)
-        if (event.partnerId) this.report.intrications++
+        if (event.partnerId) {
+          this.report.intrications++
+          this.report.intricationAt.push({ ...event.target })
+        }
         break
       }
       case "divineUsed": {
@@ -1290,6 +1299,7 @@ export class AdventureTracker {
   fixed(fighter: Fighter) {
     this.report.fixed.push(fighter.id)
     if (this.fleeing.has(fighter.id)) this.report.fixedFleeing.push(fighter.id)
+    this.report.fixedAt.push({ ...fighter.position })
     this._combat.emitEvent({
       type: "fixed",
       fighterId: fighter.id,
