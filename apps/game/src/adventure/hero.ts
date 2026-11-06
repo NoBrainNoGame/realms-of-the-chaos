@@ -75,6 +75,12 @@ export const GROWTH: Record<string, Growth> = {
   peau_cristal: { look: { skin: 7 }, stats: { magicalDefense: 1 } },
   "trait:bouts-gris": { trait: "Les bouts gris" },
   "action:sprint": { spells: ["sprint"] },
+  carnet: { trait: "Le Carnet" },
+  // Keepsakes: they change what the hero carries and knows, not his body.
+  "objet:carnet-recousu": { trait: "Le carnet recousu" },
+  eclat_de_poussiere_noire: { stats: { magicalAttack: 1 } },
+  carotte_lac_sourd: { trait: "La carotte du lac sourd", stats: { luck: 1 } },
+  fil_dechirure: { trait: "Le fil déchiré" },
 }
 
 const BASE_SPELLS = ["sprint", "kick"]
