@@ -64,6 +64,8 @@ export interface AdventureRules {
   finale?: boolean
   /** Teams whose fighters can never drop below 1 HP (tutorial fights). */
   noDefeat?: number[]
+  /** Fighters no weapon can hurt (a Golem too dense to be wounded). */
+  immune?: { team: number; index: number }[]
   /**
    * Teams that watch the fight without taking part: they don't count for the
    * victory, and only the AI sees them as enemies (the villagers sitting on
@@ -495,6 +497,8 @@ export class AdventureTracker {
       if (!found) throw new Error(`No fighter ${index} in team ${team}`)
       return found.id
     }
+    for (const i of rules.immune ?? [])
+      this._immune.add(member(i.team, i.index))
     for (const rule of rules.arrivals ?? []) {
       const id = member(rule.team, rule.index)
       this._arrivals.push({ rule, id, done: false })
@@ -574,6 +578,12 @@ export class AdventureTracker {
   }
 
   private readonly _atExit = new Set<string>()
+  private readonly _immune = new Set<string>()
+
+  /** Can no weapon hurt this fighter? */
+  isImmune(fighter: Fighter) {
+    return this._immune.has(fighter.id)
+  }
 
   /** Standing on an exit cell at the start of its turn: the fighter leaves. */
   private _leaveByExit(fighter: Fighter) {

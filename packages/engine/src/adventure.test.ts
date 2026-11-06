@@ -332,4 +332,12 @@ describe("adventure rules are opt-in", () => {
     expect(c.adventure?.report.fled).toContain("lyra-0-0")
     expect(c.winnerTeam).toBe(0)
   })
+
+  test("an immune fighter takes no damage", () => {
+    const c = fight({ immune: [{ team: 1, index: 0 }], noDefeat: [0] })
+    const m = c.getFighter("merlin-1-0")!
+    const hp = m.hp
+    c.run()
+    expect(m.hp).toBe(hp)
+  })
 })

@@ -190,9 +190,7 @@ export interface FightLine {
     | "start"
     | "fleeing"
     | "fled"
-    | "tick:1"
-    | "tick:3"
-    | "tick:5"
+    | `tick:${number}`
     | "end"
     | `zone:${string}`
     /** The first time the Ghom casts this Influence. */

@@ -77,9 +77,9 @@ function chambre(ally: Ally, rallie: boolean, lacune: Lacune): FightSpec {
     { preset: HALLEBARDIER, at: { x: 3, y: 3 } },
     { preset: HALLEBARDIER, at: { x: 8, y: 3 } },
     { preset: EXTRACTEUR, at: { x: 0, y: 2 } },
-    // SIMPLIFIED: the third Sonneur and his étalon de secours (time 40) stand
-    // near the monte-charge from the start.
-    { preset: SONNEUR, at: { x: 9, y: 8 } },
+    // The third Sonneur comes up by the monte-charge at time 40 with the
+    // étalon de secours.
+    { preset: SONNEUR, at: { x: 9, y: 8 }, arrives: { tick: 8 } },
   ]
   if (lacune === "habitee")
     foes.push({ preset: ARBALETRIER, at: { x: 10, y: 2 } })
@@ -87,15 +87,20 @@ function chambre(ally: Ally, rallie: boolean, lacune: Lacune): FightSpec {
     {
       id: "diapason",
       mark: "★",
-      label: "Faire taire le Diapason : mettre les Sonneurs hors de combat",
-      // SIMPLIFIED: the pylône and the étalon do not exist; the Diapason falls
-      // silent when every Sonneur is dispersed or has fled. Briser / Détacher
-      // is a gesture after the fight.
-      check: (r) =>
-        r.result !== "defeat" &&
-        r.fighters
-          .filter((f) => f.preset === "sonneur")
-          .every((f) => f.hp <= 0 || f.fled),
+      label: "Faire taire le Diapason : briser ou détacher l'étalon",
+      // Briser (Extraire) silences it for good. Détacher silences it until the
+      // third Sonneur, with the étalon de secours, reaches the pylône: it holds
+      // if he was stopped (dispersed or fled) before the collapse.
+      check: (r) => {
+        const c = r.crystals
+        if (r.result === "defeat" || !c) return false
+        if (c.extracted.some((e) => e.id === "premier")) return true
+        const third = r.fighters.filter((f) => f.preset === "sonneur")[2]
+        return (
+          c.detached.some((d) => d.id === "premier") &&
+          (!third || third.hp <= 0 || !!third.fled)
+        )
+      },
       success: "Le Diapason se tait.",
       failure: "Le Diapason bat toujours.",
     },
@@ -121,14 +126,15 @@ function chambre(ally: Ally, rallie: boolean, lacune: Lacune): FightSpec {
       {
         name: "La Mine",
         side: "neutral",
-        // CUT: Gorr being untargetable, and Brutus holding a beam from time 30.
+        // Gorr is untargetable (`immune`); Brutus, held like the miners, stays
+        // under his beam: he never moves.
         fighters: [
           {
             preset: GORR,
             at: { x: 11, y: 3 },
             // Gorr obeys the rhythm: Écrasement at every second beat
             script: [
-              { every: 2, act: { do: "use", action: "smash", at: "nearest" } },
+              { every: 4, act: { do: "use", action: "smash", at: "nearest" } },
               { act: { do: "stand" } },
             ],
           },
@@ -138,9 +144,14 @@ function chambre(ally: Ally, rallie: boolean, lacune: Lacune): FightSpec {
         ],
       },
     ],
-    // CUT: damage from level changes and the final collapse; a clock stands
-    // for the collapse. The relief shifts by scripted Séismes.
+    // The clock beats every 5 units: Séismes at times 15, 30, 45 and 60, the
+    // collapse at 75. The relief shifts by scripted Séismes.
     rules: {
+      immune: [{ team: 2, index: 0 }],
+      crystals: {
+        crystals: [{ id: "premier", at: { x: 5, y: 1 }, kind: "geode" }],
+        ringAfter: 0,
+      },
       scripted: [
         {
           tick: 3,
@@ -162,13 +173,21 @@ function chambre(ally: Ally, rallie: boolean, lacune: Lacune): FightSpec {
           tick: 9,
           kind: "earthquake",
           at: [
-            { x: 5, y: 8 },
-            { x: 6, y: 8 },
+            { x: 5, y: 7 },
+            { x: 6, y: 7 },
+          ],
+        },
+        {
+          tick: 12,
+          kind: "earthquake",
+          at: [
+            { x: 4, y: 2 },
+            { x: 7, y: 2 },
           ],
         },
       ],
       neutral: [2],
-      clock: { period: 1, limit: 12, winner: 0 },
+      clock: { period: 5, limit: 15, winner: 0 },
       flee: { team: 1, below: 0.3, exits: [{ x: 0, y: 0 }] },
       announce: true,
     },
@@ -188,7 +207,7 @@ function chambre(ally: Ally, rallie: boolean, lacune: Lacune): FightSpec {
         text: "Encore toi. Je n'ai pas le temps. La mine tombe.",
       },
       {
-        when: "tick:1",
+        when: "tick:2",
         who: ally === "squalor" ? "squalor" : "eva",
         text:
           ally === "squalor"
@@ -196,12 +215,12 @@ function chambre(ally: Ally, rallie: boolean, lacune: Lacune): FightSpec {
             : "Le Golem frappe un battement sur deux. Fenêtre de dix. Je compte pour vous.",
       },
       {
-        when: "tick:3",
+        when: "tick:6",
         who: "sonneur",
         text: "Avance, Golem. Avance. Tu ne sais rien faire d'autre.",
       },
       {
-        when: "tick:5",
+        when: "tick:6",
         who: "brutus",
         text: "Je tiens. Je tiens tant qu'ils ne sont pas sortis.",
       },

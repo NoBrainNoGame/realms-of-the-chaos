@@ -1624,6 +1624,7 @@ export class Combat {
     sourceId: string | null,
     critical: boolean,
   ) {
+    if (this.adventure?.isImmune(target)) amount = 0
     let absorbed = 0
     const shield = target.statuses.find((s) => STATUSES[s.id].absorbsDamage)
     if (shield) {
