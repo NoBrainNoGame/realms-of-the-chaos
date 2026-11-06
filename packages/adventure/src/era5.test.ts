@@ -302,7 +302,14 @@ describe("chapter 28: the endings", () => {
       () =>
         report(2, {
           fighters: [
-            { id: "hero", preset: "@hero", team: 0, hp: 0, fled: false },
+            {
+              id: "hero",
+              preset: "@hero",
+              team: 0,
+              hp: 0,
+              fled: false,
+              hero: true,
+            },
           ],
         }),
     )

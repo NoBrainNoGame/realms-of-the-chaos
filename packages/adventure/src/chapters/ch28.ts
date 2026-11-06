@@ -245,12 +245,7 @@ function recomposition(
       id: "dispersion",
       mark: "◆",
       label: "Se disperser dans le Cœur",
-      // SIMPLIFIED: the hero is spotted by the id the game gives it.
-      check: (r) =>
-        r.fighters.some(
-          (f) =>
-            f.team === 0 && /hero|heros|^@/.test(f.id + f.preset) && f.hp <= 0,
-        ),
+      check: (r) => r.fighters.some((f) => f.hero && f.hp <= 0),
       onSuccess: [set("heros_disperse")],
     })
 
@@ -274,8 +269,8 @@ function recomposition(
     influences: ["earthquake", "timeWarp", "blessing"],
     startEnergy: 6,
     objectives,
-    // SIMPLIFIED: when the hero is fragile, a lost fight is the hero's
-    // dispersion in the Cœur (no defeat); otherwise it is an ordinary defeat.
+    // Fragile hero (usure >= 8): its fall is a dispersion in the Cœur, not a
+    // defeat; otherwise it is an ordinary defeat (doc 28, "Défaite").
     defeat: fragile
       ? [set("heros_disperse"), add("usure")]
       : [set("defaite"), add("usure"), add("confiance", -1)],

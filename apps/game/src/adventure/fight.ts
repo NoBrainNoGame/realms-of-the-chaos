@@ -162,6 +162,7 @@ export function reportOf(spec: FightSpec, combat: Combat): FightReport {
       team: f.team,
       hp: f.alive ? f.hp : 0,
       fled: combat.departed.has(f.id),
+      hero: f.id === HERO_ID,
     })),
   }
 }

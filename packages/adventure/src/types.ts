@@ -459,5 +459,7 @@ export interface FightReport {
     /** Hit points left (0: dispersed or transi). */
     hp: number
     fled: boolean
+    /** The player's character. */
+    hero?: boolean
   }[]
 }

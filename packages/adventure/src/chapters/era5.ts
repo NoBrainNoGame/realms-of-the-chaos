@@ -93,8 +93,9 @@ export function resolveEnding(f: Flags): EndingResult {
     const l = val(f, "derniere_lacune")
     if (l === "elargie") return "equilibre"
     if (l === "recousue") return "cristal"
-    // SIMPLIFIED: an inhabited tie keeps the world as it is while the trust
-    // holds (Cristal), and lets it dissolve otherwise (Équilibre).
+    // A tie after an inhabited Cœur falls back on what the world was taught:
+    // upkeep (Cristal) while the Echoes still trust the Ghom, dissolution
+    // (Équilibre) otherwise (docs/aventure/06-fins/README.md, section 3.6).
     return num(f, "confiance") >= 0 ? "cristal" : "equilibre"
   }
   const score = (): "cristal" | "equilibre" =>
