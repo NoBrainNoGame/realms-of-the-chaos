@@ -148,6 +148,7 @@ describe("chapter 26: the bubble", () => {
       ...report(2),
       fighters: [{ id: "h", preset: "lyra", team: 0, hp: 5, fled: false }],
       trace: {
+        touches: [],
         finalBlows: {},
         strikes: struck
           ? [
