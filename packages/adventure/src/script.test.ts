@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { ch15 } from "./chapters/ch15"
+import { ch17 } from "./chapters/ch17"
 import { ch18 } from "./chapters/ch18"
 import { ch26 } from "./chapters/ch26"
 import { OUVERTES } from "./chapters/ch28"
@@ -183,5 +184,40 @@ describe("chapter 28: who stands in the last fight", () => {
     expect(visited.has("11")).toBe(true)
     expect(visited.has("5")).toBe(false)
     expect(run.flags.fin).toBe("decouplage")
+  })
+})
+
+describe("chapter 17: Relevé and Argumenter", () => {
+  const specs = fightsOf(ch17)
+  const flags =
+    (set: Record<string, number | string | boolean>) => (k: string) =>
+      set[k] ?? false
+
+  test("Merlin measures the hero by script; arguments open with the story", () => {
+    expect(specs.length).toBeGreaterThan(0)
+    for (const spec of specs) {
+      expect(spec.debate?.certitude).toBe(3)
+      expect(fightRules(spec).scripts?.[0].steps[0].act.do).toBe("survey")
+      const none = fightRules(spec, flags({}))
+      const ok = (r: typeof none, id: string) =>
+        r.debate?.arguments.find((a) => a.id === id)?.ok
+      expect(ok(none, "mesure")).toBe(true)
+      expect(ok(none, "gel")).toBe(false)
+      expect(ok(none, "demandent")).toBe(false)
+      const told = fightRules(
+        spec,
+        flags({
+          gel_lu: true,
+          questions_rouvertes: 3,
+          premier_cristal: "sauve",
+          "ghom_dechu.verite": 2,
+          voix_qui_demande: true,
+        }),
+      )
+      for (const id of ["gel", "demandent", "cristal", "fragment"])
+        expect(ok(told, id)).toBe(true)
+      expect(told.debate?.extraOnce).toBe(true)
+      expect(none.debate?.extraOnce).toBe(false)
+    }
   })
 })

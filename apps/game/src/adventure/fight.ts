@@ -119,7 +119,10 @@ export function reportOf(spec: FightSpec, combat: Combat): FightReport {
   const result =
     winner === mine
       ? "victory"
-      : winner === null && (tracker?.timeUp || tracker?.autonomy.withdrawn)
+      : winner === null &&
+          (tracker?.timeUp ||
+            tracker?.autonomy.withdrawn ||
+            tracker?.debate.convinced)
         ? "held"
         : "defeat"
   const presetOf = (f: Fighter) => f.presetId
@@ -146,6 +149,7 @@ export function reportOf(spec: FightSpec, combat: Combat): FightReport {
     gel: tracker && structuredClone(tracker.gel),
     trace: tracker && structuredClone(tracker.trace),
     script: tracker && structuredClone(tracker.script),
+    debate: tracker && structuredClone(tracker.debate),
     fighters: combat.fighters.map((f) => ({
       id: f.id,
       preset: presetOf(f),

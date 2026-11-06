@@ -63,7 +63,7 @@ export type Frame =
 
 export interface ObjectiveResult {
   id: string
-  mark: "★" | "◆"
+  mark: "★" | "◆" | "•"
   label: string
   ok: boolean
   text?: string

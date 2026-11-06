@@ -1,8 +1,6 @@
 import { CHARACTERS } from "@realms/engine"
 import {
   add,
-  all,
-  any,
   choice,
   fx,
   give,
@@ -13,7 +11,6 @@ import {
   join,
   lt,
   narr,
-  not,
   opt,
   say,
   set,
@@ -21,7 +18,7 @@ import {
   topic,
   when,
 } from "../dsl"
-import type { Beat, Chapter, Cond, FightSpec } from "../types"
+import type { Beat, Chapter, FightSpec } from "../types"
 import {
   ALLY_COND,
   type Ally,
@@ -74,9 +71,11 @@ function duel(ally: Ally, rallie: boolean, lyraUsee: boolean): FightSpec {
         name: "Le Registre",
         side: "enemies",
         fighters: [
-          // CUT: Relevé (sondes brisées, Lacunes), the Certitude gauge and the
-          // Argumenter action: the arguments are played before the fight.
-          { preset: MERLIN3, at: { x: 5, y: 4 } },
+          {
+            preset: MERLIN3,
+            at: { x: 5, y: 4 },
+            script: [{ act: { do: "survey", at: { team: 0, index: 0 } } }],
+          },
           { preset: BRUTUS3, at: { x: 5, y: 3 } },
           { preset: HALLEBARDIER, at: { x: 5, y: 2 } },
           { preset: HALLEBARDIER, at: { x: 9, y: 4 } },
@@ -88,17 +87,66 @@ function duel(ally: Ally, rallie: boolean, lyraUsee: boolean): FightSpec {
       flee: { team: 1, below: 0.25, exits: [{ x: 0, y: 3 }] },
       announce: true,
     },
+    // Relevé (Merlin, always on the hero first) and Argumenter (the hero).
+    debate: {
+      speaker: { team: 1, index: 0 },
+      probes: SONDES,
+      lacunes: [
+        [
+          { x: 4, y: 2 },
+          { x: 6, y: 2 },
+        ],
+        [
+          { x: 4, y: 3 },
+          { x: 6, y: 3 },
+        ],
+        [
+          { x: 4, y: 5 },
+          { x: 6, y: 5 },
+        ],
+      ],
+      certitude: 3,
+      extraFlag: "voix_qui_demande",
+      arguments: ARGUMENTS,
+    },
     influences: ["timeWarp"],
     startEnergy: 3,
     defeat: [set("defaite"), add("usure")],
     objectives: [
+      {
+        id: "convaincre",
+        mark: "•",
+        label: "Convaincre le Maître du Verre",
+        check: (r) => !!r.debate?.convinced,
+        success: "Pour vous connaître, il a fallu vous toucher.",
+        onSuccess: [set("merlin_convaincu"), set("carte_des_lacunes")],
+      },
+      {
+        id: "sans_extraire",
+        mark: "◆",
+        label: "Convaincre Merlin sans rien extraire soi-même",
+        check: (r) =>
+          !!r.debate?.convinced && (r.crystals?.extracted.length ?? 0) === 0,
+        onSuccess: [add("confiance.merlin")],
+      },
+      {
+        id: "mesure",
+        mark: "•",
+        label: "Lui montrer que sa mesure ouvre un trou",
+        check: (r) => !!r.debate?.argued.includes("mesure"),
+        onSuccess: [set("mesure_jouee")],
+      },
       {
         id: "merlin",
         mark: "★",
         label: "Vaincre Merlin III (il se rend)",
         check: (r) => {
           const m = r.fighters.find((f) => f.preset === "merlin3")
-          return r.result !== "defeat" && (!m || m.hp <= 0 || m.fled)
+          return (
+            r.result !== "defeat" &&
+            !r.debate?.convinced &&
+            (!m || m.hp <= 0 || m.fled)
+          )
         },
         success: "Mes relevés étaient exacts. Exacts !",
         failure: "L'expérience continue.",
@@ -151,118 +199,85 @@ function duelBeat(): Beat {
   )
 }
 
-// ─── Arguments (stand-in for Certitude / Argumenter) ────────────────────────
+// ─── Arguments (Argumenter, Certitude 3) ───────────────────────────────────
 
-const ouvert: Cond = all(lt("duel_argumente", 3), not(is("duel_clos")))
+/** Three pairs of probes, shown on the map by `*`. */
+const SONDES = [
+  [
+    { x: 2, y: 1 },
+    { x: 8, y: 1 },
+  ],
+  [
+    { x: 2, y: 3 },
+    { x: 8, y: 3 },
+  ],
+  [
+    { x: 2, y: 5 },
+    { x: 8, y: 5 },
+  ],
+]
 
-const arg = (
-  id: string,
-  title: string,
-  cond: Cond | undefined,
-  beats: Beat[],
-) =>
-  topic(id, title, [fx(add("duel_argumente")), ...beats], {
-    if: cond ? all(ouvert, cond) : ouvert,
-  })
-
-const arguments_ = hub("arguments", [
-  arg(
-    "mesure",
-    "« Regardez vos sondes. Votre mesure vient d'ouvrir un trou. »",
-    undefined,
-    [
-      say("merlin", "Un incident d'instrument…"),
-      stage("Il regarde la Lacune, la sonde brisée, la Lacune encore."),
-      say(
-        "merlin",
-        "Non. Ce n'est pas un incident. Pour savoir où vous êtes, il a fallu que quelque chose vous touche. Et ce quelque chose, il a fallu le prendre quelque part.",
-      ),
-      fx(set("mesure_jouee")),
-    ],
-  ),
-  arg(
-    "gel",
-    "« Votre Gel n'a pas été calculé. Il a été allumé dans la peur, en une nuit. »",
-    is("gel_lu"),
-    [
-      say("merlin", "Mes registres disent « dans la sérénité »."),
-      stage("Un temps."),
-      say(
-        "merlin",
-        "Mes registres ont été écrits par des gens qui voulaient être sereins après coup.",
-      ),
-    ],
-  ),
-  arg(
-    "gorr",
-    "« Votre outil a posé une question. Il n'a jamais été un instrument. Il était dans le système. »",
-    is("gorr_question"),
-    [
-      say("gorr", "Pourquoi ?"),
-      stage("Merlin baisse la Toise d'un pouce."),
-      say("merlin", "Je n'ai pas de colonne pour ça."),
-    ],
-  ),
-  arg(
-    "rapports",
-    "Le Chroniqueur lève les deux versions de son rapport.",
-    is("chroniqueur_rejoint"),
-    [
-      say(
-        "merlin",
-        "Le même rédacteur, la même anomalie, deux textes contraires. Et les deux sont soigneusement tenus.",
-      ),
-      stage("Il soupire."),
-      say(
-        "merlin",
-        "On ne lit pas le monde de l'extérieur. On le lit d'où l'on est.",
-      ),
-    ],
-  ),
-  arg(
-    "demandent",
-    "« Trois personnes se sont remises à poser des questions. Votre Registre l'avait prévu ? »",
-    gte("questions_rouvertes", 3),
-    [
-      say(
-        "merlin",
-        "… Non. Mes modèles ne prévoient pas les questions. Ils prévoient les réponses.",
-      ),
-    ],
-  ),
-  arg(
-    "cristal",
-    "Lever le Premier Cristal, qui pulse : « Vous n'avez jamais pu le mesurer sans le briser. »",
-    is("premier_cristal", "sauve"),
-    [
-      say(
-        "merlin",
-        "Aucun jumeau connu… parce que je ne pouvais le connaître qu'en le détruisant.",
-      ),
-    ],
-  ),
-  arg(
-    "fragment",
-    "« Les premières Lacunes ne viennent pas de vous. Vous n'êtes pas la cause de tout. Vous en faites partie. »",
-    any(is("lumiere_tardive"), gte("ghom_dechu.verite", 2)),
-    [
-      stage("Pour la première fois, il a l'air soulagé."),
-      say(
-        "merlin",
-        "En faire partie. C'est… moins confortable qu'être dehors. Et plus léger.",
-      ),
-    ],
-  ),
-  topic(
-    "fin",
-    "Laisser les arguments là. Se battre.",
-    [
-      fx(set("duel_clos")),
-      narr("Merlin hoche la tête. L'expérience commence."),
-    ],
-    { if: ouvert, last: true },
-  ),
-])
+const ARGUMENTS: NonNullable<FightSpec["debate"]>["arguments"] = [
+  {
+    id: "mesure",
+    needsSurvey: true,
+    label: "« Regardez vos sondes. Votre mesure vient d'ouvrir un trou. »",
+    answer:
+      "Merlin : « Non. Ce n'est pas un incident. Pour savoir où vous êtes, il a fallu que quelque chose vous touche. Et ce quelque chose, il a fallu le prendre quelque part. »",
+  },
+  {
+    id: "gel",
+    if: { flag: "gel_lu" },
+    label:
+      "« Votre Gel n'a pas été calculé. Il a été allumé dans la peur, en une nuit. »",
+    answer:
+      "Merlin : « Mes registres ont été écrits par des gens qui voulaient être sereins après coup. »",
+  },
+  {
+    id: "gorr",
+    if: { flag: "gorr_question" },
+    label:
+      "« Votre outil a posé une question. Il n'a jamais été un instrument. »",
+    answer:
+      "Gorr : « Pourquoi ? » Merlin baisse la Toise d'un pouce : « Je n'ai pas de colonne pour ça. »",
+  },
+  {
+    id: "rapports",
+    if: { flag: "chroniqueur_rejoint" },
+    label: "Le Chroniqueur lève les deux versions de son rapport.",
+    answer:
+      "Merlin : « On ne lit pas le monde de l'extérieur. On le lit d'où l'on est. »",
+  },
+  {
+    id: "demandent",
+    if: { flag: "questions_rouvertes", atLeast: 3 },
+    label:
+      "« Trois personnes se sont remises à poser des questions. Votre Registre l'avait prévu ? »",
+    answer:
+      "Merlin : « Mes modèles ne prévoient pas les questions. Ils prévoient les réponses. »",
+  },
+  {
+    id: "cristal",
+    if: { flag: "premier_cristal", is: "sauve" },
+    label:
+      "Lever le Premier Cristal, qui pulse : « Vous n'avez jamais pu le mesurer sans le briser. »",
+    answer:
+      "Merlin : « Aucun jumeau connu… parce que je ne pouvais le connaître qu'en le détruisant. »",
+  },
+  {
+    id: "fragment",
+    if: {
+      any: [
+        { flag: "lumiere_tardive" },
+        { flag: "ghom_dechu.verite", atLeast: 2 },
+      ],
+    },
+    label:
+      "« Les premières Lacunes ne viennent pas de vous. Vous en faites partie. »",
+    answer:
+      "Merlin : « En faire partie. C'est… moins confortable qu'être dehors. Et plus léger. »",
+  },
+]
 
 // ─── Veillée ────────────────────────────────────────────────────────────────
 
@@ -637,29 +652,23 @@ export const ch17: Chapter = {
           say("merlin", "Le froid ne vous prend pas. Où avez-vous appris ça ?"),
           narr("Dans la mer. (Sans effet.)"),
         ]),
-        // SIMPLIFIED: Argumenter / Certitude 3 is a hub of arguments before the
-        // fight; Certitude 0 means no fight at all, as an Intrication.
-        stage(
-          "Le héros peut argumenter. Chaque argument recevable ébranle une certitude de Merlin, une fois.",
-        ),
-        arguments_,
+        fx(set("merlin_convaincu", false), set("carte_des_lacunes", false)),
+        duelBeat(),
+        when(is("defaite"), [
+          stage(
+            "Le héros se disperse sur le verre. Merlin note l'heure. Brutus relève l'équipe, avec un respect sans joie, et la Salle est rouverte pour une seconde expérience.",
+          ),
+          fx(set("defaite", false)),
+        ]),
         when(
-          gte("duel_argumente", 3),
+          is("merlin_convaincu"),
           [
             say("brutus", "Si lui doute… alors moi aussi, j'ai le droit."),
             stage(
               "Brutus III abaisse son bouclier. Lentement. Merlin traverse la Salle jusqu'à la case du héros, pose la Toise, et pour la première fois reste sans rien mesurer. Le combat s'arrête : personne n'a gagné.",
             ),
-            fx(set("merlin_convaincu"), set("carte_des_lacunes")),
           ],
           [
-            duelBeat(),
-            when(is("defaite"), [
-              stage(
-                "Le héros se disperse sur le verre. Merlin note l'heure. Brutus relève l'équipe, avec un respect sans joie, et la Salle est rouverte pour une seconde expérience.",
-              ),
-              fx(set("defaite", false)),
-            ]),
             say("merlin", "Mes relevés étaient exacts. Exacts !"),
             stage("Il regarde les sondes brisées."),
             say("merlin", "… Tous exacts. Et pourtant."),

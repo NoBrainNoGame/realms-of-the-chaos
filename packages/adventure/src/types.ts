@@ -3,6 +3,9 @@ import type {
   AdventureRules,
   AutonomyReport,
   AutonomyTier,
+  DebateArgument,
+  DebateReport,
+  DebateRules,
   RecomposeRule,
   ScriptReport,
   ScriptStep,
@@ -155,7 +158,7 @@ export interface FighterSpec {
 export interface ObjectiveSpec {
   id: string
   /** ★ announced, ◆ hidden until the debrief. */
-  mark: "★" | "◆"
+  mark: "★" | "◆" | "•"
   label: string
   /** Reads the fight's report: met or not, with a count for `perUnit` effects. */
   check?: (report: FightReport) => boolean | { ok: boolean; n: number }
@@ -183,6 +186,22 @@ export interface FightLine {
   text: string
 }
 
+/** When an argument is receivable: a flag test, or any of several. */
+export type ArgumentGate =
+  | { flag: string; is?: FlagValue; atLeast?: number }
+  | { any: ArgumentGate[] }
+
+/**
+ * A duel that is also a discussion (`rules.debate` of the engine), with the
+ * receivability of each argument read from the story's flags.
+ */
+export interface DebateSpec
+  extends Omit<DebateRules, "arguments" | "extraOnce"> {
+  arguments: (Omit<DebateArgument, "ok"> & { if?: ArgumentGate })[]
+  /** When this flag is set, one more argument may be played in a turn, once. */
+  extraFlag?: string
+}
+
 export interface FightSpec {
   id: string
   title: string
@@ -190,6 +209,8 @@ export interface FightSpec {
   board: string[]
   teams: FightTeamSpec[]
   rules: AdventureRules
+  /** Argumenter / Certitude, turned into `rules.debate` by `fightRules`. */
+  debate?: DebateSpec
   /** Influences the Ghom has from the start of this fight. */
   influences: string[]
   /** Élan of the Ghom at the start of the fight. */
@@ -374,6 +395,8 @@ export interface FightReport {
   trace?: TraceReport
   /** Scripted turns and earthquakes, fighters that reformed, tepid cells. */
   script?: ScriptReport
+  /** Relevé and Argumenter: probes broken, arguments played, Certitude. */
+  debate?: DebateReport
   /** Cold: fighters frozen, cells iced, what thawed. */
   gel?: {
     frozen: { fighterId: string; by: string | null; until: number }[]

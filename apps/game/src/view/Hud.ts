@@ -45,6 +45,10 @@ interface HudEvents extends booyah.BaseCompositeEvents {
   insist: []
   /** The Ghom withdraws from the fight ("Se retirer"). */
   withdraw: []
+  /** Debate: open or close the list of arguments. */
+  argue: []
+  /** Debate: play this argument. */
+  argueWith: [argumentId: string]
   /** Crystals and cold: select an operation to aim (Extraire, Porter...). */
   crystal: [op: CrystalOp, gain: "elan" | "heal"]
   /** The line-up is done: the fight starts. */
@@ -959,7 +963,13 @@ export default class Hud extends ViewChip<HudEvents> {
       size,
       pass.view.x + 96 + 8,
     )
-    const after = this._crystalButtons(fighter, combat, size, afterGestures)
+    const afterDebate = this._debateButtons(
+      fighter,
+      combat,
+      size,
+      afterGestures,
+    )
+    const after = this._crystalButtons(fighter, combat, size, afterDebate)
 
     // a planned walk: a click adds a stop, so cancelling needs a button
     if (fighter.path.length) {
@@ -1043,6 +1053,60 @@ export default class Hud extends ViewChip<HudEvents> {
         104,
       )
     return x
+  }
+
+  /** The list of arguments is open (Argumenter). */
+  argueOpen = false
+
+  /** "Argumenter" and, once open, one button per argument of the hero. */
+  private _debateButtons(
+    fighter: Fighter,
+    combat: Combat,
+    size: number,
+    from: number,
+  ): number {
+    const debate = combat.adventure?.debate
+    const rules = combat.adventure?.rules.debate
+    if (!debate || !rules || debate.hero?.id !== fighter.id) return from
+    const options = debate.options(fighter)
+    const playable = options.some((o) => o.playable)
+    const main = button({
+      width: 132,
+      height: size,
+      label: `Argumenter\n(Certitude ${debate.certitude})`,
+      onTap: () => this.emit("argue"),
+      onOver: () =>
+        this.showTooltip(
+          playable
+            ? "Répondre à Merlin. Chaque argument recevable ébranle sa Certitude, une seule fois."
+            : "Aucun argument recevable pour l'instant (trop loin, ou rien de prêt).",
+          main.view.getGlobalPosition(),
+          true,
+        ),
+      onOut: () => this.hideTooltip(),
+    })
+    main.setState({ enabled: playable, selected: this.argueOpen })
+    main.view.label = "argue"
+    main.view.position.set(from, 0)
+    this._actionBar.addChild(main.view)
+    if (this.argueOpen) {
+      options.forEach((o, i) => {
+        const spec = rules.arguments.find((a) => a.id === o.id)
+        const b = button({
+          width: 640,
+          height: 40,
+          label: `${o.used ? "(dit) " : ""}${spec?.label ?? o.id}`,
+          onTap: () => {
+            if (o.playable) this.emit("argueWith", o.id)
+          },
+        })
+        b.setState({ enabled: o.playable })
+        b.view.label = `argue-${o.id}`
+        b.view.position.set(from, -48 * (options.length - i))
+        this._actionBar.addChild(b.view)
+      })
+    }
+    return from + 132 + 8
   }
 
   /** The operation being aimed (Extraire, Porter, Geler...), if any. */

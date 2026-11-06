@@ -82,6 +82,8 @@ export type Command =
   | { type: "insist"; fighterId: string }
   /** Adventure autonomy: the Ghom withdraws, the fight stops. */
   | { type: "withdraw"; fighterId: string }
+  /** Adventure debate: the hero plays an argument against the speaker. */
+  | { type: "argue"; fighterId: string; argumentId: string }
   /** Adventure crystals and cold: extract, detach, carry, deposit, bridge, gel. */
   | {
       type: "crystal"
@@ -489,9 +491,9 @@ export class Combat {
   }
 
   /** Whether `p` is in the action's launch zone from `origin` (with height). */
-  inLaunchZone(action: ActionDefinition, origin: Point, p: Point) {
+  inLaunchZone(action: ActionDefinition, origin: Point, p: Point, extra = 0) {
     if (!this.board.inBounds(p)) return false
-    const bonus = this.heightBonus(action, origin, p)
+    const bonus = this.heightBonus(action, origin, p) + extra
     return inZone(origin, p, {
       ...action.launch,
       max: action.launch.max + bonus,
@@ -610,7 +612,12 @@ export class Combat {
     candidates.sort((a, b) => a.y - b.y || a.x - b.x)
     return candidates.filter(
       (p) =>
-        this.inLaunchZone(action, origin, p) &&
+        this.inLaunchZone(
+          action,
+          origin,
+          p,
+          this.adventure?.debate?.rangeBonus(fighter, p) ?? 0,
+        ) &&
         this.targetMatches(fighter, action, p, origin) &&
         !this.board.glassBetween(origin, p) &&
         (!action.lineOfSight || this.board.hasLineOfSight(origin, p)),
@@ -891,6 +898,12 @@ export class Combat {
         case "action":
           this._useAction(fighter, command.actionId, command.target)
           break
+        case "survey": {
+          const debate = this.adventure?.debate
+          if (debate && !debate.survey(fighter, command.target))
+            this._finishCrystal(fighter, debate.surveyTime)
+          break
+        }
         case "pass":
           this._pass(fighter)
           break
@@ -1081,6 +1094,26 @@ export class Combat {
     return this._logged({ type: "insist", fighterId: fighter.id }, null)
   }
 
+  /**
+   * "Argumenter": the hero answers the speaker. A good argument lowers the
+   * Certitude; at 0 nobody wins. Ends the turn quickly (time 0.5).
+   */
+  argue(argumentId: string): CommandResult {
+    const fighter = this._checkInput()
+    if (typeof fighter === "string") return this._result(fighter)
+    const debate = this.adventure?.debate
+    if (!debate) return this._result("Pas de discussion ici")
+    if (this.adventure?.pending) return this._result(WAITING_FOR_GHOM)
+    const error = debate.argue(fighter, argumentId)
+    if (error) return this._result(error)
+    if (debate.report.convinced) this._end(null)
+    else this._finishCrystal(fighter, debate.argumentTime)
+    return this._logged(
+      { type: "argue", fighterId: fighter.id, argumentId },
+      null,
+    )
+  }
+
   /** "Se retirer": the Ghom lets go, the fight stops with no winner. */
   withdraw(): CommandResult {
     const fighter = this._checkInput()
@@ -1135,6 +1168,8 @@ export class Combat {
         return this.insist()
       case "withdraw":
         return this.withdraw()
+      case "argue":
+        return this.argue(command.argumentId)
       case "crystal":
         return this.crystal(command.op, command.target, command.gain)
       case "useDivine":

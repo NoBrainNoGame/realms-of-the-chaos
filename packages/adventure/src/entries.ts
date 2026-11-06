@@ -4,7 +4,13 @@ import type {
   AutonomyTier,
 } from "@realms/engine/adventure"
 import { add } from "./dsl"
-import type { Effect, FightReport, FightSpec, FlagValue } from "./types"
+import type {
+  ArgumentGate,
+  Effect,
+  FightReport,
+  FightSpec,
+  FlagValue,
+} from "./types"
 
 /** How much the general trust shifts every ally's own (`confiance`, -10..10). */
 export function generalShift(general: number): number {
@@ -52,6 +58,19 @@ export function resolveFight(
       fighters: t.fighters.filter((f) => !f.needs || set(f.needs)),
     })),
   }
+}
+
+/** Is the argument's gate open with these flags? */
+export function gateOpen(
+  gate: ArgumentGate,
+  read: (key: string) => FlagValue | undefined,
+): boolean {
+  if ("any" in gate) return gate.any.some((g) => gateOpen(g, read))
+  const v = read(gate.flag)
+  if (gate.atLeast !== undefined)
+    return typeof v === "number" && v >= gate.atLeast
+  if (gate.is !== undefined) return v === gate.is
+  return v === true || (typeof v === "number" && v > 0)
 }
 
 export function fightRules(
@@ -116,7 +135,16 @@ export function fightRules(
   const autonomy = allies.length
     ? { ...spec.rules.autonomy, allies }
     : spec.rules.autonomy
+  const debate = spec.debate && {
+    ...spec.debate,
+    extraOnce: !!spec.debate.extraFlag && raw(spec.debate.extraFlag) === true,
+    arguments: spec.debate.arguments.map(({ if: gate, ...a }) => ({
+      ...a,
+      ok: !gate || gateOpen(gate, raw),
+    })),
+  }
   if (
+    !debate &&
     !arrivals.length &&
     !switches.length &&
     !allies.length &&
@@ -126,6 +154,7 @@ export function fightRules(
     return spec.rules
   return {
     ...spec.rules,
+    ...(debate ? { debate } : {}),
     ...(scripts.length
       ? { scripts: [...(spec.rules.scripts ?? []), ...scripts] }
       : {}),

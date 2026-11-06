@@ -7,6 +7,12 @@ import {
   type GelReport,
   type GelRules,
 } from "./crystals"
+import {
+  DebateKit,
+  type DebateReport,
+  type DebateRules,
+  emptyDebateReport,
+} from "./debate"
 import { equals, keyOf, manhattan, type Point } from "./geometry"
 import { createRng, type Rng } from "./random"
 import {
@@ -31,6 +37,11 @@ export {
   type CrystalState,
   type GelRules,
 } from "./crystals"
+export type {
+  DebateArgument,
+  DebateReport,
+  DebateRules,
+} from "./debate"
 export type {
   RecomposeRule,
   ScriptAct,
@@ -121,6 +132,11 @@ export interface AdventureRules {
    * lay one as a bridge over water or a hole (see `CrystalRules`).
    */
   crystals?: CrystalRules
+  /**
+   * A duel that is also an argument: Relevé breaks probes, Argumenter lowers
+   * the speaker's Certitude (see `DebateRules`).
+   */
+  debate?: DebateRules
   /** Glass walls: nobody stands in them, nothing is seen or aimed through. */
   glass?: Point[]
   /** Cold: freeze a fighter or a water cell, thaw them (see `GelRules`). */
@@ -335,6 +351,8 @@ export interface AdventureReport {
   trace: TraceReport
   /** Scripted turns, scripted earthquakes, recompositions, tepid cells. */
   script: ScriptReport
+  /** Surveys and arguments (empty without `rules.debate`). */
+  debate: DebateReport
 }
 
 /** Rule state of one fight; owned by a `Combat`. */
@@ -384,6 +402,7 @@ export class AdventureTracker {
     gel: { frozen: [], iced: [], thawed: [] },
     trace: emptyTrace(),
     script: emptyScriptReport(),
+    debate: emptyDebateReport(),
   }
   /** Where and by whom things happened. */
   readonly trace: TraceKit
@@ -391,6 +410,8 @@ export class AdventureTracker {
   readonly script: ScriptKit
   /** Crystals, glass, bridges and ice (null without those rules). */
   readonly crystals: CrystalKit | null = null
+  /** Relevé and Argumenter (null without `rules.debate`). */
+  readonly debate: DebateKit | null = null
   /** The order the active ally refused, waiting for Respecter / Insister. */
   pending: { fighterId: string; order: AutonomyOrder } | null = null
   private _auto = new Map<string, AutonomyEntry>()
@@ -425,6 +446,10 @@ export class AdventureTracker {
       (fighter) => this._entryCell(fighter),
     )
     this.report.script = this.script.report
+    if (rules.debate) {
+      this.debate = new DebateKit(_combat, rules.debate)
+      this.report.debate = this.debate.report
+    }
     this.locked = new Set(rules.lockedDivine)
     this._nextTick = rules.clock?.period ?? Infinity
     const member = (team: number, index: number) => {
@@ -916,6 +941,7 @@ export class AdventureTracker {
 
   /** A turn begins: a silent cell drains energy. */
   turnStart(fighter: Fighter): number {
+    this.debate?.turnStart(fighter)
     const cold =
       this.silent.has(keyOf(fighter.position)) || this._inHalo(fighter)
     return (

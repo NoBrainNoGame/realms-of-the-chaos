@@ -190,6 +190,8 @@ export type SceneInput =
   | { type: "autonomy"; gesture: "letAct" | "insist" | "withdraw" }
   /** Extraire, Porter, Geler... (Adventure crystals). */
   | { type: "crystal"; op: CrystalOp }
+  /** Argumenter (Adventure debate). */
+  | { type: "argue" }
   /** Back out of a selection or a planned walk (always harmless). */
   | { type: "cancel" }
   | { type: "camera" }
@@ -446,6 +448,18 @@ export default class FightScene extends ViewChip<SceneEvents> {
           this._command({ type: gesture, fighterId: fighter.id })
       })
     }
+    this._subscribe(this._hud, "argue", () => {
+      if (!this._activeHuman || !this._inputReady) return
+      if (!this.allows({ type: "argue" })) return
+      this._hud.argueOpen = !this._hud.argueOpen
+      this._refreshAll()
+    })
+    this._subscribe(this._hud, "argueWith", (argumentId) => {
+      const fighter = this._activeHuman
+      if (!fighter || !this.allows({ type: "argue" })) return
+      this._hud.argueOpen = false
+      this._command({ type: "argue", fighterId: fighter.id, argumentId })
+    })
     this._subscribe(this._hud, "crystal", (op, gain) => {
       if (!this._activeHuman || !this._inputReady) return
       if (!this.allows({ type: "crystal", op })) return
@@ -1697,6 +1711,30 @@ export default class FightScene extends ViewChip<SceneEvents> {
           new booyah.Lambda(() =>
             this._showEntry(event.fighterId, event.position),
           ),
+        ]
+
+      case "surveyed":
+        return [
+          new booyah.Lambda(() => {
+            this._hud.banner("Relevé : une paire de sondes éclate.", 0xa5d8ff)
+            this._hud.log("Merlin relève sa cible. Une sonde éclate.")
+          }),
+        ]
+
+      case "argued":
+        return [
+          new booyah.Lambda(() => {
+            const spec = this.combat.adventure?.rules.debate?.arguments.find(
+              (a) => a.id === event.argumentId,
+            )
+            this._hud.banner(
+              event.certitude === 0
+                ? "La Certitude de Merlin tombe à 0."
+                : `Certitude de Merlin : ${event.certitude}`,
+              0xffd43b,
+            )
+            if (spec?.answer) this._hud.log(spec.answer)
+          }),
         ]
 
       case "lacuneGrew":

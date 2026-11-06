@@ -29,6 +29,8 @@ export type ScriptAct =
   | { do: "move"; to: Point }
   | { do: "use"; action: string; at: ScriptAim }
   | { do: "stand" }
+  /** Debate: measure (Relevé) the aimed fighter, walking into range first. */
+  | { do: "survey"; at: ScriptAim }
   | { do: "follow"; team: number; index: number }
   /**
    * Walk to the nearest open exit and leave the island there. With `escort`,
@@ -233,6 +235,13 @@ export class ScriptKit {
       }
       case "leave":
         return this._leave(fighter, act.exits, act.escort)
+      case "survey": {
+        const debate = combat.adventure?.debate
+        const aim = this._aim(act.at)
+        if (!debate || !aim || aim === "nearest") return null
+        const target = combat.fightersAt(aim)[0]
+        return target ? debate.plan(fighter, target) : null
+      }
       case "use": {
         const action = fighter.actions.find((a) => a.id === act.action)
         if (!action || combat.isOnCooldown(fighter, action)) return null

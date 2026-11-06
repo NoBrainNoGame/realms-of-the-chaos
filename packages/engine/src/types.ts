@@ -248,6 +248,15 @@ export type FightEvent =
   | { type: "withdrew" }
   /** Adventure lacunes: the hole spreads / a Lacune cell is mended. */
   | { type: "lacuneGrew"; cells: Point[] }
+  /** Debate: a Relevé; a pair of probes breaks. */
+  | { type: "surveyed"; fighterId: string; targetId: string; pair: number }
+  /** Debate: an argument was played; the speaker's Certitude is now `certitude`. */
+  | {
+      type: "argued"
+      fighterId: string
+      argumentId: string
+      certitude: number
+    }
   | { type: "lacuneMended"; cell: Point; fighterId: string }
   /** The Lacune took the whole stage: the fight is lost. */
   | { type: "swallowed" }

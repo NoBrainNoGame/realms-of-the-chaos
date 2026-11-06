@@ -6,6 +6,8 @@ import type { ActionDefinition, Fighter, StatusId } from "./types"
 export type AiCommand =
   | { type: "action"; actionId: string; target: Point }
   | { type: "move"; destination: Point }
+  /** Debate: the speaker measures the fighter standing there (Relevé). */
+  | { type: "survey"; target: Point }
   | { type: "pass" }
 
 /** Offensive buffs are only worth it with an enemy this close. */
