@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { Board, createRng } from "@realms/engine"
-import { Container, Graphics } from "pixi.js"
+import { AlphaFilter, Container, Graphics } from "pixi.js"
 import { mount, tick } from "../test/harness"
 import Backdrop, { DETAIL_ZOOM, skyDetail, skyPoint } from "./Backdrop"
 import BoardView, { waterTint } from "./BoardView"
@@ -399,23 +399,32 @@ describe("translucent water", () => {
     }
   })
 
-  test("the bed is drawn first, the translucent sheet over it", () => {
+  test("all the water is opaque shapes in groups that carry the alpha filter", () => {
     const board = mount(
       new BoardView(
-        Board.fromAscii(["..", ".W"]),
+        Board.fromAscii(["..~", ".W~", "..."]),
         new Container(),
         new Container(),
         1,
       ),
     )
+    const groups = board.waterGroups
+    expect(groups.length).toBeGreaterThan(0)
+    for (const group of groups) {
+      const filter = group.filters?.[0] as AlphaFilter
+      expect(filter).toBeInstanceOf(AlphaFilter)
+      expect(filter.alpha).toBeLessThan(1)
+      for (const cell of group.children) {
+        const fills = (
+          (cell.children[0] as Graphics).context.instructions as any[]
+        ).filter((i) => i.action === "fill")
+        expect(fills.length).toBeGreaterThan(0)
+        for (const f of fills) expect(f.data.style.alpha).toBe(1)
+      }
+    }
+    // the bed is in the terrain column, under the water
     const parts = (board as any)._parts.get("1,1")
-    const fills = parts.ground.context.instructions.filter(
-      (i: any) => i.action === "fill",
-    )
-    const alphas = fills.map((i: any) => i.data.style.alpha)
-    expect(alphas[alphas.length - 1]).toBeLessThan(1)
-    expect(alphas[alphas.length - 1]).toBeGreaterThan(0)
-    // opaque terrain (the bed and its faces) comes before the sheet
-    expect(alphas[0]).toBe(1)
+    expect(parts.ground.context.instructions.length).toBeGreaterThan(0)
+    expect(parts.column.zIndex).toBeLessThan(parts.water.parent.zIndex)
   })
 })

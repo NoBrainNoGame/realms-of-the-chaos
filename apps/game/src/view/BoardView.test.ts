@@ -42,7 +42,7 @@ describe("waveOffset", () => {
 
 /** The terrain columns of the entities layer (without the island underside). */
 const columns = (entities: Container) =>
-  entities.children.filter((c) => c.zIndex !== UNDERSIDE_Z)
+  entities.children.filter((c) => c.zIndex !== UNDERSIDE_Z && c.label !== "aux")
 
 describe("BoardView", () => {
   test("one terrain column per cell in the entities layer, one hit area on top", () => {
@@ -94,9 +94,9 @@ describe("BoardView", () => {
   })
 
   test("highlights are drawn on the cells and cleared", () => {
-    const { view, entities } = setup(["...", "..."])
+    const { view } = setup(["...", "..."])
     const overlays = () =>
-      columns(entities).map((c) => (c as Container).children.at(-1) as Graphics)
+      [...(view as any)._parts.values()].map((p) => p.overlay as Graphics)
     view.setHighlights([
       { cells: [{ x: 1, y: 0 }], color: 0xff0000, alpha: 0.5, outline: true },
     ])
