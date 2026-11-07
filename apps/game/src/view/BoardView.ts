@@ -733,13 +733,13 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
   private _drawWater(g: Graphics, cell: Cell, bedY: number, parts: CellParts) {
     const depth = -cell.elevation
     const bed = mix(WATER.bed, WATER.deep, Math.min(0.6, depth * 0.15))
-    // the bed reaches the surface along the back edges against other water
-    // (or nothing): the lake has no hole through which the rock under the
-    // island would show (against land, its own wall closes the pit)
+    // the bed reaches the surface along the back edges that face nothing (the
+    // lake has no hole through which the rock under the island would show);
+    // against land its own wall closes the pit, against water there is no face
     for (const dir of SIDES) {
       if (project(dir.x, dir.y).y > 0) continue
       const n = this._board.get(add(cell, dir))
-      if (n && n.terrain !== "water") continue
+      if (n) continue
       const [a, b] = edgeOf(dir)
       g.poly([a.x, a.y, b.x, b.y, b.x, b.y + bedY, a.x, a.y + bedY]).fill(bed)
     }
