@@ -208,6 +208,8 @@ export type FightEvent =
       absorbed: number
       critical: boolean
       sourceId: string | null
+      /** An adventure floor kept it at 1 HP (it would have fallen). */
+      held?: boolean
     }
   | { type: "healed"; fighterId: string; amount: number }
   | { type: "pushed"; fighterId: string; from: Point; to: Point }

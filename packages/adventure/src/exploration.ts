@@ -141,8 +141,9 @@ export function wanderFight(
         fighters: [{ preset: w.preset, at: local(at) }],
       },
     ],
-    // An optional meeting: the party is never wiped out.
-    rules: { noDefeat: [0], fixOnDeath: [1] },
+    // An optional meeting, but a real fight: if the party falls, it is lost
+    // (back on the island, the wanderer is still there).
+    rules: { fixOnDeath: [1] },
     influences: [],
     startEnergy: 0,
     objectives: [

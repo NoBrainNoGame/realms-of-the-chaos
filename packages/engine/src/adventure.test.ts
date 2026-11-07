@@ -53,6 +53,17 @@ describe("adventure rules are opt-in", () => {
     expect(c.getFighter("merlin-1-0")?.alive ?? true).toBe(true)
   })
 
+  test("the 1 HP floor is flagged on the blow, and only where asked", () => {
+    const held = fight({ noDefeat: [1], clock: { period: 10, limit: 60 } })
+    const ev = held.run()
+    expect(ev.some((e) => e.type === "damaged" && e.held === true)).toBe(true)
+    expect(held.getFighter("merlin-1-0")?.alive).toBe(true)
+    const free = fight(undefined)
+    const evFree = free.run()
+    expect(evFree.some((e) => e.type === "damaged" && e.held)).toBe(false)
+    expect(free.winnerTeam).not.toBeNull()
+  })
+
   test("an idle zone turns silent, then is lost", () => {
     const c = new Combat({
       seed: 3,

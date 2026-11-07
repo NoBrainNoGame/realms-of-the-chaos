@@ -52,7 +52,7 @@ import DecorCrystals from "./DecorCrystals"
 import { describeHp, describeStatus } from "./describe"
 import EnemyElan from "./EnemyElan"
 import { FX, floatingText, particles, projectile } from "./effects"
-import FighterView, { STATUS_COLORS, type WaterState } from "./FighterView"
+import FighterView, { STATUS_COLORS } from "./FighterView"
 import { FightVoice, type LineSpec } from "./fightLines"
 import Hud from "./Hud"
 import { Lens } from "./lens"
@@ -78,6 +78,7 @@ import {
 } from "./theme"
 import { type Segment, tag } from "./ui"
 import ViewChip from "./ViewChip"
+import { waterState } from "./water"
 
 /** A team of the fight, and who plays it. */
 export interface SceneTeam {
@@ -231,11 +232,7 @@ export function stackOffset(
   ][index % 3]
 }
 
-/** Water state of a fighter standing on a cell. */
-export function waterState(board: Board, cell: Point): WaterState {
-  if (board.get(cell)?.terrain !== "water") return "dry"
-  return board.isDeepWater(cell) ? "swimming" : "wading"
-}
+export { waterState }
 
 export default class FightScene extends ViewChip<SceneEvents> {
   readonly combat: Combat
@@ -1303,6 +1300,8 @@ export default class FightScene extends ViewChip<SceneEvents> {
     }
   }
 
+  private _heldNoted = new Set<string>()
+
   private _quickEffect(event: FightEvent): booyah.ChipResolvable | null {
     switch (event.type) {
       case "damaged": {
@@ -1312,6 +1311,12 @@ export default class FightScene extends ViewChip<SceneEvents> {
         return new booyah.Sequence([
           new booyah.Lambda(() => {
             view.wound(event.amount)
+            if (event.held && !this._heldNoted.has(event.fighterId)) {
+              this._heldNoted.add(event.fighterId)
+              this._hud.log(
+                `${this.combat.getFighter(event.fighterId)?.name ?? "?"} tient bon : pas de défaite possible dans ce combat d'apprentissage.`,
+              )
+            }
             hitFx(this._fx, cell, event.critical)
             if (this._lastActive) this._refreshCard()
           }),

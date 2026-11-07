@@ -1655,10 +1655,12 @@ export class Combat {
     }
 
     target.hp = Math.max(0, target.hp - (amount - absorbed))
-    if (this.adventure?.rules.noDefeat?.includes(target.team)) {
-      target.hp = Math.max(1, target.hp)
-    }
-    if (this.adventure?.isSpared(target)) target.hp = Math.max(1, target.hp)
+    // Floors of the adventure (tutorial, spared): the blow would have felled it.
+    const held =
+      target.hp <= 0 &&
+      (this.adventure?.rules.noDefeat?.includes(target.team) === true ||
+        this.adventure?.isSpared(target) === true)
+    if (held) target.hp = 1
     // erosion: part of every wound can never be healed (fights always end)
     target.erosion += (amount - absorbed) * EROSION
     target.hp = Math.min(target.hp, this.maxHp(target))
@@ -1669,6 +1671,7 @@ export class Combat {
       absorbed,
       critical,
       sourceId,
+      ...(held ? { held: true } : {}),
     })
 
     if (target.hp > 0) this.adventure?.wounded(target)

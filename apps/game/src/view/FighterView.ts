@@ -6,19 +6,19 @@ import { STATUS_COLORS } from "./describe"
 import { type Facing, Puppet, type PuppetAction } from "./Puppet"
 import { COLORS, PUPPET_SCALE, screenFacing, TEAM_COLORS } from "./theme"
 import ViewChip from "./ViewChip"
+import {
+  applyWaterPose,
+  makeRipple,
+  makeWaterMask,
+  WATER_DEPTH,
+  type WaterState,
+} from "./water"
 
 export { STATUS_COLORS } from "./describe"
 
 const HP_WIDTH = 26
 
-export type WaterState = "dry" | "wading" | "swimming"
-
-/** How far the puppet sinks under the water surface (local pixels). */
-export const WATER_DEPTH: Record<WaterState, number> = {
-  dry: 0,
-  wading: 5,
-  swimming: 20,
-}
+export { WATER_DEPTH, type WaterState }
 
 /**
  * Visual of a fighter on the board: an isometric puppet plus its HUD bits.
@@ -115,14 +115,10 @@ export default class FighterView extends ViewChip {
     this._puppet = new Puppet(this.fighter.presetId)
     this._puppet.scale.set(PUPPET_SCALE)
     // ripples around the body at the waterline
-    this._ripple = new Graphics()
-      .ellipse(0, 0, 10, 4)
-      .fill({ color: 0x74c0fc, alpha: 0.55 })
-      .ellipse(0, 0, 10, 4)
-      .stroke({ width: 1, color: 0xe7f5ff, alpha: 0.8 })
+    this._ripple = makeRipple()
     this._ripple.visible = false
     // everything below the waterline is hidden
-    this._waterMask = new Graphics().rect(-60, -200, 120, 201).fill(0xffffff)
+    this._waterMask = makeWaterMask()
     this._body.addChild(this._puppet, this._ripple, this._waterMask)
     this._waterMask.visible = false
 
@@ -168,16 +164,13 @@ export default class FighterView extends ViewChip {
    */
   setWater(state: WaterState) {
     this._water = state
-    // swimmers and aquatics change shape in deep water and handle their
-    // own waterline; the others sink and are cut at the surface
-    const ownShape = state === "swimming" && this._puppet.hasSwimForm
-    this._puppet.y = ownShape ? 0 : WATER_DEPTH[state]
-    this._puppet.mask = state === "dry" || ownShape ? null : this._waterMask
-    this._waterMask.visible = state !== "dry" && !ownShape
-    this._ripple.visible = state !== "dry"
-    this._ripple.scale.set(state === "swimming" ? 1.4 : 1)
-    this._shadow.visible = state === "dry"
-    this._puppet.setSwimming(state === "swimming")
+    const pose = applyWaterPose(
+      this._puppet,
+      state,
+      this._waterMask,
+      this._ripple,
+    )
+    this._shadow.visible = pose.shadow
     this._placeBars()
   }
 

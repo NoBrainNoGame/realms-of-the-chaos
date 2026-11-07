@@ -247,6 +247,8 @@ describe("exploration", () => {
     expect(foe.x - hero.x).toBe(2)
     expect(foe.y - hero.y).toBe(1)
     expect(hero.x).toBeLessThan(spec.board[0].length)
+    // a real fight: the party can fall (only the prologue protects the hero)
+    expect(spec.rules?.noDefeat).toBeUndefined()
   })
 })
 

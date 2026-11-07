@@ -66,6 +66,7 @@ import {
 } from "./theme"
 import { clearChildren, Menu, type MenuItem, panel, text } from "./ui"
 import ViewChip from "./ViewChip"
+import { applyWaterPose, makeRipple, makeWaterMask, waterState } from "./water"
 
 interface ExplorationEvents extends booyah.BaseCompositeEvents {
   /** The chapter is over: the end screen follows. */
@@ -103,6 +104,8 @@ interface Actor {
   id: string
   node: Container
   puppet: Puppet
+  ripple: Graphics
+  mask: Graphics
   cell: Point
   from: Point
   to: Point | null
@@ -319,12 +322,18 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
     const puppet = new Puppet(puppetId(art, run))
     puppet.scale.set(PUPPET_SCALE)
     const node = new Container()
-    node.addChild(puppet)
+    const ripple = makeRipple()
+    ripple.visible = false
+    const mask = makeWaterMask()
+    mask.visible = false
+    node.addChild(puppet, ripple, mask)
     this._entities.addChild(node)
     const actor: Actor = {
       id: who,
       node,
       puppet,
+      ripple,
+      mask,
       cell,
       from: cell,
       to: null,
@@ -353,6 +362,9 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
       from.x + (to.x - from.x) * k,
       from.y + (to.y - from.y) * k,
     )
+    // same water look as in a fight: sunk, masked at the surface, swimming
+    const here = k < 0.5 ? a.from : at
+    applyWaterPose(a.puppet, waterState(this._board, here), a.mask, a.ripple)
     a.node.zIndex = depthOf(
       {
         x: a.from.x + (at.x - a.from.x) * k,
@@ -1170,6 +1182,7 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
     hero.node.removeChild(old)
     old.destroy({ children: true })
     hero.puppet = puppet
+    this._place(hero)
   }
 
   /** The puzzle board on screen (read by the tests). */
