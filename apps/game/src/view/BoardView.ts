@@ -132,7 +132,6 @@ interface DecorItem {
 
 /** A waterfall pouring from a water cell over the edge of the island. */
 interface Cascade {
-  g: Graphics
   /** Grid direction of the side the water runs down. */
   dir: Point
   /** Height of the fall along the column and the blocks under it. */
@@ -248,9 +247,6 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
         node.alpha = 0.55 + 0.35 * Math.sin(this._time / 450 + i * 1.3)
       }
       i++
-    }
-    for (const list of this._cascades.values()) {
-      for (const cascade of list) this._drawCascade(cascade)
     }
     this._updateWaves()
   }
@@ -526,7 +522,8 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     const groundY = -cell.elevation * levelHeight()
     const noise = cellNoise(cell, this._seed)
 
-    this._drawSides(g, cell, groundY, cell.terrain === "water")
+    // (a lake has no columns: only its sheet and the wall of its edge)
+    if (cell.terrain !== "water") this._drawSides(g, cell, groundY, false)
 
     if (cell.terrain === "water") {
       this._drawWater(g, cell, groundY, parts)
@@ -587,6 +584,8 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       // no wall between two water cells: the lake is one body, a deeper
       // neighbour shows no step
       if (underwater && n?.terrain === "water") return Number.NEGATIVE_INFINITY
+      // what is under the water is hidden by its opaque sheet
+      if (n?.terrain === "water") return HIDDEN_MARGIN
       return n ? -n.elevation * level + HIDDEN_MARGIN : Number.POSITIVE_INFINITY
     })
     // faces looking at water: what is under its surface (y >= 0) is seen
@@ -670,94 +669,47 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       .stroke({ width: 1, color: 0x000000, alpha: 0.25 })
   }
 
-  /** Animated waterfall: a foam lip, streaks running down, droplets. */
-  private _drawCascade(cascade: Cascade) {
-    const { g, dir } = cascade
-    const length = cascade.length * verticalScale()
-    const t = this._time / 1000
-    // the top edge of the face the water runs down
-    const [a, b] = edgeOf(dir)
-    const at = (u: number) => lerp(a, b, u)
-    g.clear()
-    const slices = 8
-    const pa = at(0)
-    const pb = at(1)
-    for (let i = 0; i < slices; i++) {
-      const y0 = (length * i) / slices
-      const y1 = (length * (i + 1)) / slices
-      const alpha = 0.6 * Math.min(1, (slices - i) / 3)
-      g.poly([
-        pa.x,
-        pa.y + y0,
-        pb.x,
-        pb.y + y0,
-        pb.x,
-        pb.y + y1,
-        pa.x,
-        pa.y + y1,
-      ]).fill({ color: WATER.surface, alpha })
-    }
-    // slow lighter bands sliding down the whole width (no vertical lines)
-    for (let k = 0; k < 3; k++) {
-      const y = (t * 40 + (k * length) / 3) % length
-      g.poly([
-        pa.x,
-        pa.y + y,
-        pb.x,
-        pb.y + y,
-        pb.x,
-        pb.y + y + 5,
-        pa.x,
-        pa.y + y + 5,
-      ]).fill({ color: 0xffffff, alpha: 0.22 * (1 - y / length) })
-    }
-    g.moveTo(pa.x, pa.y)
-      .lineTo(pb.x, pb.y)
-      .stroke({ width: 2, color: WATER.foam, alpha: 0.85 })
-    // droplets falling past the bottom, into the void
-    for (let d = 0; d < 4; d++) {
-      const u = (t / 0.9 + d / 4) % 1
-      const p = at((d * 0.37 + 0.15) % 1)
-      g.circle(p.x, p.y + length + u * 40, 1.4).fill({
-        color: 0xe7f5ff,
-        alpha: 0.7 * (1 - u),
-      })
-    }
-  }
-
   /** Sides of the cell looking out of the island, towards the viewer. */
   private _edgeFaces(cell: Point) {
     return visibleFaces().filter((f) => !this._board.inBounds(add(cell, f.dir)))
   }
 
   /** Flooded hole: sandy bed, translucent water body, shimmer and foam. */
-  private _drawWater(g: Graphics, cell: Cell, bedY: number, parts: CellParts) {
-    const bed = mix(WATER.bed, WATER.deep, 0.3)
-    // the bed reaches the surface along the back edges that face nothing (the
-    // lake has no hole through which the rock under the island would show);
-    // against land its own wall closes the pit, against water there is no face
-    for (const dir of SIDES) {
-      if (project(dir.x, dir.y).y > 0) continue
-      const n = this._board.get(add(cell, dir))
-      if (n) continue
-      const [a, b] = edgeOf(dir)
-      g.poly([a.x, a.y, b.x, b.y, b.x, b.y + bedY, a.x, a.y + bedY]).fill(bed)
+  private _drawWater(g: Graphics, cell: Cell, _bedY: number, parts: CellParts) {
+    const body = mix(WATER.surface, WATER.deep, 0.3)
+    // the wall of the island's edge: opaque flat bands (a stepped gradient),
+    // each cell a little wider than its own width so that two neighbours
+    // overlap and leave no seam; drawn under the sheet
+    const length = COLUMN_BOTTOM + this._depths[cell.y][cell.x] * BLOCK_HEIGHT
+    const falls: Cascade[] = []
+    for (const { a, b, light, dir } of this._edgeFaces(cell)) {
+      falls.push({ dir, length })
+      const h = length * verticalScale()
+      const bands = 12
+      for (let i = 0; i < bands; i++) {
+        const y0 = (h * i) / bands
+        const y1 = i === bands - 1 ? h : (h * (i + 1)) / bands + 0.5
+        const color = shade(
+          mix(body, WATER.deep, (i / (bands - 1)) * 0.6),
+          light < 1 ? 0.82 : 1,
+        )
+        g.poly([
+          a.x - 0.5,
+          a.y + y0 - (i === 0 ? 1 : 0),
+          b.x + 0.5,
+          b.y + y0 - (i === 0 ? 1 : 0),
+          b.x + 0.5,
+          b.y + y1,
+          a.x - 0.5,
+          a.y + y1,
+        ]).fill(color)
+      }
     }
-    g.poly(diamond().map((v, i) => (i % 2 === 1 ? v + bedY : v))).fill(bed)
-
-    const body = mix(WATER.surface, WATER.deep, 0.35)
-    // water is one sheet, not a stack of columns: no face between two water
-    // cells, only where it spills over the edge of the island (the cascades
-    // below hide the rest of that face)
-    for (const { a, b, light } of this._edgeFaces(cell)) {
-      g.poly([a.x, a.y, b.x, b.y, b.x, b.y + bedY, a.x, a.y + bedY]).fill({
-        color: shade(body, light < 1 ? 0.8 : 1),
-        alpha: 0.96,
-      })
-    }
-    // the surface: the same color on every cell (the bed shows the depth),
-    // diamonds that share their edges exactly and are never stroked
-    g.poly(diamond()).fill({ color: body, alpha: 0.6 })
+    this._cascades.set(keyOf(cell), falls)
+    // the sheet: one opaque colour on every cell (no depth tint: a darker
+    // cell reads as a hole), diamonds a hair larger than the cell so that
+    // they overlap, never stroked
+    g.poly(diamond(-0.5)).fill(body)
 
     if (!parts.shimmer) {
       const n = cellNoise(cell, this._seed, 7)
@@ -774,20 +726,6 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     }
     parts.column.addChild(parts.shimmer)
     parts.animated.push(parts.shimmer)
-
-    // water on the edge pours over it, down the column and the blocks below
-    const length = COLUMN_BOTTOM + this._depths[cell.y][cell.x] * BLOCK_HEIGHT
-    const falls: Cascade[] = this._edgeFaces(cell).map(({ dir }) => ({
-      g: new Graphics(),
-      dir,
-      length,
-    }))
-    for (const fall of falls) {
-      parts.column.addChild(fall.g)
-      parts.transient.push(fall.g)
-      this._drawCascade(fall)
-    }
-    this._cascades.set(keyOf(cell), falls)
   }
 
   /** Detaches and frees the cached decor of a cell (drawn again later). */
