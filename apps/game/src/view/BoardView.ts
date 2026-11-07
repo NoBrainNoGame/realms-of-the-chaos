@@ -455,7 +455,7 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       merged.push(m)
     }
     for (const r of merged) {
-      const { lead, tail, color: tone, depth } = r
+      const { lead, tail, color: tone } = r
       const e = { x: tail.x - lead.x, y: tail.y - lead.y }
       const len = Math.max(1, Math.abs(e.x))
       const x0 = merged.some(
@@ -475,7 +475,7 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       // the wall: from the surface down to the bed of the cell only (the
       // dirt of the bed column shows under it, then the fall starts at the
       // bottom of the column)
-      const wall = Math.min(h, depth * levelHeight())
+      const wall = h
       g.poly([
         ...at(x0, 0),
         ...at(x1, 0),
