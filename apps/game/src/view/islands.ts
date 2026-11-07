@@ -62,17 +62,31 @@ export function undersideDepths(
 }
 
 /**
- * Color of a block of the underside: one flat color whatever the depth,
- * since any difference between neighboring blocks (by depth or by face)
- * draws sawtooth triangles along the stepped silhouette.
+ * Colour of the strata band number `band` (0 = top of a column): the strata
+ * of the terrain, then, below them, the same rock getting darker with every
+ * level (never lighter, whatever the depth).
  */
-export function blockColor(_depth: number) {
-  return shade(STRATA[1], 0.95)
+export function undersideColor(band: number) {
+  const last = STRATA.length - 1
+  const extra = Math.max(0, band - last)
+  return shade(STRATA[Math.min(band, last)], Math.max(0.5, 0.92 ** extra))
+}
+
+/**
+ * Colour of a block of the underside, `depth` levels under its `base`
+ * band: one flat colour per level (blocks of a level agree, so the stepped
+ * silhouette draws no sawtooth), darker with every level.
+ */
+export function blockColor(depth: number, base = 1) {
+  return undersideColor(base + depth)
 }
 
 /**
  * The visible faces of one block (screen-space origin = the cell's top
- * center, `y0` = top of the block, in pixels of the classic view).
+ * center, `y0` = top of the block, in pixels of the classic view). With
+ * `base`, the block continues the strata of a terrain column whose bottom
+ * band is `base - 1`: lit like the column's sides, with no outline, so the
+ * column flows into the underside.
  */
 export function drawBlock(
   g: Graphics,
@@ -82,10 +96,12 @@ export function drawBlock(
   c: Readonly<Camera> = camera,
   /** Faces against a neighbor block are hidden: not drawn. */
   hidden?: (dir: { x: number; y: number }) => boolean,
+  base?: number,
 ) {
   const faces = visibleFaces(c).filter((f) => !hidden?.(f.dir))
   if (faces.length === 0) return
-  const color = blockColor(depth)
+  const continued = base !== undefined
+  const color = blockColor(depth, base)
   const v = verticalScale(c)
   const { x, y } = origin
   const top = y + y0 * v
@@ -94,9 +110,9 @@ export function drawBlock(
   // blocks around do not cover it, a gap would show the faces behind it
   // (stray triangles); the block above hides it everywhere else
   g.poly(diamond(0, c).map((v, i) => (i % 2 === 0 ? x + v : top + v))).fill(
-    shade(color, 0.93),
+    shade(color, continued ? 0.78 : 0.93),
   )
-  for (const { a, b } of faces) {
+  for (const { a, b, light } of faces) {
     g.poly([
       x + a.x,
       top + a.y,
@@ -106,10 +122,12 @@ export function drawBlock(
       bottom + b.y,
       x + a.x,
       bottom + a.y,
-    ]).fill(shade(color, 0.93))
+    ]).fill(shade(color, continued ? light : 0.93))
   }
   // block seams (the top edges of the faces) and the front edge, in one
-  // stroke: a stroke is costly to build
+  // stroke: a stroke is costly to build. None on the continued blocks (the
+  // underside): their silhouette reads through the shading alone
+  if (continued) return
   for (const { a, b } of faces) {
     g.moveTo(x + a.x, top + a.y).lineTo(x + b.x, top + b.y)
   }

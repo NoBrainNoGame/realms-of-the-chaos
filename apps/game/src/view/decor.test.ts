@@ -2,11 +2,21 @@ import { describe, expect, test } from "bun:test"
 import { Board, createRng } from "@realms/engine"
 import { Container, Graphics } from "pixi.js"
 import { mount, tick } from "../test/harness"
-import Backdrop, { DETAIL_ZOOM, skyDetail, skyPoint } from "./Backdrop"
+import Backdrop, {
+  DETAIL_ZOOM,
+  islandHaze,
+  skyDetail,
+  skyPoint,
+} from "./Backdrop"
 import BoardView, { waterTint } from "./BoardView"
 import { ColorMesh } from "./colorMesh"
 import FightScene, { classicFight } from "./FightScene"
-import { drawBlock, drawFloatingIsland, undersideDepths } from "./islands"
+import {
+  drawBlock,
+  drawFloatingIsland,
+  undersideColor,
+  undersideDepths,
+} from "./islands"
 import { camera, depthAlong, resetCamera } from "./theme"
 
 describe("island underside (inverted pyramid of blocks)", () => {
@@ -294,7 +304,8 @@ describe("everything floats, each at its own pace", () => {
             expect(island.graphics.tint).toBe(0xffffff)
           } else {
             expect(island.node.parent).not.toBe(backdrop.front)
-            expect(island.node.alpha).toBeLessThan(1)
+            expect(island.node.alpha).toBe(1)
+            expect(island.graphics.tint).not.toBe(0xffffff)
           }
         }
         // turning puts some in front and others behind
@@ -413,5 +424,29 @@ describe("translucent water", () => {
     const parts = (board as any)._parts.get("1,1")
     expect(parts.ground.context.instructions.length).toBeGreaterThan(0)
     expect(parts.column.zIndex).toBeLessThan(parts.water.parent.zIndex)
+  })
+})
+
+describe("underside shading and distant islets", () => {
+  const luma = (c: number) =>
+    0.3 * ((c >> 16) & 255) + 0.59 * ((c >> 8) & 255) + 0.11 * (c & 255)
+
+  test("the underside never gets lighter with depth", () => {
+    for (let band = 0; band < 40; band++)
+      expect(luma(undersideColor(band + 1))).toBeLessThanOrEqual(
+        luma(undersideColor(band)),
+      )
+    expect(luma(undersideColor(12))).toBeLessThan(luma(undersideColor(2)))
+  })
+
+  test("distant islets are opaque, hazed by colour (no per-block alpha)", () => {
+    expect(islandHaze(1)).toBe(0xffffff)
+    expect(luma(islandHaze(-1))).toBeLessThan(luma(islandHaze(-0.2)))
+    const g = new Graphics()
+    drawFloatingIsland(g, 4, 7)
+    const alphas = g.context.instructions
+      .filter((i) => i.action === "fill")
+      .map((i) => (i.data as { style: { alpha: number } }).style.alpha)
+    expect(alphas.every((a) => a === 1)).toBe(true)
   })
 })

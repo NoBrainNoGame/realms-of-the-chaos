@@ -114,6 +114,15 @@ export function swell(gx: number, gy: number, t: number) {
 
 export const UNDERSIDE_Z = -1e9
 
+/**
+ * Number of strata bands of a column of `elevation` (one per level, the
+ * last one cut by the bottom): the underside goes on with the next band.
+ */
+export function columnBands(elevation: number) {
+  const step = ELEVATION_HEIGHT
+  return Math.ceil((COLUMN_BOTTOM + elevation * step - 0.01) / step)
+}
+
 /** Bottom of every column, below the lowest level (classic view). */
 export const COLUMN_BOTTOM = -FLOOR_LEVEL * ELEVATION_HEIGHT + TILE_DEPTH
 
@@ -1235,6 +1244,8 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     for (const cell of cells) {
       const depth = this._depths[cell.y][cell.x]
       const origin = toScreen(cell)
+      // the strata of the column go on: its bottom band is `base - 1`
+      const base = columnBands(cell.elevation)
       for (let k = 0; k < depth; k++) {
         // a face against the neighbor's block of the same level is hidden
         const hidden = (d: Point) => {
@@ -1245,30 +1256,15 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
           blocks,
           origin,
           COLUMN_BOTTOM + k * BLOCK_HEIGHT,
-          k + 1,
+          k,
           undefined,
           hidden,
+          base,
         )
       }
     }
     container.addChild(blocks)
     this._undersideBottom = blocks.getLocalBounds().maxY
-    // strata and darkening with depth: whole horizontal bands across the
-    // underside, clipped to the blocks (never per block: it draws wedges)
-    const box = blocks.getLocalBounds()
-    const bands = new Graphics()
-    const step = BLOCK_HEIGHT * 2 * verticalScale()
-    const rows = Math.ceil(box.height / step)
-    for (let i = 0; i < rows; i++) {
-      const alpha = Math.min(0.45, (i / Math.max(1, rows)) * 0.5)
-      bands
-        .rect(box.x - 2, box.y + i * step, box.width + 4, step)
-        .fill({ color: i % 2 === 0 ? 0x1a1208 : 0x2a1c0c, alpha })
-    }
-    container.addChild(bands)
-    const clip = new Graphics(blocks.context)
-    container.addChild(clip)
-    bands.setMask({ mask: clip })
     return container
   }
 }

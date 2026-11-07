@@ -130,6 +130,17 @@ export interface Mote {
 /** Points along a star trail (its arc), from the last view to this one. */
 const TRAIL_STEPS = 4
 /** How much the camera turns before the distant islands are redrawn (°). */
+/**
+ * Colour multiplying a distant island, from its depth towards the viewer
+ * (-1 behind the board, 1 in front): the farther behind, the bluer and the
+ * darker, mixed towards the sky rather than faded (no transparency).
+ */
+export function islandHaze(depth: number) {
+  if (depth > 0) return 0xffffff
+  const haze = Math.max(0, -depth)
+  return mix(0xffffff, 0x5a5490, 0.55 + 0.45 * haze)
+}
+
 export const ISLAND_REDRAW_ANGLE = 0.6
 
 /** Field of view across the screen's width, for the stars (°). */
@@ -634,14 +645,11 @@ export default class Backdrop extends ViewChip {
         island.size * (this._height / 1000) * (1 + 0.25 * depth) * this._zoom,
       )
       // atmospheric perspective: behind the board, the farther, the bluer
-      // and the paler; in front of it, as solid and as lit as the board
-      const haze = Math.max(0, -depth)
-      island.node.alpha = depth > 0 ? 1 : 0.85 - 0.3 * haze
-      island.graphics.tint = mix(
-        0xffffff,
-        0x8f86c4,
-        depth > 0 ? 0 : 0.4 + 0.6 * haze,
-      )
+      // and the darker; in front of it, as solid and as lit as the board.
+      // Opaque, haze baked into the colours: a translucent island would show
+      // its own blocks through each other
+      island.node.alpha = 1
+      island.graphics.tint = islandHaze(depth)
       order.push({ island, depth })
     }
     // the farther behind, the earlier drawn; nearer than the board: above it
