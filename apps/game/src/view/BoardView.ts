@@ -10,6 +10,7 @@ import {
 import {
   Container,
   type FederatedPointerEvent,
+  FillGradient,
   Graphics,
   Polygon,
   Sprite,
@@ -106,6 +107,18 @@ export function waterTint(depth: number) {
     alpha: 0.55,
   }
 }
+
+/** Fade of the waterfall below the column: lighter water, then nothing. */
+const FALL_FADE = new FillGradient({
+  type: "linear",
+  start: { x: 0, y: 0 },
+  end: { x: 0, y: 1 },
+  colorStops: [
+    { offset: 0, color: "rgba(150,200,240,0.45)" },
+    { offset: 1, color: "rgba(150,200,240,0)" },
+  ],
+  textureSpace: "local",
+})
 
 /** Everything drawn for one cell. */
 interface CellParts {
@@ -277,6 +290,21 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     const t = this._time / 1000
     const [pa, pb] = edgeOf(dir)
     g.clear()
+    // below the column, in front of the underside: a lighter strip fading
+    // out (a vertical gradient: one shape, no stacked alpha)
+    const top = COLUMN_BOTTOM * verticalScale()
+    if (length > top + 1) {
+      g.poly([
+        pa.x,
+        pa.y + top,
+        pb.x,
+        pb.y + top,
+        pb.x,
+        pb.y + length,
+        pa.x,
+        pa.y + length,
+      ]).fill(FALL_FADE)
+    }
     for (let k = 0; k < 3; k++) {
       const y = (t * 36 + (k * length) / 3) % length
       const alpha = 0.16 * (1 - y / length)
@@ -637,9 +665,7 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     let band = 0
     for (let y0 = topY; y0 < bottom - 0.01; y0 += step, band++) {
       const y1 = Math.min(bottom, y0 + step)
-      const rock =
-        STRATA[Math.min(band + (underwater ? 2 : 0), STRATA.length - 1)]
-      const color = rock
+      const color = STRATA[Math.min(band, STRATA.length - 1)]
       const shown = faces.filter((_, i) => y0 < cover[i] - 0.01)
       if (shown.length === 0) continue
       for (const { a, b, light: lit0 } of shown) {
@@ -714,9 +740,8 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     g.poly(diamond().map((v, i) => (i % 2 === 1 ? v + bedY : v))).fill(
       shade(WATER.bed, 0.9 + cellNoise(cell, this._seed, 3) * 0.2),
     )
-    // the wall of the island's edge: translucent flat bands (a stepped
-    // gradient) over the terrain column, drawn under the sheet; shared
-    // exact edges (no antialiasing, so no gap and no double layer)
+    // the wall of the island's edge: one translucent quad per face over its
+    // own terrain column (shared exact edges: no gap, no double layer)
     const length = COLUMN_BOTTOM + this._depths[cell.y][cell.x] * BLOCK_HEIGHT
     const falls: Cascade[] = []
     for (const { a, b, light, dir } of this._edgeFaces(cell)) {
@@ -725,26 +750,13 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       parts.column.addChild(fall.g)
       parts.transient.push(fall.g)
       this._drawCascade(fall)
-      const h = length * verticalScale()
-      const bands = 12
-      for (let i = 0; i < bands; i++) {
-        const y0 = (h * i) / bands
-        const y1 = (h * (i + 1)) / bands
-        const color = shade(
-          mix(body, WATER.deep, (i / (bands - 1)) * 0.6),
-          light < 1 ? 0.82 : 1,
-        )
-        g.poly([
-          a.x,
-          a.y + y0,
-          b.x,
-          b.y + y0,
-          b.x,
-          b.y + y1,
-          a.x,
-          a.y + y1,
-        ]).fill({ color, alpha })
-      }
+      // one translucent quad per face, down to the column's own bottom (the
+      // island underside is never behind translucent water)
+      const h = COLUMN_BOTTOM * verticalScale()
+      g.poly([a.x, a.y, b.x, b.y, b.x, b.y + h, a.x, a.y + h]).fill({
+        color: shade(body, light < 1 ? 0.82 : 1),
+        alpha,
+      })
     }
     this._cascades.set(keyOf(cell), falls)
     // the sheet at the water level: a tint per depth, translucent, the
