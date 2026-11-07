@@ -93,7 +93,7 @@ export function waveOffset(amplitude: number, u: number) {
 const HIDDEN_MARGIN = 14
 /** Depth of the island underside: behind every column and fighter. */
 /** Fading tail of the runoff sheet under the lowest block. */
-const FALL_TAIL = 40
+const FALL_TAIL = 56
 
 export const UNDERSIDE_Z = -1e9
 
@@ -324,13 +324,13 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     const t = this._time / 1000
     const [pa, pb] = edgeOf(dir)
     g.clear()
-    const reach =
-      this._undersideBottom - g.y - Math.min(pa.y, pb.y) + FALL_TAIL * 0.5
+    // the sheet ends on a straight line (screen space of the cascade)
+    const floor = this._undersideBottom + FALL_TAIL * 0.6 - g.y
     // a few soft streaks sliding straight down the sheet
     for (let d = 0; d < 3; d++) {
       const p = lerp(pa, pb, 0.2 + d * 0.3)
       const u = (t * 0.45 + d * 0.37) % 1
-      const y0 = p.y + u * reach * 0.9
+      const y0 = p.y + u * (floor - p.y - 16)
       g.moveTo(p.x, y0)
         .lineTo(p.x, y0 + 16)
         .stroke({ width: 1.5, color: 0xd6efff, alpha: 0.4 * (1 - u) })
@@ -339,7 +339,7 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     for (let d = 0; d < 5; d++) {
       const u = (t / 2.4 + d / 5) % 1
       const p = lerp(pa, pb, 0.1 + ((d * 0.37 + 0.12) % 1) * 0.8)
-      g.circle(p.x, p.y + u * reach, 1.9 - u * 0.5).fill({
+      g.circle(p.x, p.y + u * (floor - p.y), 1.9 - u * 0.5).fill({
         color: 0xc4e6ff,
         alpha: 0.9 * (1 - u) ** 0.7,
       })
@@ -439,7 +439,7 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     const merged: Run[] = []
     for (const r of runs) {
       let m = merged.find((o) => same(o.dir, r.dir) && near(o.tail, r.lead))
-      if (m && m.color === r.color) {
+      if (m) {
         m.tail = r.tail
         continue
       }
@@ -469,13 +469,13 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       })
       const fg = new Graphics()
       fg.poly([
-        lead.x - 0.4,
+        lead.x,
         lead.y,
-        tail.x + 0.4,
+        tail.x,
         tail.y,
-        tail.x + 0.4,
+        tail.x,
         bottom,
-        lead.x - 0.4,
+        lead.x,
         bottom,
       ]).fill(grad)
       gf.addChild(fg)
