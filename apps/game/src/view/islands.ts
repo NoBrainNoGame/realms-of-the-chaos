@@ -99,7 +99,7 @@ export function drawBlock(
       bottom + b.y,
       x + a.x,
       bottom + a.y,
-    ]).fill(shade(color, light < 1 ? 0.8 : 1))
+    ]).fill(shade(color, light < 1 ? 0.9 : 1))
   }
   // block seams (the top edges of the faces) and the front edge, in one
   // stroke: a stroke is costly to build

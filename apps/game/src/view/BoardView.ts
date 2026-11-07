@@ -697,20 +697,19 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
         pa.y + y1,
       ]).fill({ color: WATER.surface, alpha })
     }
-    const streaks = 8
-    for (let s = 0; s < streaks; s++) {
-      const p = at((s + 0.5) / streaks)
-      const speed = 60 + (s % 3) * 18
-      for (let k = 0; k < 3; k++) {
-        const y = (t * speed + (k * length) / 3 + s * 13) % length
-        g.moveTo(p.x, p.y + y)
-          .lineTo(p.x, p.y + y + 7)
-          .stroke({
-            width: 1.2,
-            color: 0xffffff,
-            alpha: 0.55 * (1 - y / length),
-          })
-      }
+    // slow lighter bands sliding down the whole width (no vertical lines)
+    for (let k = 0; k < 3; k++) {
+      const y = (t * 40 + (k * length) / 3) % length
+      g.poly([
+        pa.x,
+        pa.y + y,
+        pb.x,
+        pb.y + y,
+        pb.x,
+        pb.y + y + 5,
+        pa.x,
+        pa.y + y + 5,
+      ]).fill({ color: 0xffffff, alpha: 0.22 * (1 - y / length) })
     }
     g.moveTo(pa.x, pa.y)
       .lineTo(pb.x, pb.y)
