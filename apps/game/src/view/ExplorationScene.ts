@@ -160,6 +160,7 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
     g: Container
     chip: Container
     stem: Graphics
+    chipSize: { w: number; h: number }
     stemLength: number
     base: number
     id: string
@@ -506,22 +507,23 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
       mark.label = `mark:${e.id}`
       mark.zIndex = 9999
       const gold = isStory ? 0xffe066 : 0xced4da
+      // a round badge with a bold pixel icon
       const gem = new Graphics()
-        .poly([0, -11, 8, 0, 0, 11, -8, 0])
-        .fill({ color: gold, alpha: 0.97 })
-        .stroke({ width: 1.2, color: 0x1b1424 })
+        .circle(0, 0, 12)
+        .fill({ color: gold })
+        .stroke({ width: 2, color: 0x1b1424 })
       drawIcon(gem, info.kind)
-      gem.position.set(0, -12)
+      gem.position.set(0, -14)
       const chip = new Container()
-      const label = text(info.label, 10, 0xf1ecff, { fontWeight: "normal" })
-      const w = Math.ceil(label.width) + 12
+      const label = text(info.label, 14, 0xf1ecff, { fontWeight: "normal" })
+      const w = Math.ceil(label.width) + 16
+      const h = Math.ceil(label.height) + 8
       const bg = new Graphics()
-        .rect(0, 0, w, 17)
-        .fill({ color: 0x1b1424, alpha: 0.92 })
-        .stroke({ width: 1, color: isStory ? 0xffe066 : 0x8f86b3 })
-      label.position.set(6, 2)
+        .rect(0, 0, w, h)
+        .fill({ color: 0x1b1424, alpha: 0.95 })
+        .stroke({ width: 1.5, color: isStory ? 0xffe066 : 0x8f86b3 })
+      label.position.set(8, 4)
       chip.addChild(bg, label)
-      chip.position.set(-w / 2, -48)
       chip.visible = false
       const stem = new Graphics()
       mark.addChild(stem, gem, chip)
@@ -529,6 +531,7 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
       this._marked.push({
         g: mark,
         chip,
+        chipSize: { w, h },
         stem,
         stemLength: 0,
         base: 0,
@@ -560,43 +563,75 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
     return best
   }
 
-  /** The stand height of the highest of a cell and its four neighbours. */
-  private _topAround(p: Point) {
-    let h = this._board.standHeight(p)
+  /**
+   * The height of the highest column in front of a cell (the ones that can
+   * hide its top face), or null when nothing hides it.
+   */
+  private _hiddenBy(p: Point) {
+    const own = this._board.standHeight(p)
+    let h = own
     for (const d of [
       { x: 1, y: 0 },
-      { x: -1, y: 0 },
       { x: 0, y: 1 },
-      { x: 0, y: -1 },
+      { x: 1, y: 1 },
     ]) {
       const n = { x: p.x + d.x, y: p.y + d.y }
       if (this._board.get(n)) h = Math.max(h, this._board.standHeight(n))
     }
-    return h
+    return h > own ? h : null
   }
 
   /** Puts each marker above its target (an actor's head, or its cell). */
   private _anchorMarks() {
     for (const m of this._marked) {
       const actor = this._wanderers.get(m.id)?.actor ?? this._npcs.get(m.id)
-      // a place: the top of the highest of its cell and the next ones, so the
-      // marker never hangs against the side of a block
-      const feet = actor
-        ? { x: actor.node.x, y: actor.node.y }
-        : toScreen(m.at, this._topAround(m.at))
-      const head = actor
-        ? actor.puppet.getLocalBounds().minY * actor.puppet.scale.y
-        : 0
-      // (a sprite whose textures are not there yet measures nothing)
-      const top = actor ? Math.min(head, -30) : -12
+      let feet: { x: number; y: number }
+      let top = 0
+      let pin = false
+      if (actor) {
+        feet = { x: actor.node.x, y: actor.node.y }
+        // (a sprite whose textures are not there yet measures nothing)
+        top = Math.min(
+          actor.puppet.getLocalBounds().minY * actor.puppet.scale.y,
+          -30,
+        )
+      } else {
+        const tile = toScreen(m.at, this._board.standHeight(m.at))
+        const hidden = this._hiddenBy(m.at)
+        const crowd = this._everyone().some((a) => same(a.cell, m.at))
+        if (crowd) {
+          // somebody stands there: above their head, no pin
+          feet = tile
+          top = -72
+        } else if (hidden !== null) {
+          // the tile is behind a taller column: just above that column
+          feet = toScreen(m.at, hidden)
+          top = -14
+        } else {
+          // the pin ends on the centre of the top face
+          feet = tile
+          top = -14
+          pin = true
+        }
+      }
       const p = markAnchor(feet, top)
+      // never over somebody else: rise above the head of whoever is in the way
+      const own = actor
+      for (const q of this._everyone()) {
+        if (q === own) continue
+        const head = q.node.y - 76
+        if (
+          Math.abs(q.node.x - p.x) < 26 &&
+          p.y - 28 < q.node.y + 4 &&
+          p.y > head
+        ) {
+          p.y = head - 4
+          pin = false
+        }
+      }
       m.g.x = p.x
       m.base = p.y
-      // a pin down to the tile itself when the marker was raised above taller neighbours
-      const own = actor
-        ? feet.y
-        : toScreen(m.at, this._board.standHeight(m.at)).y
-      const len = actor ? 0 : Math.max(0, Math.round(own - p.y))
+      const len = pin ? Math.round(feet.y - p.y) : 0
       if (len !== m.stemLength) {
         m.stemLength = len
         m.stem.clear()
@@ -609,6 +644,42 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
             .fill({ color: 0xffe066, alpha: 0.9 })
       }
     }
+  }
+
+  /** The tooltip goes above its marker, else beside it: never over a character. */
+  private _placeChip(m: (typeof this._marked)[number]) {
+    const { w, h } = m.chipSize
+    const s = this._world.scale.x || 1
+    const people = this._everyone().map((a) => ({
+      x: a.node.x - 16,
+      y: a.node.y - 76,
+      w: 32,
+      h: 80,
+    }))
+    const options = [
+      { x: -w / 2, y: -34 - h },
+      { x: 18, y: -14 - h / 2 },
+      { x: -18 - w, y: -14 - h / 2 },
+    ]
+    const fits = (o: { x: number; y: number }) => {
+      const tl = this._world.toGlobal({ x: m.g.x + o.x, y: m.g.y + o.y })
+      return tl.x >= 6 && tl.y >= 10 && tl.x + w * s <= this._size.width - 6
+    }
+    const free = (o: { x: number; y: number }) => {
+      const r = { x: m.g.x + o.x, y: m.g.y + o.y, w, h }
+      return !people.some(
+        (q) =>
+          r.x < q.x + q.w &&
+          r.x + r.w > q.x &&
+          r.y < q.y + q.h &&
+          r.y + r.h > q.y,
+      )
+    }
+    const pick =
+      options.find((o) => fits(o) && free(o)) ??
+      options.find(fits) ??
+      options[0]
+    m.chip.position.set(pick.x, pick.y)
   }
 
   private _bob() {
@@ -644,6 +715,7 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
       m.chip.visible =
         (hovered !== null && (same(hovered, cell) || same(hovered, m.at))) ||
         (m === nearest && distance(this._hero.cell, cell) <= 2)
+      if (m.chip.visible) this._placeChip(m)
       m.g.zIndex = m.chip.visible ? 10000 : 9999
     }
     if (this._speaker && this._speaking) {

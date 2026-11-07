@@ -46,7 +46,7 @@ describe("point-of-interest markers", () => {
         (scene as any)._npcs.get(m.id)
       const feet = actor
         ? { x: actor.node.x, y: actor.node.y }
-        : toScreen(m.at, (scene as any)._topAround(m.at))
+        : toScreen(m.at, (scene as any)._board.standHeight(m.at))
       expect(m.g.x).toBeCloseTo(feet.x, 5)
       // above the target (the bob moves it by a couple of pixels only)
       expect(scene.run).toBeDefined()

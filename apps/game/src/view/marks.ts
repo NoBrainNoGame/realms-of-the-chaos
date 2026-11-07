@@ -65,35 +65,71 @@ export function markAnchor(
   return { x: feet.x, y: feet.y + Math.min(0, headTop) - gap }
 }
 
-/** A tiny pictogram (about 8 px) centred on (0, 0), one per kind of marker. */
+/** 7x7 pixel icons, one per kind of marker (drawn at 2x). */
+const ICONS: Record<MarkKind, string[]> = {
+  talk: [
+    ".#####.",
+    "#######",
+    "#######",
+    "#######",
+    ".#####.",
+    "..##...",
+    "..#....",
+  ],
+  examine: [
+    ".......",
+    "..###..",
+    ".#...#.",
+    "#..#..#",
+    ".#...#.",
+    "..###..",
+    ".......",
+  ],
+  exit: [
+    "...#...",
+    "....#..",
+    "#######",
+    "....#..",
+    "...#...",
+    ".......",
+    ".......",
+  ],
+  fight: [
+    "##...##",
+    "###.###",
+    ".#####.",
+    "..###..",
+    ".#####.",
+    "###.###",
+    "##...##",
+  ],
+  puzzle: [
+    ".#####.",
+    "##...##",
+    "....##.",
+    "...##..",
+    "...#...",
+    ".......",
+    "...#...",
+  ],
+  move: [
+    "..###..",
+    "..###..",
+    "..###..",
+    "..###..",
+    ".......",
+    "..###..",
+    "..###..",
+  ],
+}
+
+/** A bold pixel pictogram (14 px) centred on (0, 0). */
 export function drawIcon(g: Graphics, kind: MarkKind, color = 0x1b1424) {
-  switch (kind) {
-    case "talk":
-      g.rect(-4, -3.5, 8, 5).fill(color)
-      g.poly([-2, 1.5, -2, 4, 1, 1.5]).fill(color)
-      break
-    case "examine":
-      g.poly([-4.5, 0, 0, -3, 4.5, 0, 0, 3]).fill(color)
-      g.circle(0, 0, 1.2).fill(0xffffff)
-      break
-    case "exit":
-      g.rect(-4, -1, 5, 2).fill(color)
-      g.poly([0, -3.5, 4.5, 0, 0, 3.5]).fill(color)
-      break
-    case "fight":
-      g.moveTo(-4, -4).lineTo(4, 4).moveTo(4, -4).lineTo(-4, 4)
-      g.stroke({ width: 1.8, color })
-      break
-    case "puzzle":
-      g.rect(-4, -4, 3.5, 3.5).fill(color)
-      g.rect(0.5, 0.5, 3.5, 3.5).fill(color)
-      g.rect(0.5, -4, 3.5, 3.5).fill({ color, alpha: 0.45 })
-      g.rect(-4, 0.5, 3.5, 3.5).fill({ color, alpha: 0.45 })
-      break
-    default:
-      g.rect(-1, -4.5, 2, 5.5).fill(color)
-      g.rect(-1, 2.5, 2, 2).fill(color)
-  }
+  const rows = ICONS[kind] ?? ICONS.move
+  rows.forEach((row, y) => {
+    for (let x = 0; x < row.length; x++)
+      if (row[x] === "#") g.rect((x - 3.5) * 2, (y - 3.5) * 2, 2, 2).fill(color)
+  })
 }
 
 /** The legend of the pictograms, for the hint bar. */
