@@ -95,6 +95,18 @@ export const UNDERSIDE_Z = -1e9
 /** Bottom of every column, below the lowest level (classic view). */
 export const COLUMN_BOTTOM = -FLOOR_LEVEL * ELEVATION_HEIGHT + TILE_DEPTH
 
+/**
+ * Tint of the water surface over a bed `depth` levels down: a fixed step
+ * darker per level, always translucent so that the bed shows through.
+ */
+export function waterTint(depth: number) {
+  const level = Math.max(0, Math.min(2, depth - 1))
+  return {
+    color: mix(WATER.surface, WATER.deep, level * 0.3),
+    alpha: 0.55,
+  }
+}
+
 /** Everything drawn for one cell. */
 interface CellParts {
   /** Terrain column, depth-sorted with fighters. */
@@ -560,8 +572,8 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     const groundY = -cell.elevation * levelHeight()
     const noise = cellNoise(cell, this._seed)
 
-    // (a lake has no columns: only its sheet and the wall of its edge)
-    if (cell.terrain !== "water") this._drawSides(g, cell, groundY, false)
+    // (a lake bed is a column too, seen through the translucent sheet)
+    this._drawSides(g, cell, groundY, cell.terrain === "water")
 
     if (cell.terrain === "water") {
       this._drawWater(g, cell, groundY, parts)
@@ -619,30 +631,18 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     // below this, a face is behind its neighbor's column
     const cover = faces.map(({ dir }) => {
       const n = this._board.get({ x: cell.x + dir.x, y: cell.y + dir.y })
-      // no wall between two water cells: the lake is one body, a deeper
-      // neighbour shows no step
-      if (underwater && n?.terrain === "water") return Number.NEGATIVE_INFINITY
-      // what is under the water is hidden by its opaque sheet
-      if (n?.terrain === "water") return HIDDEN_MARGIN
+      // (the water is translucent: the beds and the steps between them show)
       return n ? -n.elevation * level + HIDDEN_MARGIN : Number.POSITIVE_INFINITY
     })
-    // faces looking at water: what is under its surface (y >= 0) is seen
-    // through it, tinted like the bed instead of near-black deep rock
-    const wet = faces.map(
-      ({ dir }) =>
-        this._board.get({ x: cell.x + dir.x, y: cell.y + dir.y })?.terrain ===
-        "water",
-    )
     let band = 0
     for (let y0 = topY; y0 < bottom - 0.01; y0 += step, band++) {
       const y1 = Math.min(bottom, y0 + step)
       const rock =
         STRATA[Math.min(band + (underwater ? 2 : 0), STRATA.length - 1)]
-      const color = underwater ? mix(rock, WATER.deep, 0.35) : rock
+      const color = rock
       const shown = faces.filter((_, i) => y0 < cover[i] - 0.01)
       if (shown.length === 0) continue
       for (const { a, b, light: lit0 } of shown) {
-        const i = faces.findIndex((f) => f.a === a && f.b === b)
         const light = lit0
         g.poly([
           a.x,
@@ -653,14 +653,7 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
           b.y + y1,
           a.x,
           a.y + y1,
-        ]).fill(
-          shade(
-            wet[i] && !underwater && y0 >= -0.01
-              ? mix(color, WATER.deep, 0.28)
-              : color,
-            light,
-          ),
-        )
+        ]).fill(shade(color, light))
       }
       // pebbles in the strata
       const dark = shown.find((f) => f.light < 1)
@@ -714,10 +707,16 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
 
   /** Flooded hole: sandy bed, translucent water body, shimmer and foam. */
   private _drawWater(g: Graphics, cell: Cell, _bedY: number, parts: CellParts) {
-    const body = mix(WATER.surface, WATER.deep, 0.3)
-    // the wall of the island's edge: opaque flat bands (a stepped gradient),
-    // each cell a little wider than its own width so that two neighbours
-    // overlap and leave no seam; drawn under the sheet
+    const depth = -cell.elevation
+    const { color: body, alpha } = waterTint(depth)
+    // the sandy bed, at its real level
+    const bedY = -cell.elevation * levelHeight()
+    g.poly(diamond().map((v, i) => (i % 2 === 1 ? v + bedY : v))).fill(
+      shade(WATER.bed, 0.9 + cellNoise(cell, this._seed, 3) * 0.2),
+    )
+    // the wall of the island's edge: translucent flat bands (a stepped
+    // gradient) over the terrain column, drawn under the sheet; shared
+    // exact edges (no antialiasing, so no gap and no double layer)
     const length = COLUMN_BOTTOM + this._depths[cell.y][cell.x] * BLOCK_HEIGHT
     const falls: Cascade[] = []
     for (const { a, b, light, dir } of this._edgeFaces(cell)) {
@@ -730,28 +729,27 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       const bands = 12
       for (let i = 0; i < bands; i++) {
         const y0 = (h * i) / bands
-        const y1 = i === bands - 1 ? h : (h * (i + 1)) / bands + 0.5
+        const y1 = (h * (i + 1)) / bands
         const color = shade(
           mix(body, WATER.deep, (i / (bands - 1)) * 0.6),
           light < 1 ? 0.82 : 1,
         )
         g.poly([
-          a.x - 0.5,
-          a.y + y0 - (i === 0 ? 1 : 0),
-          b.x + 0.5,
-          b.y + y0 - (i === 0 ? 1 : 0),
-          b.x + 0.5,
+          a.x,
+          a.y + y0,
+          b.x,
+          b.y + y0,
+          b.x,
           b.y + y1,
-          a.x - 0.5,
+          a.x,
           a.y + y1,
-        ]).fill(color)
+        ]).fill({ color, alpha })
       }
     }
     this._cascades.set(keyOf(cell), falls)
-    // the sheet: one opaque colour on every cell (no depth tint: a darker
-    // cell reads as a hole), diamonds a hair larger than the cell so that
-    // they overlap, never stroked
-    g.poly(diamond(-0.5)).fill(body)
+    // the sheet at the water level: a tint per depth, translucent, the
+    // diamonds sharing exact edges and never stroked
+    g.poly(diamond()).fill({ color: body, alpha })
 
     if (!parts.shimmer) {
       const n = cellNoise(cell, this._seed, 7)

@@ -3,7 +3,7 @@ import { Board, createRng } from "@realms/engine"
 import { Container, Graphics } from "pixi.js"
 import { mount, tick } from "../test/harness"
 import Backdrop, { DETAIL_ZOOM, skyDetail, skyPoint } from "./Backdrop"
-import BoardView from "./BoardView"
+import BoardView, { waterTint } from "./BoardView"
 import FightScene, { classicFight } from "./FightScene"
 import { drawBlock, drawFloatingIsland, undersideDepths } from "./islands"
 import { camera, depthAlong, resetCamera } from "./theme"
@@ -379,5 +379,43 @@ describe("everything floats, each at its own pace", () => {
         expect(world.y).toBe(internals._fit.y + internals._pan.y)
       }
     }
+  })
+})
+
+describe("translucent water", () => {
+  test("the tint darkens a fixed step per depth and stays translucent", () => {
+    const lum = (c: number) =>
+      ((c >> 16) & 255) * 0.3 + ((c >> 8) & 255) * 0.59 + (c & 255) * 0.11
+    const tints = [1, 2, 3].map(waterTint)
+    expect(lum(tints[1].color)).toBeLessThan(lum(tints[0].color))
+    expect(lum(tints[2].color)).toBeLessThan(lum(tints[1].color))
+    expect(lum(tints[0].color) - lum(tints[1].color)).toBeCloseTo(
+      lum(tints[1].color) - lum(tints[2].color),
+      0,
+    )
+    for (const t of tints) {
+      expect(t.alpha).toBeLessThan(1)
+      expect(t.alpha).toBeGreaterThan(0.2)
+    }
+  })
+
+  test("the bed is drawn first, the translucent sheet over it", () => {
+    const board = mount(
+      new BoardView(
+        Board.fromAscii(["..", ".W"]),
+        new Container(),
+        new Container(),
+        1,
+      ),
+    )
+    const parts = (board as any)._parts.get("1,1")
+    const fills = parts.ground.context.instructions.filter(
+      (i: any) => i.action === "fill",
+    )
+    const alphas = fills.map((i: any) => i.data.style.alpha)
+    expect(alphas[alphas.length - 1]).toBeLessThan(1)
+    expect(alphas[alphas.length - 1]).toBeGreaterThan(0)
+    // opaque terrain (the bed and its faces) comes before the sheet
+    expect(alphas[0]).toBe(1)
   })
 })
