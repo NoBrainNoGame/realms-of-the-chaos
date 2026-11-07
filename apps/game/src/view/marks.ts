@@ -1,4 +1,5 @@
 import { chapterOfRun, type Encounter, type Run } from "@realms/adventure"
+import type { Graphics } from "pixi.js"
 
 /** What an encounter asks of the hero, in a few words (a pixel chip). */
 export type MarkKind = "talk" | "examine" | "exit" | "fight" | "puzzle" | "move"
@@ -59,7 +60,42 @@ export function markInfo(run: Run, e: Encounter): MarkInfo {
 export function markAnchor(
   feet: { x: number; y: number },
   headTop: number,
-  gap = 3,
+  gap = 4,
 ) {
   return { x: feet.x, y: feet.y + Math.min(0, headTop) - gap }
 }
+
+/** A tiny pictogram (about 8 px) centred on (0, 0), one per kind of marker. */
+export function drawIcon(g: Graphics, kind: MarkKind, color = 0x1b1424) {
+  switch (kind) {
+    case "talk":
+      g.rect(-4, -3.5, 8, 5).fill(color)
+      g.poly([-2, 1.5, -2, 4, 1, 1.5]).fill(color)
+      break
+    case "examine":
+      g.poly([-4.5, 0, 0, -3, 4.5, 0, 0, 3]).fill(color)
+      g.circle(0, 0, 1.2).fill(0xffffff)
+      break
+    case "exit":
+      g.rect(-4, -1, 5, 2).fill(color)
+      g.poly([0, -3.5, 4.5, 0, 0, 3.5]).fill(color)
+      break
+    case "fight":
+      g.moveTo(-4, -4).lineTo(4, 4).moveTo(4, -4).lineTo(-4, 4)
+      g.stroke({ width: 1.8, color })
+      break
+    case "puzzle":
+      g.rect(-4, -4, 3.5, 3.5).fill(color)
+      g.rect(0.5, 0.5, 3.5, 3.5).fill(color)
+      g.rect(0.5, -4, 3.5, 3.5).fill({ color, alpha: 0.45 })
+      g.rect(-4, 0.5, 3.5, 3.5).fill({ color, alpha: 0.45 })
+      break
+    default:
+      g.rect(-1, -4.5, 2, 5.5).fill(color)
+      g.rect(-1, 2.5, 2, 2).fill(color)
+  }
+}
+
+/** The legend of the pictograms, for the hint bar. */
+export const MARK_LEGEND =
+  "bulle : parler · œil : examiner · flèche : aller · épées : combat · pièces : énigme"

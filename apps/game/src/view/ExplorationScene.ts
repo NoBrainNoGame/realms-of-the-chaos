@@ -48,7 +48,7 @@ import AppearanceEditor from "./AppearanceEditor"
 import Backdrop from "./Backdrop"
 import BoardView, { COLUMN_BOTTOM, DEPTH, depthOf } from "./BoardView"
 import type FightScene from "./FightScene"
-import { markAnchor, markInfo } from "./marks"
+import { drawIcon, MARK_LEGEND, markAnchor, markInfo } from "./marks"
 import { facingBetween, Puppet } from "./Puppet"
 import PuzzleBoard from "./PuzzleBoard"
 import { speakerName, VOICE } from "./StoryScene"
@@ -162,6 +162,8 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
     base: number
     id: string
     at: Point
+    /** A place, not a character: hidden while the hero stands on it. */
+    place: boolean
   }[] = []
   /** The cell under the pointer. */
   private _hovered: Point | null = null
@@ -501,25 +503,34 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
       const mark = new Container()
       mark.label = `mark:${e.id}`
       mark.zIndex = 9999
+      const gold = isStory ? 0xffe066 : 0xced4da
       const gem = new Graphics()
-        .poly([0, -7, 4.5, 0, 0, 7, -4.5, 0])
-        .fill({ color: isStory ? 0xffe066 : 0xced4da, alpha: 0.95 })
+        .poly([0, -11, 8, 0, 0, 11, -8, 0])
+        .fill({ color: gold, alpha: 0.97 })
         .stroke({ width: 1.2, color: 0x1b1424 })
-      gem.position.set(0, -8)
+      drawIcon(gem, info.kind)
+      gem.position.set(0, -12)
       const chip = new Container()
-      const label = text(info.label, 8, 0xf1ecff, { fontWeight: "normal" })
-      const w = Math.ceil(label.width) + 8
+      const label = text(info.label, 10, 0xf1ecff, { fontWeight: "normal" })
+      const w = Math.ceil(label.width) + 12
       const bg = new Graphics()
-        .rect(0, 0, w, 13)
-        .fill({ color: 0x1b1424, alpha: 0.9 })
+        .rect(0, 0, w, 17)
+        .fill({ color: 0x1b1424, alpha: 0.92 })
         .stroke({ width: 1, color: isStory ? 0xffe066 : 0x8f86b3 })
-      label.position.set(4, 1.5)
+      label.position.set(6, 2)
       chip.addChild(bg, label)
-      chip.position.set(-w / 2, -34)
+      chip.position.set(-w / 2, -48)
       chip.visible = false
       mark.addChild(gem, chip)
       this._marks.addChild(mark)
-      this._marked.push({ g: mark, chip, base: 0, id: e.id, at: e.at })
+      this._marked.push({
+        g: mark,
+        chip,
+        base: 0,
+        id: e.id,
+        at: this._clamp(e.at),
+        place: !(e.actor || e.wander),
+      })
     }
     this._view.setHighlights(
       exploring(this._run) && zone.length
@@ -529,16 +540,50 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
     this._anchorMarks()
   }
 
+  /** The nearest cell of the island (a marker never floats in the void). */
+  private _clamp(p: Point): Point {
+    if (this._board.get(p)) return p
+    let best = p
+    let d = Number.POSITIVE_INFINITY
+    for (const c of this._board.cells) {
+      const k = distance(c, p)
+      if (k < d) {
+        d = k
+        best = { x: c.x, y: c.y }
+      }
+    }
+    return best
+  }
+
+  /** The stand height of the highest of a cell and its four neighbours. */
+  private _topAround(p: Point) {
+    let h = this._board.standHeight(p)
+    for (const d of [
+      { x: 1, y: 0 },
+      { x: -1, y: 0 },
+      { x: 0, y: 1 },
+      { x: 0, y: -1 },
+    ]) {
+      const n = { x: p.x + d.x, y: p.y + d.y }
+      if (this._board.get(n)) h = Math.max(h, this._board.standHeight(n))
+    }
+    return h
+  }
+
   /** Puts each marker above its target (an actor's head, or its cell). */
   private _anchorMarks() {
     for (const m of this._marked) {
       const actor = this._wanderers.get(m.id)?.actor ?? this._npcs.get(m.id)
+      // a place: the top of the highest of its cell and the next ones, so the
+      // marker never hangs against the side of a block
       const feet = actor
         ? { x: actor.node.x, y: actor.node.y }
-        : toScreen(m.at, this._board.standHeight(m.at))
-      const top = actor
+        : toScreen(m.at, this._topAround(m.at))
+      const head = actor
         ? actor.puppet.getLocalBounds().minY * actor.puppet.scale.y
-        : -24
+        : 0
+      // (a sprite whose textures are not there yet measures nothing)
+      const top = actor ? Math.min(head, -30) : 0
       const p = markAnchor(feet, top)
       m.g.x = p.x
       m.base = p.y
@@ -564,6 +609,7 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
       const actor = this._wanderers.get(m.id)?.actor ?? this._npcs.get(m.id)
       const cell = actor?.cell ?? m.at
       m.g.y = m.base + Math.sin(this._time / 260) * 2
+      m.g.visible = !(m.place && same(this._hero.cell, cell))
       m.chip.visible =
         (hovered !== null && (same(hovered, cell) || same(hovered, m.at))) ||
         (m === nearest && distance(this._hero.cell, cell) <= 2)
@@ -1291,8 +1337,11 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
       14,
       COLORS.muted,
     )
-    this._box.addChild(t)
+    const legend = text(MARK_LEGEND, 11, COLORS.muted)
+    legend.alpha = 0.8
+    this._box.addChild(t, legend)
     t.position.set(0, 0)
+    legend.position.set(0, t.height + 2)
     this._placeBox()
   }
 }

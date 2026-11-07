@@ -15,7 +15,7 @@ const island = (query: string) => {
 describe("point-of-interest markers", () => {
   test("the anchor sits above the target's head, never below its feet", () => {
     const a = markAnchor({ x: 100, y: 200 }, -60)
-    expect(a).toEqual({ x: 100, y: 137 })
+    expect(a).toEqual({ x: 100, y: 136 })
     expect(markAnchor({ x: 5, y: 9 }, 12).y).toBeLessThan(9)
   })
 
@@ -34,7 +34,8 @@ describe("point-of-interest markers", () => {
     const scene = island("chapter=3")
     tick(scene, 100)
     const marked = (scene as any)._marked as {
-      g: { x: number; y: number }
+      g: { x: number; y: number; visible: boolean }
+      place: boolean
       id: string
       at: { x: number; y: number }
     }[]
@@ -45,11 +46,29 @@ describe("point-of-interest markers", () => {
         (scene as any)._npcs.get(m.id)
       const feet = actor
         ? { x: actor.node.x, y: actor.node.y }
-        : toScreen(m.at, (scene as any)._board.standHeight(m.at))
+        : toScreen(m.at, (scene as any)._topAround(m.at))
       expect(m.g.x).toBeCloseTo(feet.x, 5)
       // above the target (the bob moves it by a couple of pixels only)
-      expect(m.g.y).toBeLessThan(feet.y - 10)
+      expect(scene.run).toBeDefined()
+      expect((scene as any)._board.get(m.at)).toBeDefined()
+      expect(m.g.y).toBeLessThan(feet.y - 2)
       expect(m.g.y).toBeGreaterThan(feet.y - 140)
+    }
+  })
+
+  test("a place marker hides while the hero stands on it", () => {
+    const scene = island("chapter=prologue")
+    tick(scene, 100)
+    const marked = (scene as any)._marked as {
+      g: { visible: boolean }
+      at: { x: number; y: number }
+      place: boolean
+    }[]
+    for (const m of marked) {
+      const here =
+        m.at.x === (scene as any)._hero.cell.x &&
+        m.at.y === (scene as any)._hero.cell.y
+      if (m.place) expect(m.g.visible).toBe(!here)
     }
   })
 })
