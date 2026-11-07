@@ -94,9 +94,25 @@ const HIDDEN_MARGIN = 14
 /** Height of one band of the runoff's fade. */
 const FALL_BAND = 4
 const FALL_TAIL = 110
-/** Speed (px/s) and spacing of the slow brightness waves of the runoff. */
-const WAVE_SPEED = 45
-const WAVE_PERIOD = 300
+/** Speed (px/s) and length (px) of the slow light waves down the runoff. */
+const WAVE_SPEED = 40
+const WAVE_LENGTH = 240
+/** Height (px) of the swell of the water surface, and its mesh density. */
+const SWELL = 2
+const MESH = 5
+/** Tilt of the crest lines of the runoff (so none runs flat). */
+const CREST_TILT = 0.15
+
+/**
+ * The swell at a point of the board (grid coordinates), in [-1, 1]: two
+ * slow waves crossing, a few cells long. It only depends on the point, so
+ * neighbouring cells and the runoff sheet agree on a shared edge.
+ */
+export function swell(gx: number, gy: number, t: number) {
+  const a = Math.sin(((gx + gy) * 2 * Math.PI) / 3.2 - (t * 2 * Math.PI) / 5)
+  const b = Math.sin(((gx - gy) * 2 * Math.PI) / 2.3 - (t * 2 * Math.PI) / 7.5)
+  return (a + 0.6 * b) / 1.6
+}
 
 export const UNDERSIDE_Z = -1e9
 
@@ -133,8 +149,8 @@ interface CellParts {
   decor: DecorItem[] | null
   /** Vines hanging from each side (by side), drawn once too. */
   vines: Map<number, DecorItem[]>
-  /** Water shimmer, drawn once. */
-  shimmer: Graphics | null
+  /** Grid position and colour of the water of the cell, if any. */
+  swellAt: { x: number; y: number; color: number } | null
   /** Drawn again at each redraw (waterfalls). */
   transient: Container[]
   /** The water of the cell (opaque: it is translucent as a group). */
@@ -153,9 +169,24 @@ interface DecorItem {
   animated?: Container
 }
 
+/** A merged runoff sheet along the island edge (see `_paintSheet`). */
+interface Sheet {
+  g: Graphics
+  lead: { x: number; y: number }
+  tail: { x: number; y: number }
+  /** Grid points under the two ends. */
+  glead: Point
+  gtail: Point
+  tone: number
+  lighter: number
+  top: number
+  bottom: number
+  /** Where the fade starts. */
+  solidY: number
+}
+
 /** A waterfall pouring from a water cell over the edge of the island. */
 interface Cascade {
-  g: Graphics
   /** Grid direction of the side the water runs down. */
   dir: Point
   /** Height of the fall along the column and the blocks under it. */
@@ -179,12 +210,6 @@ const SIDES: Point[] = [
   { x: -1, y: 0 },
   { x: 0, y: -1 },
 ]
-
-const lerp = (
-  a: { x: number; y: number },
-  b: { x: number; y: number },
-  t: number,
-) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t })
 
 export default class BoardView extends ViewChip<BoardViewEvents> {
   private _parts = new Map<string, CellParts>()
@@ -250,7 +275,7 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
         animated: [],
         decor: null,
         vines: new Map(),
-        shimmer: null,
+        swellAt: null,
         transient: [],
         hit,
         y: 0,
@@ -311,62 +336,126 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
         node.alpha = 0.55 + 0.35 * Math.sin(this._time / 450 + i * 1.3)
       }
       i++
-      if (parts.shimmer) {
-        // one wide band of light drifting slowly across the lakes
-        const x = parts.water.x
-        const y = parts.water.y
-        const phase = (x * 0.8 + y * 1.2) / 420 - this._time / 5000
-        parts.shimmer.alpha =
-          0.09 * Math.max(0, Math.sin(phase * Math.PI * 2)) ** 2
-      }
+      if (parts.swellAt) this._paintWater(parts)
     }
-    for (const list of this._cascades.values()) {
-      for (const cascade of list) this._drawCascade(cascade)
-    }
+    for (const sheet of this._sheets) this._paintSheet(sheet)
     this._updateWaves()
   }
 
-  /**
-   * Slow brightness waves running down the runoff sheet: a few soft stacked
-   * bands, at the same speed (px/s) on every column.
-   */
-  private _drawCascade(cascade: Cascade) {
-    const { g, dir } = cascade
+  /** The water surface of a cell: its swell and crest/trough shading. */
+  private _paintWater(parts: CellParts) {
+    const at = parts.swellAt
+    if (!at) return
     const t = this._time / 1000
-    const [pa, pb] = edgeOf(dir)
-    g.clear()
-    const bottom = this._undersideBottom + FALL_TAIL
-    const loop = Math.max(1, bottom - this._wavesTop)
-    const sheet = [
-      pa.x,
-      pa.y,
-      pb.x,
-      pb.y,
-      pb.x,
-      bottom - g.y,
-      pa.x,
-      bottom - g.y,
-    ]
-    for (let n = 0; n * WAVE_PERIOD < loop; n++) {
-      const y = (t * WAVE_SPEED + n * WAVE_PERIOD) % loop
-      const fade = 1 - y / loop
-      const centre = this._wavesTop + y - g.y
-      for (const [half, alpha] of [
-        [70, 0.025],
-        [38, 0.03],
-        [14, 0.035],
-      ]) {
-        const poly = clipBand(sheet, centre - half, centre + half)
-        if (poly.length >= 6)
-          g.poly(poly).fill({ color: 0xffffff, alpha: alpha * fade })
+    const w = parts.waterG
+    w.clear()
+    const n = MESH
+    const pt: number[][][] = []
+    const hs: number[][] = []
+    for (let i = 0; i <= n; i++) {
+      pt.push([])
+      hs.push([])
+      for (let j = 0; j <= n; j++) {
+        const ox = -0.5 + i / n
+        const oy = -0.5 + j / n
+        const h = swell(at.x + ox, at.y + oy, t)
+        const p = project(ox, oy)
+        pt[i].push([p.x, p.y - h * SWELL])
+        hs[i].push(h)
       }
+    }
+    const ring: number[][] = []
+    for (let i = 0; i < n; i++) ring.push(pt[i][0])
+    for (let j = 0; j < n; j++) ring.push(pt[n][j])
+    for (let i = n; i > 0; i--) ring.push(pt[i][n])
+    for (let j = n; j > 0; j--) ring.push(pt[0][j])
+    w.poly(ring.flat()).fill(at.color)
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < n; j++) {
+        const s =
+          (hs[i][j] + hs[i + 1][j] + hs[i][j + 1] + hs[i + 1][j + 1]) / 4
+        if (Math.abs(s) < 0.12) continue
+        const color =
+          s > 0
+            ? mix(at.color, 0xffffff, 0.2 * s)
+            : mix(at.color, WATER.deep, -0.5 * s)
+        w.poly([
+          ...pt[i][j],
+          ...pt[i + 1][j],
+          ...pt[i + 1][j + 1],
+          ...pt[i][j + 1],
+        ]).fill(color)
+      }
+    }
+  }
+
+  /**
+   * One runoff sheet: its top follows the swell of the surface, its sides
+   * sway a little, and slanted crests of light run down it at a constant
+   * speed. Flat strips (no texture), the fade is in their alpha.
+   */
+  private _paintSheet(sheet: Sheet) {
+    const { g, lead, tail, glead, gtail } = sheet
+    const t = this._time / 1000
+    g.clear()
+    const len = Math.hypot(gtail.x - glead.x, gtail.y - glead.y)
+    const m = Math.max(2, Math.ceil(len * MESH))
+    const top: number[][] = []
+    for (let i = 0; i <= m; i++) {
+      const u = i / m
+      const h = swell(
+        glead.x + (gtail.x - glead.x) * u,
+        glead.y + (gtail.y - glead.y) * u,
+        t,
+      )
+      top.push([
+        lead.x + (tail.x - lead.x) * u,
+        lead.y + (tail.y - lead.y) * u - h * SWELL,
+      ])
+    }
+    const sway = (x: number, y: number) =>
+      1.2 * Math.sin(y / 70 - t * 1.1 + x / 40)
+    const { bottom, solidY, top: y0 } = sheet
+    const swayL = sway(lead.x, (y0 + bottom) / 2)
+    const swayR = sway(tail.x, (y0 + bottom) / 2)
+    const poly = [
+      ...top.flatMap(([x, y], i) => [x + swayL + ((swayR - swayL) * i) / m, y]),
+      tail.x + swayR,
+      bottom,
+      lead.x + swayL,
+      bottom,
+    ]
+    const f = (x: number, y: number) => y - CREST_TILT * x
+    let vmin = Infinity
+    let vmax = -Infinity
+    for (let i = 0; i < poly.length; i += 2) {
+      vmin = Math.min(vmin, f(poly[i], poly[i + 1]))
+      vmax = Math.max(vmax, f(poly[i], poly[i + 1]))
+    }
+    const xm = (lead.x + tail.x) / 2
+    for (let v0 = vmin; v0 < vmax; v0 += FALL_BAND) {
+      const v1 = Math.min(vmax, v0 + FALL_BAND)
+      const strip = clipSlab(poly, CREST_TILT, v0, v1)
+      if (strip.length < 6) continue
+      const v = (v0 + v1) / 2
+      const y = v + CREST_TILT * xm
+      const alpha =
+        y < solidY
+          ? 0.3 - (0.06 * (y - y0)) / Math.max(1, solidY - y0)
+          : 0.24 * (1 - (y - solidY) / Math.max(1, bottom - solidY))
+      const s = Math.sin(((v - WAVE_SPEED * t) * 2 * Math.PI) / WAVE_LENGTH)
+      const color =
+        s > 0
+          ? mix(sheet.lighter, 0xffffff, 0.35 * s)
+          : mix(sheet.lighter, sheet.tone, -0.5 * s)
+      g.poly(strip).fill({ color, alpha: Math.max(0, alpha) * (1 + 0.3 * s) })
     }
   }
 
   /** Lowest screen y of the underside blocks (past it the fall fades). */
   private _undersideBottom = 0
-  /** Highest screen y of the runoff sheets (where the waves start). */
-  private _wavesTop = 0
+  /** Runoff sheets of the island, painted at each tick. */
+  private _sheets: Sheet[] = []
 
   /** Waterfalls of the island (one per water cell side on the edge). */
   get cascades(): readonly Cascade[] {
@@ -415,6 +504,7 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
    */
   private _drawWalls() {
     this._walls?.destroy({ children: true })
+    this._sheets = []
     const root = new Container()
     root.label = "aux"
     const gf = new Container()
@@ -422,17 +512,32 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     let z = 0
     const faceOf = (cell: Point) => {
       const base = toScreen(cell)
-      return this._edgeFaces(cell).map((f) => ({
-        ...f,
-        p: { x: base.x + f.a.x, y: base.y + f.a.y },
-        q: { x: base.x + f.b.x, y: base.y + f.b.y },
-      }))
+      return this._edgeFaces(cell).map((f) => {
+        const { dir } = f
+        const ends = [
+          { x: cell.x + (dir.x - dir.y) / 2, y: cell.y + (dir.y + dir.x) / 2 },
+          { x: cell.x + (dir.x + dir.y) / 2, y: cell.y + (dir.y - dir.x) / 2 },
+        ]
+        const [ga, gb] =
+          project(ends[0].x, ends[0].y).x <= project(ends[1].x, ends[1].y).x
+            ? ends
+            : [ends[1], ends[0]]
+        return {
+          ...f,
+          p: { x: base.x + f.a.x, y: base.y + f.a.y },
+          q: { x: base.x + f.b.x, y: base.y + f.b.y },
+          ga,
+          gb,
+        }
+      })
     }
     // every water face on the island edge, with its tint (depth of its cell)
     interface Run {
       dir: Point
       lead: Point
       tail: Point
+      glead: Point
+      gtail: Point
       color: number
       depth: number
     }
@@ -441,11 +546,13 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       z = Math.max(z, depthOf(cell, DEPTH.fighter + 1))
       if (cell.terrain !== "water") continue
       const { color } = waterTint(-cell.elevation)
-      for (const { p, q, light, dir } of faceOf(cell)) {
+      for (const { p, q, light, dir, ga, gb } of faceOf(cell)) {
         runs.push({
           dir,
           lead: p.x <= q.x ? p : q,
           tail: p.x <= q.x ? q : p,
+          glead: ga,
+          gtail: gb,
           color: shade(color, light < 1 ? 0.85 : 1),
           depth: -cell.elevation,
         })
@@ -460,21 +567,17 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       let m = merged.find((o) => same(o.dir, r.dir) && near(o.tail, r.lead))
       if (m) {
         m.tail = r.tail
+        m.gtail = r.gtail
         continue
       }
       m = { ...r }
       merged.push(m)
     }
-    this._wavesTop = Math.min(
-      0,
-      ...merged.map((r) => Math.min(r.lead.y, r.tail.y)),
-    )
     for (const r of merged) {
-      const { lead, tail, color: tone } = r
+      const { lead, tail, glead, gtail, color: tone } = r
       // one straight sheet per run: from the water surface edge, over the
       // bed column, the island side and the underside, down to past the
       // lowest block, fading out over its last part
-      const lighter = mix(tone, 0x4fb0ff, 0.55)
       const bottom = this._undersideBottom + FALL_TAIL
       const top = Math.min(lead.y, tail.y)
       // fade starts a quarter of the way down: light, mostly see-through
@@ -482,31 +585,21 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
         0.25,
         (this._undersideBottom - top) / (bottom - top),
       )
-      // the fade as stacked flat bands (no gradient texture: it would be
-      // resampled, banded and leaked at every zoom and redraw)
-      const fg = new Graphics()
-      const sheet = [
-        lead.x,
-        lead.y,
-        tail.x,
-        tail.y,
-        tail.x,
+      const sheet: Sheet = {
+        g: new Graphics(),
+        lead,
+        tail,
+        glead,
+        gtail,
+        tone,
+        lighter: mix(tone, 0x4fb0ff, 0.55),
+        top,
         bottom,
-        lead.x,
-        bottom,
-      ]
-      const solidY = top + solid * (bottom - top)
-      const alphaAt = (y: number) =>
-        y < solidY
-          ? 0.3 - (0.06 * (y - top)) / Math.max(1, solidY - top)
-          : 0.24 * (1 - (y - solidY) / Math.max(1, bottom - solidY))
-      for (let y0 = top; y0 < bottom - 0.5; y0 += FALL_BAND) {
-        const y1 = Math.min(bottom, y0 + FALL_BAND)
-        const poly = clipBand(sheet, y0, y1)
-        if (poly.length < 6) continue
-        fg.poly(poly).fill({ color: lighter, alpha: alphaAt((y0 + y1) / 2) })
+        solidY: top + solid * (bottom - top),
       }
-      gf.addChild(fg)
+      this._paintSheet(sheet)
+      this._sheets.push(sheet)
+      gf.addChild(sheet.g)
     }
     root.zIndex = z
     this._entities.addChild(root)
@@ -730,8 +823,6 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
         parts.water.y = parts.column.y
         if (parts.overlay.parent !== parts.column)
           parts.overlay.y = parts.column.y
-        for (const fall of this._cascades.get(key) ?? [])
-          fall.g.y = parts.column.y
       }
     }
     this._offsets = offsets
@@ -757,6 +848,7 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     for (const node of parts.transient) node.destroy({ children: true })
     parts.transient = []
     parts.animated = []
+    parts.swellAt = null
     this._cascades.delete(keyOf(cell))
     g.clear()
     column.addChild(g)
@@ -884,16 +976,6 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
           a.y + y1,
         ]).fill(shade(color, light))
       }
-      // pebbles in the strata
-      const dark = shown.find((f) => f.light < 1)
-      if (dark) {
-        const p = lerp(dark.a, dark.b, 0.25)
-        // (a few pixels: a square is as good as a circle, and far cheaper)
-        g.rect(p.x - 1.2, p.y + y0 + step * 0.45 - 1.2, 2.4, 2.4).fill({
-          color: 0x000000,
-          alpha: 0.18,
-        })
-      }
     }
     const f = frontCorner()
     g.moveTo(f.x, f.y + topY)
@@ -920,31 +1002,16 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
         0.85 + cellNoise(cell, this._seed, 3) * 0.2,
       ),
     )
-    const w = parts.waterG
     const length = COLUMN_BOTTOM + this._depths[cell.y][cell.x] * BLOCK_HEIGHT
     const falls: Cascade[] = []
     const column = parts.column
     for (const { dir } of this._edgeFaces(cell)) {
-      const fall: Cascade = { g: new Graphics(), dir, length }
-      falls.push(fall)
-      fall.g.position.set(column.x, column.y)
-      fall.g.zIndex = depthOf(cell, DEPTH.column + 0.8)
-      fall.g.label = "aux"
-      this._entities.addChild(fall.g)
-      parts.transient.push(fall.g)
-      this._drawCascade(fall)
+      falls.push({ dir, length })
     }
     this._cascades.set(keyOf(cell), falls)
-    w.poly(diamond()).fill(body)
-
-    if (!parts.shimmer) {
-      // a soft light that a slow wave lifts (see _onTick)
-      const shimmer = new Graphics()
-      shimmer.poly(diamond()).fill(0xffffff)
-      shimmer.alpha = 0
-      parts.shimmer = shimmer
-    }
-    parts.water.addChild(parts.shimmer)
+    // the surface swells with a slow wave (see _paintWater)
+    parts.swellAt = { x: cell.x, y: cell.y, color: body }
+    this._paintWater(parts)
     parts.water.position.set(column.x, column.y)
     this._bandFor(cell).addChild(parts.water)
   }
@@ -955,11 +1022,9 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       ...(parts.decor ?? []).map((d) => d.node),
       ...[...parts.vines.values()].flat().map((d) => d.node),
     ]
-    if (parts.shimmer) nodes.push(parts.shimmer)
     for (const node of nodes) node.destroy({ children: true })
     parts.decor = null
     parts.vines.clear()
-    parts.shimmer = null
   }
 
   /** Puts the decor of a cell where the camera sees its spots. */
@@ -1113,24 +1178,25 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
 }
 
 /** Part of a convex polygon (flat x, y list) between two heights. */
-function clipBand(poly: number[], y0: number, y1: number): number[] {
-  const clip = (pts: number[][], keep: (y: number) => boolean, at: number) => {
+function clipSlab(poly: number[], tilt: number, v0: number, v1: number) {
+  const f = (p: number[]) => p[1] - tilt * p[0]
+  const clip = (pts: number[][], keep: (v: number) => boolean, at: number) => {
     const out: number[][] = []
     for (let i = 0; i < pts.length; i++) {
       const a = pts[i]
       const b = pts[(i + 1) % pts.length]
-      if (keep(a[1])) out.push(a)
-      if (keep(a[1]) !== keep(b[1])) {
-        const k = (at - a[1]) / (b[1] - a[1])
-        out.push([a[0] + (b[0] - a[0]) * k, at])
+      if (keep(f(a))) out.push(a)
+      if (keep(f(a)) !== keep(f(b))) {
+        const k = (at - f(a)) / (f(b) - f(a))
+        out.push([a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k])
       }
     }
     return out
   }
   let pts: number[][] = []
   for (let i = 0; i < poly.length; i += 2) pts.push([poly[i], poly[i + 1]])
-  pts = clip(pts, (y) => y >= y0, y0)
-  pts = clip(pts, (y) => y <= y1, y1)
+  pts = clip(pts, (v) => v >= v0, v0)
+  pts = clip(pts, (v) => v <= v1, v1)
   return pts.flat()
 }
 
