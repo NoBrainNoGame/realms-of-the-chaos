@@ -327,7 +327,7 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     for (let d = 0; d < 5; d++) {
       const u = (t / 1.4 + d / 5) % 1
       const p = lerp(pa, pb, (d * 0.37 + 0.12) % 1)
-      g.circle(p.x, p.y + h * 0.9 + u * (h * 1.1 + 20), 1.9 - u * 0.6).fill({
+      g.circle(p.x, p.y + h + 2 + u * (h * 1.1 + 20), 1.9 - u * 0.6).fill({
         color: 0xa9d6ff,
         alpha: 0.95 * (1 - u) ** 0.7,
       })
@@ -431,8 +431,6 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     const same = (a: Point, b: Point) => a.x === b.x && a.y === b.y
     runs.sort((a, b) => a.lead.x - b.lead.x)
     const merged: Run[] = []
-    const openLead = new Set<Run>()
-    const openTail = new Set<Run>()
     for (const r of runs) {
       let m = merged.find((o) => same(o.dir, r.dir) && near(o.tail, r.lead))
       if (m && m.color === r.color) {
@@ -443,18 +441,7 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       merged.push(m)
     }
     for (const r of merged) {
-      // a run ends softly unless another run of the same side continues it
-      const joinedLead = merged.some(
-        (o) => o !== r && same(o.dir, r.dir) && near(o.tail, r.lead),
-      )
-      const joinedTail = merged.some(
-        (o) => o !== r && same(o.dir, r.dir) && near(o.lead, r.tail),
-      )
-      if (!joinedLead) openLead.add(r)
-      if (!joinedTail) openTail.add(r)
-    }
-    for (const r of merged) {
-      const { lead, tail, color: tone } = r
+      const { lead, tail, color: tone, depth } = r
       const e = { x: tail.x - lead.x, y: tail.y - lead.y }
       const len = Math.max(1, Math.abs(e.x))
       const x0 = -0.5 / len
@@ -463,20 +450,21 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
         lead.x + e.x * u,
         lead.y + e.y * u + y,
       ]
-      // the wall: one polygon, its bottom on the straight line of the edge
-      const wall = h + 2
+      // the wall: from the surface down to the bed of the cell only (the
+      // dirt of the bed column shows under it, then the fall starts at the
+      // bottom of the column)
+      const wall = Math.min(h, depth * levelHeight())
       g.poly([
         ...at(x0, 0),
         ...at(x1, 0),
         ...at(x1, wall),
         ...at(x0, wall),
       ]).fill(tone)
-      // the fall: lighter water as gradient sheets (clear at the top so no
-      // seam with the wall, fading downwards), skewed along the edge; a few
-      // stacked layers taper differently so that open ends soften
+      // the fall: a straight sheet under the edge run, as wide as the run,
+      // lighter blue fading out downwards
       const lighter = mix(tone, 0x7fc4ff, 0.55)
       const rgb = `${(lighter >> 16) & 255},${(lighter >> 8) & 255},${lighter & 255}`
-      const lead0 = 12
+      const lead0 = 6
       const total = lead0 + fade
       const pk = lead0 / total
       const grad = new FillGradient({
@@ -486,32 +474,19 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
         textureSpace: "local",
         colorStops: [0, 1, 2, 3, 4, 5, 6].map((i) => {
           const k = i / 6
-          const a = i === 0 ? 0 : 0.36 * (1 - k) ** 1.2
+          const a = i === 0 ? 0 : 0.45 * (1 - k) ** 1.2
           return {
             offset: i === 0 ? 0 : pk + (1 - pk) * k,
             color: `rgba(${rgb},${a})`,
           }
         }),
       })
-      for (const slope of [0.3, 0.5, 0.75, 1.05]) {
-        const ins = (v: number, open: boolean) => (open ? v * slope : 0)
-        const fg = new Graphics()
-        const w = len + 1
-        fg.poly([
-          -0.5,
-          0,
-          w,
-          0,
-          w - ins(total, openTail.has(r)),
-          total,
-          -0.5 + ins(total, openLead.has(r)),
-          total,
-        ]).fill(grad)
-        fg.setFromMatrix(
-          new Matrix(1, e.y / e.x, 0, 1, lead.x, lead.y + wall - lead0),
-        )
-        gf.addChild(fg)
-      }
+      const fg = new Graphics()
+      fg.poly([0, 0, len, 0, len, total, 0, total]).fill(grad)
+      fg.setFromMatrix(
+        new Matrix(1, e.y / e.x, 0, 1, lead.x, lead.y + h - lead0),
+      )
+      gf.addChild(fg)
     }
     root.zIndex = z
     this._entities.addChild(root)
@@ -840,11 +815,30 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       return n ? -n.elevation * level + HIDDEN_MARGIN : Number.POSITIVE_INFINITY
     })
     if (underwater) {
-      // a submerged bed: its sides once, in one colour (no rims or strata
-      // under the water), no outline
-      faces.forEach(({ a, b, light }, i) => {
+      // a submerged bed: interior sides once, in one colour (no rims or
+      // strata under the water); the sides on the island edge are below the
+      // water wall and look like any land column (strata)
+      faces.forEach(({ a, b, light, dir }, i) => {
         const y1 = Math.min(bottom, cover[i])
         if (y1 <= topY + 0.01) return
+        if (!this._board.inBounds(add(cell, dir))) {
+          let band = 0
+          for (let y0 = topY; y0 < y1 - 0.01; y0 += step, band++) {
+            const yb = Math.min(y1, y0 + step)
+            const color = STRATA[Math.min(band, STRATA.length - 1)]
+            g.poly([
+              a.x,
+              a.y + y0,
+              b.x,
+              b.y + y0,
+              b.x,
+              b.y + yb,
+              a.x,
+              a.y + yb,
+            ]).fill(shade(color, light))
+          }
+          return
+        }
         g.poly([
           a.x,
           a.y + topY,
