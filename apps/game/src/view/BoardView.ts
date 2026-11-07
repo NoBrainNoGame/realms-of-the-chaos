@@ -550,8 +550,6 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
             : { width: 1.5, color: 0xffffff, alpha: 0.18 },
         )
       }
-      this._placeVines(cell, groundY, parts)
-      this._drawGrain(g, cell, groundY)
     }
     this._placeDecor(cell, groundY, parts)
 
@@ -772,59 +770,6 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     }
   }
 
-  /** Vines and moss hanging from the visible front edges of the island. */
-  private _placeVines(cell: Cell, topY: number, parts: CellParts) {
-    for (const { dir, a, b } of this._edgeFaces(cell)) {
-      // same strands on the same side, whatever the camera
-      const side = dir.x + 2 * dir.y
-      let strands = parts.vines.get(side)
-      if (!strands) {
-        strands = this._drawVines(cell, side)
-        parts.vines.set(side, strands)
-      }
-      for (const { at, node } of strands) {
-        const start = lerp(a, b, at.x)
-        node.position.set(start.x, topY + start.y + 3)
-        parts.column.addChild(node)
-      }
-    }
-  }
-
-  /** The strands of one side, each hanging from (0, 0). */
-  private _drawVines(cell: Cell, side: number): DecorItem[] {
-    const rand = (salt: number) => cellNoise(cell, this._seed, salt)
-    const items: DecorItem[] = []
-    const strands = 1 + Math.floor(rand(300 + side) * 3)
-    for (let i = 0; i < strands; i++) {
-      // where on the top edge of that face (along it)
-      const t = 0.15 + rand(310 + i * 7 + side) * 0.7
-      const g = new Graphics()
-      let x = 0
-      let y = 0
-      const length = 10 + rand(320 + i * 7 + side) * 22
-      const sway = (rand(330 + i * 7 + side) - 0.5) * 4
-      g.moveTo(x, y)
-      const points: [number, number][] = []
-      for (let k = 1; k <= 4; k++) {
-        const nx = x + Math.sin(k * 1.3 + sway) * 1.5
-        const ny = y + length / 4
-        g.quadraticCurveTo((x + nx) / 2 + sway * 0.3, (y + ny) / 2, nx, ny)
-        points.push([nx, ny])
-        x = nx
-        y = ny
-      }
-      g.stroke({ width: 1.3, color: tinted(0x2b5d1f), alpha: 0.95 })
-      points.forEach(([px, py], k) => {
-        const dir = k % 2 === 0 ? 1 : -1
-        g.ellipse(px + dir * 1.6, py - 2, 1.6, 0.9).fill(
-          k % 2 ? tinted(0x4f8a2f) : tinted(0x3f7a25),
-        )
-      })
-      items.push({ at: { x: t, y: 0 }, node: g })
-    }
-    return items
-  }
-
   /** Detaches and frees the cached decor of a cell (drawn again later). */
   private _forgetDecor(parts: CellParts) {
     const nodes: Container[] = [
@@ -846,22 +791,6 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       item.node.position.set(p.x, topY + p.y)
       parts.column.addChild(item.node)
       if (item.animated) parts.animated.push(item.animated)
-    }
-  }
-
-  /** A light grain on the grass. */
-  private _drawGrain(g: Graphics, cell: Cell, topY: number) {
-    const e = cell.elevation
-    if (e < 0) return
-    const top = GROUND_TOP[e] ?? GROUND_TOP[0]
-    // specks of a pixel or two: squares, in one fill per color
-    for (const odd of [0, 1]) {
-      for (let i = odd; i < 7; i += 2) {
-        const p = this._spot(cell, 200 + i * 2)
-        const at = project(p.x, p.y)
-        g.rect(at.x - 0.7, topY + at.y - 0.7, 1.4, 1.4)
-      }
-      g.fill({ color: shade(top, odd ? 0.72 : 1.28), alpha: 0.5 })
     }
   }
 
@@ -893,146 +822,8 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       return { x: 0, y: 0 }
     }
     const e = cell.elevation
-    const shore = this._board
-      .neighbors(cell)
-      .some((n) => this._board.get(n)?.terrain === "water")
-
-    if (e >= 0) {
-      const top = GROUND_TOP[e] ?? GROUND_TOP[0]
-      const dark = shade(top, 0.72)
-      const light = shade(top, 1.28)
-
-      // tufts of curved blades
-      const tufts = 1 + Math.floor(rand(1) * 3)
-      for (let i = 0; i < tufts; i++) {
-        const p = spot(10 + i * 3)
-        const blades = 4 + Math.floor(rand(20 + i) * 3)
-        for (let b = 0; b < blades; b++) {
-          const dx = (b - (blades - 1) / 2) * 1.2
-          const h = 3 + rand(30 + i * 5 + b) * 3.5
-          const lean = (rand(40 + i * 5 + b) - 0.5) * 4
-          g.moveTo(p.x + dx, p.y)
-            .quadraticCurveTo(
-              p.x + dx + lean * 0.2,
-              p.y - h * 0.6,
-              p.x + dx + lean,
-              p.y - h,
-            )
-            .stroke({ width: 1.1, color: b % 2 ? dark : light })
-        }
-      }
-
-      // little flowers with petals and a stem
-      if (rand(2) < 0.38 && e <= 2) {
-        const colors = [0xf783ac, 0xffe066, 0xffffff, 0xb197fc, 0xff8787]
-        const color = colors[Math.floor(rand(3) * colors.length)]
-        const count = 1 + Math.floor(rand(4) * 3)
-        for (let i = 0; i < count; i++) {
-          const p = spot(50 + i * 3)
-          g.moveTo(p.x, p.y)
-            .lineTo(p.x, p.y - 3)
-            .stroke({ width: 0.8, color: dark })
-          for (let k = 0; k < 5; k++) {
-            const a = (k / 5) * Math.PI * 2
-            g.circle(
-              p.x + Math.cos(a) * 1.2,
-              p.y - 4 + Math.sin(a) * 0.9,
-              0.9,
-            ).fill(color)
-          }
-          g.circle(p.x, p.y - 4, 0.7).fill(0xfab005)
-        }
-      }
-
-      // round bush, sometimes with berries
-      if (rand(5) < 0.14) {
-        const p = spot(90)
-        const leaf = shade(top, 0.8)
-        g.ellipse(p.x, p.y, 6, 2.2).fill({ color: 0x000000, alpha: 0.2 })
-        g.circle(p.x - 2.5, p.y - 3, 3.2).fill(shade(leaf, 0.85))
-        g.circle(p.x + 2.5, p.y - 3, 3.2).fill(shade(leaf, 0.9))
-        g.circle(p.x, p.y - 5, 3.6).fill(leaf)
-        g.circle(p.x - 1, p.y - 6.5, 1.4).fill({ color: 0xffffff, alpha: 0.18 })
-        if (rand(6) < 0.5) {
-          for (const [bx, by] of [
-            [-2, -3],
-            [2, -4],
-            [0, -6],
-          ]) {
-            g.circle(p.x + bx, p.y + by, 0.8).fill(0xe03131)
-          }
-        }
-      }
-
-      // mushrooms
-      if (rand(7) < 0.09 && e <= 1) {
-        const p = spot(60)
-        const cap = rand(8) < 0.5 ? 0xe03131 : 0xa0522d
-        g.roundRect(p.x - 0.9, p.y - 3.5, 1.8, 3.5, 0.6).fill(0xf1f3f5)
-        g.poly([
-          p.x - 3,
-          p.y - 3.2,
-          p.x - 2,
-          p.y - 5.4,
-          p.x,
-          p.y - 6.2,
-          p.x + 2,
-          p.y - 5.4,
-          p.x + 3,
-          p.y - 3.2,
-        ]).fill(cap)
-        g.circle(p.x - 1, p.y - 4.8, 0.5).fill(0xffffff)
-        g.circle(p.x + 1.2, p.y - 4.2, 0.4).fill(0xffffff)
-      }
-
-      // reeds and cattails along the shores
-      if (shore && rand(9) < 0.7) {
-        const p = spot(100)
-        for (let i = 0; i < 3; i++) {
-          const x = p.x + (i - 1) * 1.8
-          const h = 7 + rand(110 + i) * 4
-          g.moveTo(x, p.y)
-            .lineTo(x + (i - 1) * 0.8, p.y - h)
-            .stroke({ width: 1, color: 0x5c940d })
-          if (i !== 1)
-            g.ellipse(x + (i - 1) * 0.8, p.y - h + 1.5, 0.9, 2).fill(0x7f4f24)
-        }
-      }
-    } else {
-      // dry pit: cracked dirt
-      for (let i = 0; i < 2; i++) {
-        const p = spot(120 + i * 3)
-        g.moveTo(p.x - 4, p.y)
-          .lineTo(p.x - 1, p.y - 1)
-          .lineTo(p.x + 1, p.y + 1)
-          .lineTo(p.x + 4, p.y)
-          .stroke({ width: 1, color: 0x000000, alpha: 0.3 })
-      }
-    }
-
-    // pebbles
-    if (rand(11) < (e < 0 ? 0.7 : 0.3)) {
-      const count = 1 + Math.floor(rand(12) * 2)
-      for (let i = 0; i < count; i++) {
-        const p = spot(70 + i * 3)
-        const size = e >= 2 ? 3.2 : 1.8 + rand(13 + i)
-        g.ellipse(p.x, p.y + 0.5, size, size * 0.45).fill({
-          color: 0x000000,
-          alpha: 0.2,
-        })
-        g.ellipse(p.x, p.y, size, size * 0.6).fill(0x868e96)
-        g.ellipse(
-          p.x - size * 0.3,
-          p.y - size * 0.25,
-          size * 0.4,
-          size * 0.25,
-        ).fill({
-          color: 0xffffff,
-          alpha: 0.4,
-        })
-      }
-    }
-
+    // (smooth tiles: no grass, flowers, bushes, mushrooms, reeds or pebbles;
+    // only the chaos crystals of the lore stand on the ground)
     if (e >= 2 && rand(14) < (e === 3 ? 0.45 : 0.15)) {
       // chaos crystal (lore: fragments of the shattered worlds)
       const p = spot(80)
