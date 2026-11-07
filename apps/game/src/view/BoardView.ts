@@ -11,7 +11,6 @@ import {
   AlphaFilter,
   Container,
   type FederatedPointerEvent,
-  FillGradient,
   Graphics,
   Polygon,
   Sprite,
@@ -193,8 +192,6 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
   private _underside: Container | null = null
   /** One translucent group of water per row of cells (see _bandFor). */
   private _bands = new Map<number, Container>()
-  /** The waterfalls' fading foot, one shape per run of cells. */
-  private _falls: Graphics | null = null
   /** The front walls of the lakes (one translucent group). */
   private _walls: Container | null = null
 
@@ -271,7 +268,6 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       band.destroy()
       this._bands.delete(key)
     }
-    this._drawFalls()
     this._drawWalls()
   }
 
@@ -321,16 +317,17 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
    */
   private _drawCascade(cascade: Cascade) {
     const { g, dir } = cascade
-    const length = cascade.length * verticalScale()
     const t = this._time / 1000
     const [pa, pb] = edgeOf(dir)
     g.clear()
-    for (let d = 0; d < 3; d++) {
-      const u = (t / 1.1 + d / 3) % 1
-      const p = lerp(pa, pb, (d * 0.31 + 0.2) % 1)
-      g.circle(p.x, p.y + length + u * 30, 1.1).fill({
+    // drops breaking off the fall and dropping under the island
+    const h = COLUMN_BOTTOM * verticalScale()
+    for (let d = 0; d < 5; d++) {
+      const u = (t / 1.4 + d / 5) % 1
+      const p = lerp(pa, pb, (d * 0.37 + 0.12) % 1)
+      g.circle(p.x, p.y + h * 0.9 + u * (h * 1.1 + 20), 1.9 - u * 0.6).fill({
         color: 0xa9d6ff,
-        alpha: 0.7 * (1 - u),
+        alpha: 0.95 * (1 - u) ** 0.7,
       })
     }
   }
@@ -347,7 +344,6 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     }
     this._hitLayer.destroy({ children: true })
     this._underside?.destroy({ children: true })
-    this._falls?.destroy()
     this._walls?.destroy({ children: true })
     for (const band of this._bands.values()) band.destroy({ children: true })
     this._bands.clear()
@@ -371,15 +367,15 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       this._forgetDecor(this._parts.get(keyOf(cell))!)
       this._drawCell(cell)
     }
-    this._drawFalls()
     this._drawWalls()
   }
 
   /**
-   * The front walls of the lakes: opaque quads (a cell slightly wider than
-   * itself) in one group of their own, translucent as a whole and sorted
-   * after every column; the wall fades out at the bottom of the terrain
-   * column along a gradient parallel to its edge (no stair-step line).
+   * The front walls of the lakes and the waterfalls under them: opaque
+   * shapes in one group of their own (translucent as a whole, sorted after
+   * every column). The wall runs along the island edge down to the bottom
+   * of the terrain column, then the fall goes on over the underside in
+   * thin rows (lighter blue, fading out, narrowing at the ends of a run).
    */
   private _drawWalls() {
     this._walls?.destroy({ children: true })
@@ -389,124 +385,84 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     const g = new Graphics()
     group.addChild(g)
     const h = COLUMN_BOTTOM * verticalScale()
+    const fade = h * 1.25
+    const row = 2
     let z = 0
+    const faceOf = (cell: Point) => {
+      const base = toScreen(cell)
+      return this._edgeFaces(cell).map((f) => ({
+        ...f,
+        p: { x: base.x + f.a.x, y: base.y + f.a.y },
+        q: { x: base.x + f.b.x, y: base.y + f.b.y },
+      }))
+    }
+    const joined = (cell: Cell, dir: Point, end: { x: number; y: number }) => {
+      for (const t of [
+        { x: dir.y, y: dir.x },
+        { x: -dir.y, y: -dir.x },
+      ]) {
+        const n = this._board.get(add(cell, t))
+        if (n?.terrain !== "water") continue
+        for (const f of faceOf(n))
+          if (f.dir.x === dir.x && f.dir.y === dir.y)
+            for (const o of [f.p, f.q])
+              if (Math.hypot(o.x - end.x, o.y - end.y) < 1.5) return true
+      }
+      return false
+    }
     for (const cell of this._board.cells) {
       z = Math.max(z, depthOf(cell, DEPTH.fighter + 1))
       if (cell.terrain !== "water") continue
       const { color } = waterTint(-cell.elevation)
-      const base = toScreen(cell)
-      for (const { a, b, light } of this._edgeFaces(cell)) {
-        const p = { x: base.x + a.x, y: base.y + a.y }
-        const q = { x: base.x + b.x, y: base.y + b.y }
-        const e = { x: q.x - p.x, y: q.y - p.y }
-        const len = Math.hypot(e.x, e.y)
-        // normal of the edge, pointing down
-        let n = { x: -e.y / len, y: e.x / len }
-        if (n.y < 0) n = { x: -n.x, y: -n.y }
-        const perp = h * n.y
-        const c = shade(color, light < 1 ? 0.85 : 1)
-        const rgb = `${(c >> 16) & 255},${(c >> 8) & 255},${c & 255}`
-        const fade = new FillGradient({
-          type: "linear",
-          start: p,
-          end: { x: p.x + n.x * perp, y: p.y + n.y * perp },
-          colorStops: [
-            { offset: 0, color: `rgba(${rgb},1)` },
-            { offset: 0.8, color: `rgba(${rgb},1)` },
-            { offset: 1, color: `rgba(${rgb},0)` },
-          ],
-          textureSpace: "global",
-        })
+      for (const { p, q, light, dir } of faceOf(cell)) {
+        const tone = shade(color, light < 1 ? 0.85 : 1)
+        const lead = p.x <= q.x ? p : q
+        const tail = p.x <= q.x ? q : p
+        const e = { x: tail.x - lead.x, y: tail.y - lead.y }
+        // the wall, a hair below the column's bottom (hides its stair-step)
+        const wall = h + 2
         g.poly([
-          p.x - 0.5,
-          p.y,
-          q.x + 0.5,
-          q.y,
-          q.x + 0.5,
-          q.y + h,
-          p.x - 0.5,
-          p.y + h,
-        ]).fill(fade)
+          lead.x - 0.5,
+          lead.y,
+          tail.x + 0.5,
+          tail.y,
+          tail.x + 0.5,
+          tail.y + wall,
+          lead.x - 0.5,
+          lead.y + wall,
+        ]).fill(tone)
+        // the fall: lighter water, thinner and fainter row after row
+        const open = {
+          lead: !joined(cell, dir, lead),
+          tail: !joined(cell, dir, tail),
+        }
+        const lighter = mix(tone, 0xcfe9ff, 0.35)
+        for (let t = 0; t < fade; t += row) {
+          const k = t / fade
+          const alpha = 0.92 * (1 - k) ** 1.4
+          if (alpha < 0.02) break
+          const inset = (t * 0.7) / Math.max(1, Math.abs(e.x)) // 0..1 of run
+          const u0 = open.lead ? inset : 0
+          const u1 = 1 - (open.tail ? inset : 0)
+          if (u1 <= u0) break
+          const y0 = wall + t - 2
+          const y1 = y0 + row + 2
+          const at = (u: number, y: number) => [
+            lead.x + e.x * u,
+            lead.y + e.y * u + y,
+          ]
+          g.poly([
+            ...at(u0 === 0 ? -0.5 / Math.abs(e.x) : u0, y0),
+            ...at(u1 === 1 ? 1 + 0.5 / Math.abs(e.x) : u1, y0),
+            ...at(u1 === 1 ? 1 + 0.5 / Math.abs(e.x) : u1, y1),
+            ...at(u0 === 0 ? -0.5 / Math.abs(e.x) : u0, y1),
+          ]).fill({ color: lighter, alpha })
+        }
       }
     }
     group.zIndex = z
     this._entities.addChild(group)
     this._walls = group
-  }
-
-  /**
-   * The foot of the waterfalls, below the terrain columns and in front of
-   * the underside: one shape per run of neighbouring falls, one gradient
-   * across the whole run (lighter water fading out, no step).
-   */
-  private _drawFalls() {
-    this._falls?.destroy()
-    const g = new Graphics()
-    g.zIndex = UNDERSIDE_Z + 1
-    g.label = "aux"
-    const top = COLUMN_BOTTOM * verticalScale()
-    interface Seg {
-      l: { x: number; y: number }
-      r: { x: number; y: number }
-      length: number
-    }
-    const bySide = new Map<string, Seg[]>()
-    for (const cell of this._board.cells) {
-      if (cell.terrain !== "water") continue
-      const base = toScreen(cell)
-      const length = COLUMN_BOTTOM + this._depths[cell.y][cell.x] * BLOCK_HEIGHT
-      for (const { a, b, dir } of this._edgeFaces(cell)) {
-        const p = { x: base.x + a.x, y: base.y + a.y }
-        const q = { x: base.x + b.x, y: base.y + b.y }
-        const key = `${dir.x},${dir.y}`
-        const list = bySide.get(key) ?? []
-        list.push(p.x <= q.x ? { l: p, r: q, length } : { l: q, r: p, length })
-        bySide.set(key, list)
-      }
-    }
-    for (const list of bySide.values()) {
-      list.sort((m, n) => m.l.x - n.l.x)
-      let run: Seg[] = []
-      const flush = () => {
-        if (run.length === 0) return
-        const l = run[0].l
-        const r = run[run.length - 1].r
-        const length = Math.max(...run.map((s) => s.length)) * verticalScale()
-        const y0 = Math.min(l.y, r.y) + top - 6
-        const y1 = Math.max(l.y, r.y) + length
-        if (y1 > y0 + 1) {
-          const fade = new FillGradient({
-            type: "linear",
-            start: { x: 0, y: y0 },
-            end: { x: 0, y: y1 },
-            colorStops: [
-              { offset: 0, color: "rgba(90,165,245,0.3)" },
-              { offset: 1, color: "rgba(90,165,245,0)" },
-            ],
-            textureSpace: "global",
-          })
-          g.poly([
-            l.x,
-            l.y + top - 6,
-            r.x,
-            r.y + top - 6,
-            r.x,
-            y1,
-            l.x,
-            y1,
-          ]).fill(fade)
-        }
-        run = []
-      }
-      for (const seg of list) {
-        if (run.length && Math.abs(seg.l.x - run[run.length - 1].r.x) > 1)
-          flush()
-        run.push(seg)
-      }
-      flush()
-    }
-    this._entities.addChild(g)
-    this._falls = g
   }
 
   setHighlights(highlights: Highlight[]) {
