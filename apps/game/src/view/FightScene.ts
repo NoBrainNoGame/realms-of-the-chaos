@@ -48,6 +48,14 @@ import BoardView, {
   depthOf,
   type Highlight,
 } from "./BoardView"
+import {
+  CameraRig,
+  FOLLOW_ZOOM,
+  MAX_ZOOM,
+  MIN_ZOOM,
+  TURN_DURATION,
+  turnButton,
+} from "./cameraRig"
 import DecorCrystals from "./DecorCrystals"
 import { describeHp, describeStatus } from "./describe"
 import EnemyElan from "./EnemyElan"
@@ -59,22 +67,15 @@ import { Lens } from "./lens"
 import { facingBetween } from "./Puppet"
 import SettingsScreen from "./SettingsScreen"
 import {
-  type Camera,
   COLORS,
-  camera,
   ELEVATION_HEIGHT,
   ISO,
-  ISO_PITCH,
-  levelHeight,
-  MAX_PITCH,
-  MAX_YAW,
   MEANING,
   resetCamera,
   TEAM_COLORS,
   TILE_HEIGHT,
   TILE_WIDTH,
   toScreen,
-  unproject,
 } from "./theme"
 import { type Segment, tag } from "./ui"
 import ViewChip from "./ViewChip"
@@ -163,13 +164,7 @@ export function combatOptions(options: SceneOptions): CombatOptions {
   }
 }
 
-/** Zoom bounds, relative to the board fitted to the screen. */
-export const MIN_ZOOM = 0.6
-export const MAX_ZOOM = 3
-/** From this zoom, a quarter turn keeps the cell looked at in the middle. */
-export const FOLLOW_ZOOM = 1.25
-/** Length of a quarter turn of the camera (ms). */
-export const TURN_DURATION = 420
+export { FOLLOW_ZOOM, MAX_ZOOM, MIN_ZOOM, TURN_DURATION }
 
 export const DEFAULT_END_ACTIONS: EndAction[] = [
   { id: "restart", label: "Rejouer" },
@@ -281,43 +276,43 @@ export default class FightScene extends ViewChip<SceneEvents> {
   private _sprint: { fighterId: string; steps: number } | null = null
   /** Team of the last local turn (announces turns in local duels). */
   private _lastInputTeam: number | null = null
-  /** Fit-to-screen transform of the board (before the player's zoom). */
-  private _fit = { scale: 1, x: 0, y: 0, width: 1, height: 1 }
-  /** Player's zoom (1 = fit), its eased target, and the screen pan. */
-  private _zoom = { value: 1, target: 1, anchor: { x: 0, y: 0 } }
-  private _pan = { x: 0, y: 0 }
-  /** Tilt and small rotation the camera eases to. */
-  private _aim = { pitch: ISO_PITCH, yaw: 0 }
-  /** Camera last drawn (the board is redrawn when it changes). */
-  private _drawn: Camera = { ...ISO }
-  /** Quarter turn being played (see `_updateTurn`). */
-  private _turn: {
-    dir: 1 | -1
-    /** Quarter reached at the middle of the turn. */
-    to: number
-    elapsed: number
-    yaw: number
-    swapped: boolean
-    /** Zoomed in: the point of the board kept in the middle of the screen. */
-    follow: { x: number; y: number; elevation: number } | null
-  } | null = null
-  /** Right or middle button held on the screen (camera drag). */
   /** Lets an input through (none: everything goes). */
   guard: ((input: SceneInput) => boolean) | null = null
 
   /** The settings open over the fight (null: closed). */
   private _settings: { screen: SettingsScreen; shade: Graphics } | null = null
-  private _drag: {
-    button: number
-    /** On the board (zoomed in): moves the camera; elsewhere: turns it. */
-    kind: "pan" | "turn"
-    x: number
-    y: number
-    pitch: number
-    yaw: number
-    pan: { x: number; y: number }
-    moved: boolean
-  } | null = null
+  private _rig: CameraRig = ((self) =>
+    new CameraRig({
+      get world() {
+        return self._world
+      },
+      get backdrop() {
+        return self._backdrop
+      },
+      get board() {
+        return self.combat.board
+      },
+      allows: () => self.allows({ type: "camera" }),
+      onBoard: () => self._hovered !== null,
+      redraw: () => self._cameraRedraw(),
+      placed: () => self._worldPlaced(),
+    }))(this)
+  private get _fit() {
+    return this._rig.fit
+  }
+  private get _zoom() {
+    return this._rig.zoom
+  }
+  get _pan() {
+    return this._rig.pan
+  }
+  get _drag() {
+    return this._rig.drag
+  }
+  private _clampPan() {
+    this._rig.clampPan()
+  }
+
   /** Curved arrows under the island: quarter turns. */
   private _turnButtons: Container[] = []
   private _shake = { intensity: 0, remaining: 0, duration: 1 }
@@ -649,32 +644,6 @@ export default class FightScene extends ViewChip<SceneEvents> {
 
   // ─── Camera ───────────────────────────────────────────────────────────────
 
-  /** Tilts (degrees, from the classic view to almost top-down) and turns. */
-  aimCamera(pitch: number, yaw: number) {
-    this._aim = {
-      pitch: Math.min(MAX_PITCH, Math.max(ISO_PITCH, pitch)),
-      yaw: Math.min(MAX_YAW, Math.max(-MAX_YAW, yaw)),
-    }
-  }
-
-  /**
-   * Turns the board a quarter (1: clockwise): a small turn out while the
-   * board fades, the quarter, then a small turn back while it comes back.
-   */
-  turnCamera(dir: 1 | -1) {
-    if (this._turn) return
-    const to = (camera.quarter + dir + 4) % 4
-    this._turn = {
-      dir,
-      to,
-      elapsed: 0,
-      yaw: camera.yaw,
-      swapped: false,
-      // close enough, the camera keeps facing the cell it looks at
-      follow: this._zoom.target >= FOLLOW_ZOOM ? this.lookedAt() : null,
-    }
-  }
-
   // ─── Anchors (where things are on the screen, for the tutorial) ──────────
 
   get hud(): Hud {
@@ -717,7 +686,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
   /** Opens the settings over the fight: the board waits, and takes no input. */
   openSettings() {
     if (this._settings) return
-    this._drag = null
+    this._rig.drag = null
     // a shade over the board and the HUD: their clicks stop there
     const shade = new Graphics()
       .rect(0, 0, 1, 1)
@@ -795,125 +764,15 @@ export default class FightScene extends ViewChip<SceneEvents> {
     this._refreshAll()
   }
 
-  /** Back to the classic view (the zoom too). */
-  resetView() {
-    this._aim = { pitch: ISO_PITCH, yaw: 0 }
-    if (camera.quarter !== 0 && !this._turn) {
-      const dir = camera.quarter === 3 ? 1 : -1
-      this._turn = {
-        dir,
-        to: 0,
-        elapsed: 0,
-        yaw: camera.yaw,
-        swapped: false,
-        follow: null,
-      }
-    }
-    this._zoom.target = 1
-    this._zoom.anchor = { x: this._fit.width / 2, y: this._fit.height / 2 }
-  }
-
-  private _onPointerDown(e: PointerEvent) {
-    if (this._settings) return
-    if (e.button !== 1 && e.button !== 2) return
-    // a right click still cancels (on release), the drag moves the camera
-    if (e.button === 1 && !this.allows({ type: "camera" })) return
-    // grabbing the board moves the camera, unless zoomed out to the most
-    const onBoard = this._hovered !== null
-    const zoomedOut = this._zoom.target <= MIN_ZOOM + 1e-3
-    this._drag = {
-      button: e.button,
-      kind: onBoard && !zoomedOut ? "pan" : "turn",
-      x: e.clientX ?? 0,
-      y: e.clientY ?? 0,
-      pitch: this._aim.pitch,
-      yaw: this._aim.yaw,
-      pan: { ...this._pan },
-      moved: false,
-    }
-  }
-
-  private _onPointerMove(e: PointerEvent) {
-    const drag = this._drag
-    if (!drag) return
-    const dx = (e.clientX ?? 0) - drag.x
-    const dy = (e.clientY ?? 0) - drag.y
-    if (!drag.moved && Math.hypot(dx, dy) < 5) return
-    if (!this.allows({ type: "camera" })) return
-    drag.moved = true
-    if (drag.kind === "pan") {
-      this._zoom.target = this._zoom.value
-      // free while held: past the limit, it eases back once let go
-      this._pan = { x: drag.pan.x + dx, y: drag.pan.y + dy }
-      return
-    }
-    // dragging down looks from higher, sideways turns the board a little
-    this.aimCamera(drag.pitch + dy * 0.2, drag.yaw - dx * 0.1)
-  }
-
   private _onPointerUp(e: PointerEvent) {
     if (this._carry && e.button === 0) return this._drop()
-    const drag = this._drag
-    if (!drag || e.button !== drag.button) return
-    this._drag = null
+    const drag = this._rig.pointerUp(e)
+    if (!drag) return
     // a right click without dragging cancels the selection
     if (!drag.moved && drag.button === 2 && this._mode.type !== "move") {
       this._mode = { type: "move" }
       this._refreshAll()
     }
-  }
-
-  private _updateCamera(dt: number) {
-    if (this._turn) this._updateTurn(dt)
-    else {
-      const k = 1 - Math.exp(-dt / 60)
-      for (const key of ["pitch", "yaw"] as const) {
-        const target = this._aim[key]
-        camera[key] += (target - camera[key]) * k
-        if (Math.abs(camera[key] - target) < 0.05) camera[key] = target
-      }
-    }
-    const drawn = this._drawn
-    if (
-      drawn.quarter === camera.quarter &&
-      drawn.pitch === camera.pitch &&
-      drawn.yaw === camera.yaw
-    )
-      return
-    this._drawn = { ...camera }
-    this._board.redraw()
-    for (const view of this._views.values()) view.refreshFacing()
-    this._settleAll()
-    this._refreshOverlay()
-    this._layoutFit()
-  }
-
-  /** Small turn out and fade, the quarter, small turn back and show. */
-  private _updateTurn(dt: number) {
-    const turn = this._turn!
-    turn.elapsed += dt
-    const half = TURN_DURATION / 2
-    const swing = 20 * turn.dir
-    if (!turn.swapped && turn.elapsed >= half) {
-      turn.swapped = true
-      camera.quarter = turn.to
-    }
-    if (turn.elapsed < half) {
-      const u = booyah.easeInCubic(turn.elapsed / half)
-      camera.yaw = turn.yaw + swing * u
-      this._world.alpha = 1 - 0.85 * u
-    } else {
-      const u = booyah.easeOutCubic(Math.min(1, (turn.elapsed - half) / half))
-      camera.yaw = this._aim.yaw - swing * (1 - u)
-      this._world.alpha = 0.15 + 0.85 * u
-    }
-    if (turn.elapsed >= TURN_DURATION) {
-      camera.yaw = this._aim.yaw
-      this._world.alpha = 1
-      this._turn = null
-    }
-    // the distant islands vanish while the quarter changes (they jump)
-    this._backdrop.islandsAlpha = (this._world.alpha - 0.15) / 0.85
   }
 
   protected _onResize(width: number, height: number) {
@@ -952,7 +811,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
     const middle = { x: (w - 1) / 2, y: (h - 1) / 2 }
     const iso = toScreen(middle, 0, ISO)
     const now = toScreen(middle)
-    this._fit = {
+    this._rig.fit = {
       scale,
       x: Math.round(width / 2 - ((left + right) / 2 + now.x - iso.x) * scale),
       y: Math.round(
@@ -965,13 +824,6 @@ export default class FightScene extends ViewChip<SceneEvents> {
     this._placeWorld(0, 0)
   }
 
-  /** Zooms in (positive steps) or out around a screen point. */
-  zoomAt(screen: { x: number; y: number }, steps: number) {
-    const target = this._zoom.target * 1.15 ** steps
-    this._zoom.target = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, target))
-    this._zoom.anchor = { ...screen }
-  }
-
   get zoom() {
     return this._zoom.value
   }
@@ -981,102 +833,11 @@ export default class FightScene extends ViewChip<SceneEvents> {
     return this._lens
   }
 
-  private _onWheel(e: WheelEvent) {
-    e.preventDefault()
-    if (this._settings || !this.allows({ type: "camera" })) return
-    // a trackpad pinch comes as a wheel with ctrl, in small steps
-    const steps = -e.deltaY / (e.ctrlKey ? 25 : 100)
-    this.zoomAt(
-      {
-        x: e.clientX ?? this._fit.width / 2,
-        y: e.clientY ?? this._fit.height / 2,
-      },
-      steps,
-    )
-  }
-
-  /** Eases the zoom to its target, keeping the anchor point still. */
-  private _updateZoom(dt: number) {
-    const zoom = this._zoom
-    if (zoom.value === zoom.target) return
-    const before = this._world.scale.x
-    const { x: ax, y: ay } = zoom.anchor
-    const wx = (ax - this._fit.x - this._pan.x) / before
-    const wy = (ay - this._fit.y - this._pan.y) / before
-    const k = 1 - Math.exp(-dt / 70)
-    zoom.value += (zoom.target - zoom.value) * k
-    if (Math.abs(zoom.value - zoom.target) < 0.002) zoom.value = zoom.target
-    const after = this._fit.scale * zoom.value
-    this._pan.x = ax - wx * after - this._fit.x
-    this._pan.y = ay - wy * after - this._fit.y
-    this._clampPan()
-  }
-
-  /**
-   * The point of the board seen in the middle of the screen: on the ground
-   * of the cell there (its elevation), on the board's edge if outside.
-   */
-  lookedAt(): { x: number; y: number; elevation: number } {
-    const scale = this._fit.scale * this._zoom.value
-    const sx = (this._fit.width / 2 - this._fit.x - this._pan.x) / scale
-    const sy = (this._fit.height / 2 - this._fit.y - this._pan.y) / scale
-    const board = this.combat.board
-    let elevation = 0
-    let p = unproject(sx, sy)
-    // the ground stands at its cell's height: a few steps settle it
-    for (let i = 0; i < 4; i++) {
-      p = unproject(sx, sy + elevation * levelHeight())
-      p = {
-        x: Math.min(board.width - 0.5, Math.max(-0.5, p.x)),
-        y: Math.min(board.height - 0.5, Math.max(-0.5, p.y)),
-      }
-      const cell = board.get({ x: Math.round(p.x), y: Math.round(p.y) })
-      elevation = cell ? cell.elevation : 0
-    }
-    return { ...p, elevation }
-  }
-
-  /** Moves the camera so a point of the board is in the middle. */
-  private _keepInMiddle(p: { x: number; y: number; elevation: number }) {
-    const scale = this._fit.scale * this._zoom.value
-    const o = toScreen(p, p.elevation)
-    this._pan.x = this._fit.width / 2 - this._fit.x - o.x * scale
-    this._pan.y = this._fit.height / 2 - this._fit.y - o.y * scale
-    this._clampPan()
-  }
-
-  /** Let go past the limit: the board eases back to it. */
-  private _settlePan(dt: number) {
-    if (this._drag?.kind === "pan" && this._drag.moved) return
-    const free = { ...this._pan }
-    this._clampPan()
-    const limit = { ...this._pan }
-    const k = 1 - Math.exp(-dt / 90)
-    for (const key of ["x", "y"] as const) {
-      const gap = free[key] - limit[key]
-      this._pan[key] = Math.abs(gap) < 0.5 ? limit[key] : free[key] - gap * k
-    }
-  }
-
-  /** The board can't leave the screen (more slack the further the zoom). */
-  private _clampPan() {
-    const extra = this._zoom.value - 1
-    const mx = (this._fit.width / 2) * Math.abs(extra) + 80
-    const my = (this._fit.height / 2) * Math.abs(extra) + 60
-    // the slack grows with the zoom, centered on where the fit puts it
-    const cx = (this._fit.width / 2 - this._fit.x) * extra
-    const cy = (this._fit.height / 2 - this._fit.y) * extra
-    this._pan.x = Math.min(-cx + mx, Math.max(-cx - mx, this._pan.x))
-    this._pan.y = Math.min(-cy + my, Math.max(-cy - my, this._pan.y))
-  }
-
   private _placeWorld(dx: number, dy: number) {
-    const scale = this._fit.scale * this._zoom.value
-    this._world.scale.set(scale)
-    this._world.position.set(
-      this._fit.x + this._pan.x + dx,
-      this._fit.y + this._pan.y + dy,
-    )
+    this._rig.place(dx, dy)
+  }
+
+  private _worldPlaced() {
     this._placeTurnButtons()
     this._lens.update(
       this._fit.width,
@@ -1084,16 +845,53 @@ export default class FightScene extends ViewChip<SceneEvents> {
       this._zoom.value,
       MAX_ZOOM,
     )
-    // the distant islands are around the board, seen by the same camera:
-    // they follow its middle and its zoom
-    const { width: w, height: h } = this.combat.board
-    // where the middle of the board is drawn now (as for the arrows)
-    const middle = toScreen({ x: (w - 1) / 2, y: (h - 1) / 2 })
-    this._backdrop.zoom = this._zoom.value
-    this._backdrop.focus = {
-      x: this._world.x + middle.x * scale,
-      y: this._world.y + middle.y * scale,
-    }
+  }
+
+  private _cameraRedraw() {
+    this._board.redraw()
+    for (const view of this._views.values()) view.refreshFacing()
+    this._settleAll()
+    this._refreshOverlay()
+    this._layoutFit()
+  }
+
+  /** Zooms in (positive steps) or out around a screen point. */
+  zoomAt(screen: { x: number; y: number }, steps: number) {
+    this._rig.zoomAt(screen, steps)
+  }
+
+  aimCamera(pitch: number, yaw: number) {
+    this._rig.aimCamera(pitch, yaw)
+  }
+
+  turnCamera(dir: 1 | -1) {
+    this._rig.turnCamera(dir)
+  }
+
+  resetView() {
+    this._rig.resetView()
+  }
+
+  lookedAt() {
+    return this._rig.lookedAt()
+  }
+
+  private _onWheel(e: WheelEvent) {
+    e.preventDefault()
+    if (this._settings) return
+    this._rig.wheel(e)
+  }
+
+  private _onPointerDown(e: PointerEvent) {
+    if (this._settings) return
+    if (e.button !== 1 && e.button !== 2) return
+    // a right click still cancels (on release), the drag moves the camera
+    if (e.button === 1 && !this.allows({ type: "camera" })) return
+    this._rig.pointerDown(e)
+  }
+
+  private _onPointerMove(e: PointerEvent) {
+    this._rig.pointerMove(e)
   }
 
   /** The curved arrows on each side of the action bar. */
@@ -1139,10 +937,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
       dy = (Math.random() * 2 - 1) * k * 0.6
       if (shake.remaining === 0) shake.intensity = 0
     }
-    this._updateCamera(this._lastTickInfo.timeSinceLastTick)
-    this._updateZoom(this._lastTickInfo.timeSinceLastTick)
-    this._settlePan(this._lastTickInfo.timeSinceLastTick)
-    if (this._turn?.follow) this._keepInMiddle(this._turn.follow)
+    this._rig.update(this._lastTickInfo.timeSinceLastTick)
     this._placeWorld(dx, dy)
   }
 
@@ -2282,10 +2077,7 @@ export default class FightScene extends ViewChip<SceneEvents> {
   private _onKey(e: KeyboardEvent) {
     if (this._settings) return
     if (e.key === "f" || e.key === "F") return this._toggleSpeed()
-    if ("qQeEvV".includes(e.key) && !this.allows({ type: "camera" })) return
-    if (e.key === "q" || e.key === "Q") return this.turnCamera(-1)
-    if (e.key === "e" || e.key === "E") return this.turnCamera(1)
-    if (e.key === "v" || e.key === "V") return this.resetView()
+    if (this._rig.key(e)) return
     if (this._placing && (e.key === " " || e.key === "Enter")) {
       e.preventDefault()
       return this.startFight()
@@ -2794,51 +2586,4 @@ export default class FightScene extends ViewChip<SceneEvents> {
     else this._hud.showEnd("Défaite…", 0xff8787, actions)
     this._board.setHighlights([])
   }
-}
-
-/** A round button with a curved arrow (1: clockwise). */
-function turnButton(dir: 1 | -1) {
-  const view = new Container()
-  view.eventMode = "static"
-  view.cursor = "pointer"
-  const draw = (hover: boolean) => {
-    const r = 11
-    // the arc ends at the arrow head, going the way the board turns
-    const start = (-150 * Math.PI) / 180
-    const end = (120 * Math.PI) / 180
-    const flip = (x: number) => x * dir
-    const at = (a: number, d = r) => ({
-      x: flip(Math.cos(a) * d),
-      y: Math.sin(a) * d,
-    })
-    const tip = at(end)
-    const tangent = { x: flip(-Math.sin(end)), y: Math.cos(end) }
-    const out = { x: flip(Math.cos(end)), y: Math.sin(end) }
-    const color = hover ? COLORS.text : COLORS.muted
-    const g = new Graphics()
-      .circle(0, 0, 22)
-      .fill({ color: COLORS.panel, alpha: 0.85 })
-      .stroke({ width: 2, color: hover ? COLORS.text : COLORS.panelBorder })
-    const from = at(start)
-    g.moveTo(from.x, from.y)
-    for (let i = 1; i <= 24; i++) {
-      const p = at(start + ((end - start) * i) / 24)
-      g.lineTo(p.x, p.y)
-    }
-    g.stroke({ width: 3, color, cap: "round" })
-    g.poly([
-      tip.x + tangent.x * 8,
-      tip.y + tangent.y * 8,
-      tip.x + out.x * 7 - tangent.x * 2,
-      tip.y + out.y * 7 - tangent.y * 2,
-      tip.x - out.x * 7 - tangent.x * 2,
-      tip.y - out.y * 7 - tangent.y * 2,
-    ]).fill({ color })
-    for (const old of view.removeChildren()) old.destroy()
-    view.addChild(g)
-  }
-  draw(false)
-  view.on("pointerover", () => draw(true))
-  view.on("pointerout", () => draw(false))
-  return view
 }

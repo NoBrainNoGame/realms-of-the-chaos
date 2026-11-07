@@ -47,14 +47,18 @@ import { adventureSave } from "../storage"
 import AppearanceEditor from "./AppearanceEditor"
 import Backdrop from "./Backdrop"
 import BoardView, { COLUMN_BOTTOM, DEPTH, depthOf } from "./BoardView"
+import { CameraRig, turnButton } from "./cameraRig"
 import type FightScene from "./FightScene"
 import { drawIcon, MARK_LEGEND, markAnchor, markInfo } from "./marks"
-import { facingBetween, Puppet } from "./Puppet"
+import { type Facing, facingBetween, Puppet } from "./Puppet"
 import PuzzleBoard from "./PuzzleBoard"
 import { speakerName, VOICE } from "./StoryScene"
 import { characterTexture } from "./textures"
 import {
+  type Camera,
   COLORS,
+  camera,
+  depthAlong,
   ISO,
   MEANING,
   PUPPET_SCALE,
@@ -100,10 +104,16 @@ const BOX_WIDTH = 760
 /** How far (in cells) the Ghom's hand reaches from the hero. */
 const REACH = 3
 
+const FRONT_CANDIDATES = [-1, 0, 1].flatMap((x) =>
+  [-1, 0, 1].filter((y) => x || y).map((y) => ({ x, y })),
+)
+
 interface Actor {
   id: string
   node: Container
   puppet: Puppet
+  /** Where it looks, on the grid (drawn according to the camera). */
+  facing: Facing
   ripple: Graphics
   mask: Graphics
   cell: Point
@@ -148,7 +158,25 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
   private _menu: Menu | null = null
   private _puzzle: PuzzleBoard | null = null
   private _size = { width: 0, height: 0 }
-  private _fit = { scale: 1, x: 0, y: 0 }
+  /** The camera: zoom, pan, tilt and quarter turns, as in a fight. */
+  private _rig: CameraRig = ((self) =>
+    new CameraRig({
+      get world() {
+        return self._world
+      },
+      get backdrop() {
+        return self._backdrop
+      },
+      get board() {
+        return self._board
+      },
+      allows: () => self._cameraFree(),
+      onBoard: () => self._hovered !== null,
+      redraw: () => self._cameraRedraw(),
+      placed: () => self._placeTurnButtons(),
+    }))(this)
+  private _turnButtons: Container[] = []
+  private _walkCamera: Camera | null = null
 
   private _hero!: Actor
   private _companions: Actor[] = []
@@ -280,6 +308,78 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
       this._renderBox()
     }
     this._subscribe(window, "keydown", (e: KeyboardEvent) => this._key(e))
+    this._turnButtons = ([-1, 1] as const).map((dir) => {
+      const b = turnButton(dir)
+      b.on("pointertap", () => {
+        if (this._cameraFree()) this._rig.turnCamera(dir)
+      })
+      this._container.addChild(b)
+      return b
+    })
+    window.addEventListener("wheel", this._wheel, { passive: false })
+    this._subscribe(window, "pointerdown", (e: PointerEvent) => {
+      if (this._cameraFree()) this._rig.pointerDown(e)
+    })
+    this._subscribe(window, "pointermove", (e: PointerEvent) =>
+      this._rig.pointerMove(e),
+    )
+    this._subscribe(window, "pointerup", (e: PointerEvent) =>
+      this._rig.pointerUp(e),
+    )
+  }
+
+  private readonly _wheel = (e: WheelEvent) => {
+    if (!this._cameraFree()) return
+    e.preventDefault()
+    this._rig.wheel(e)
+  }
+
+  protected _onTerminate() {
+    window.removeEventListener("wheel", this._wheel)
+    resetCamera()
+  }
+
+  /** Turns the island a quarter (1: clockwise). */
+  turnCamera(dir: 1 | -1) {
+    this._rig.turnCamera(dir)
+  }
+
+  /** Zooms in (positive steps) or out around a screen point. */
+  zoomAt(screen: { x: number; y: number }, steps: number) {
+    this._rig.zoomAt(screen, steps)
+  }
+
+  /** The camera answers the player (not while a fight or a puzzle is up). */
+  private _cameraFree() {
+    return !this._fight && !this._editor && !this._puzzle
+  }
+
+  /** The quarter, tilt or small turn changed: everything is drawn again. */
+  private _cameraRedraw() {
+    this._view.redraw()
+    for (const a of this._everyone()) {
+      a.puppet.setFacing(screenFacing(a.facing))
+      this._place(a)
+    }
+    this._layout()
+    this._anchorMarks()
+  }
+
+  /** The curved arrows on each side of the text box. */
+  private _placeTurnButtons() {
+    const ui = settings().uiSize
+    const { width, height } = this._size
+    const boxW = this._box.width || BOX_WIDTH * ui
+    const y = Math.round(height - 60 * ui)
+    const gap = 38 * ui
+    const left = Math.round(width / 2 - boxW / 2 - gap)
+    const right = Math.round(width / 2 + boxW / 2 + gap)
+    for (const b of this._turnButtons) {
+      b.scale.set(ui)
+      b.visible = this._cameraFree()
+    }
+    this._turnButtons[0]?.position.set(Math.max(gap, left), y)
+    this._turnButtons[1]?.position.set(Math.min(width - gap, right), y)
   }
 
   protected _onTick() {
@@ -293,6 +393,8 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
       }
     }
     if (this._fight) return
+    this._rig.update(dt)
+    this._rig.place()
     for (const a of this._everyone()) this._move(a, dt)
     this._follow()
     this._stroll(dt)
@@ -332,6 +434,7 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
       id: who,
       node,
       puppet,
+      facing: "SE",
       ripple,
       mask,
       cell,
@@ -375,7 +478,8 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
   }
 
   private _face(a: Actor, towards: Point) {
-    a.puppet.setFacing(screenFacing(facingBetween(a.cell, towards)))
+    a.facing = facingBetween(a.cell, towards, a.facing)
+    a.puppet.setFacing(screenFacing(a.facing))
   }
 
   /** Walks an actor along its path, one cell at a time. */
@@ -582,11 +686,8 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
   private _hiddenBy(p: Point) {
     const own = this._board.standHeight(p)
     let h = own
-    for (const d of [
-      { x: 1, y: 0 },
-      { x: 0, y: 1 },
-      { x: 1, y: 1 },
-    ]) {
+    // the neighbours in front of the cell, whichever way the camera looks
+    for (const d of FRONT_CANDIDATES.filter((q) => depthAlong(q) > 0.01)) {
       const n = { x: p.x + d.x, y: p.y + d.y }
       if (this._board.get(n)) h = Math.max(h, this._board.standHeight(n))
     }
@@ -983,6 +1084,9 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
   // ─── Fights, on site ──────────────────────────────────────────────────────
 
   private _startFight(spec: FightSpec) {
+    // the fight starts from the classic view; the walk's view comes back after
+    this._walkCamera = { ...camera }
+    resetCamera()
     const scene = this._options.makeFight(spec, this._run)
     this._fight = scene
     this._mode = "fight"
@@ -1009,6 +1113,8 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
       }
     this._terminateChildChip(scene)
     this._fight = null
+    if (this._walkCamera) Object.assign(camera, this._walkCamera)
+    this._walkCamera = null
     this._stage.visible = true
     this._box.visible = true
     this._elan.visible = true
@@ -1177,7 +1283,7 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
     const old = hero.puppet
     const puppet = new Puppet(puppetId("heros", this._run))
     puppet.scale.set(PUPPET_SCALE)
-    puppet.setFacing(old.facing)
+    puppet.setFacing(screenFacing(hero.facing))
     hero.node.addChild(puppet)
     hero.node.removeChild(old)
     old.destroy({ children: true })
@@ -1210,6 +1316,7 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
   }
 
   private _key(e: KeyboardEvent) {
+    if (this._cameraFree() && this._rig.key(e)) return
     if (this._mode === "walk" && ["1", "2", "3"].includes(e.key)) {
       const which = influencesOf(this._run)[Number(e.key) - 1]
       if (which) this.use(which)
@@ -1254,18 +1361,21 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
       0.5,
       Math.min(1.7, (width - 40) / (right - left), room / (bottom - top)),
     )
-    this._fit = {
+    // the center of the board stays where the classic view puts it
+    const middle = { x: (w - 1) / 2, y: (h - 1) / 2 }
+    const iso = toScreen(middle, 0, ISO)
+    const now = toScreen(middle)
+    this._rig.fit = {
       scale,
-      x: Math.round(width / 2 - ((left + right) / 2) * scale),
-      y: Math.round(room / 2 + 14 - ((top + bottom) / 2) * scale),
+      x: Math.round(width / 2 - ((left + right) / 2 + now.x - iso.x) * scale),
+      y: Math.round(
+        room / 2 + 14 - ((top + bottom) / 2 + now.y - iso.y) * scale,
+      ),
+      width,
+      height,
     }
-    this._world.scale.set(scale)
-    this._world.position.set(this._fit.x, this._fit.y)
-    const middle = toScreen({ x: (w - 1) / 2, y: (h - 1) / 2 })
-    this._backdrop.focus = {
-      x: this._fit.x + middle.x * scale,
-      y: this._fit.y + middle.y * scale,
-    }
+    this._rig.clampPan()
+    this._rig.place()
     this._placeBox()
     this._placeElan()
   }
