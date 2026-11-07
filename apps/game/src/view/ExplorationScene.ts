@@ -48,6 +48,7 @@ import AppearanceEditor from "./AppearanceEditor"
 import Backdrop from "./Backdrop"
 import BoardView, { COLUMN_BOTTOM, DEPTH, depthOf } from "./BoardView"
 import type FightScene from "./FightScene"
+import { markAnchor, markInfo } from "./marks"
 import { facingBetween, Puppet } from "./Puppet"
 import PuzzleBoard from "./PuzzleBoard"
 import { speakerName, VOICE } from "./StoryScene"
@@ -112,6 +113,8 @@ interface Actor {
 type Mode = "walk" | "story" | "look" | "debrief" | "fight"
 
 const same = (a: Point, b: Point) => a.x === b.x && a.y === b.y
+const distance = (a: Point, b: Point) =>
+  Math.abs(a.x - b.x) + Math.abs(a.y - b.y)
 const near = (a: Point, b: Point) =>
   Math.abs(a.x - b.x) + Math.abs(a.y - b.y) <= 1
 
@@ -153,7 +156,15 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
   >()
   private _trail: Point[] = []
   private _target: Encounter | null = null
-  private _marked: { g: Graphics; base: number; id: string }[] = []
+  private _marked: {
+    g: Container
+    chip: Container
+    base: number
+    id: string
+    at: Point
+  }[] = []
+  /** The cell under the pointer. */
+  private _hovered: Point | null = null
   private _time = 0
   private _autoIn = 0
   private _fight: FightScene | null = null
@@ -236,6 +247,12 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
       seedOf(this._run),
     )
     this._activateChildChip(this._view, { context: { container: this._world } })
+    this._subscribe(this._view, "cellOver", (p: Point) => {
+      this._hovered = p
+    })
+    this._subscribe(this._view, "cellOut", () => {
+      this._hovered = null
+    })
     this._subscribe(this._view, "cellDown", (p: Point, button: number) => {
       if (button === 0) this.clickCell(p)
     })
@@ -458,44 +475,99 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
     this._drawMarks(here)
   }
 
-  /** What can be walked to: a gold diamond for the story, a pale one for the rest. */
+  /**
+   * What can be walked to: a small diamond (gold for the story, pale for the
+   * rest) floating right above its target, with a short label chip shown when
+   * the cell is hovered or the hero is near.
+   */
   private _drawMarks(here: Encounter[]) {
     clearChildren(this._marks)
     this._marked = []
     this._speaker = null
     const story = pending(this._run)
     const zone: Point[] = []
-    for (const e of here) {
+    // one marker per spot, neighbours included (the story's first): two on a spot read as a glitch
+    const taken: Point[] = []
+    const rank = (e: Encounter) =>
+      e === story ? 0 : e.actor || e.wander ? 1 : 2
+    const ordered = [...here].sort((a, b) => rank(a) - rank(b))
+    for (const e of ordered) {
       const isStory = e === story
       if (isStory) zone.push(...(e.zone ?? []), e.at)
       if (!exploring(this._run)) continue
-      const g = new Graphics()
-        .poly([0, -9, 6, 0, 0, 9, -6, 0])
+      if (taken.some((p) => distance(p, e.at) <= 2)) continue
+      taken.push(e.at)
+      const info = markInfo(this._run, e)
+      const mark = new Container()
+      mark.label = `mark:${e.id}`
+      mark.zIndex = 9999
+      const gem = new Graphics()
+        .poly([0, -7, 4.5, 0, 0, 7, -4.5, 0])
         .fill({ color: isStory ? 0xffe066 : 0xced4da, alpha: 0.95 })
-        .stroke({ width: 1.5, color: 0x1b1424 })
-      const wanderer = this._wanderers.get(e.id)
-      g.label = `mark:${e.id}`
-      const top = toScreen(e.at, this._board.standHeight(e.at))
-      g.position.set(top.x, top.y - (wanderer || e.actor ? 92 : 40))
-      g.zIndex = 9999
-      this._marks.addChild(g)
-      this._marked.push({ g, base: g.y, id: e.id })
+        .stroke({ width: 1.2, color: 0x1b1424 })
+      gem.position.set(0, -8)
+      const chip = new Container()
+      const label = text(info.label, 8, 0xf1ecff, { fontWeight: "normal" })
+      const w = Math.ceil(label.width) + 8
+      const bg = new Graphics()
+        .rect(0, 0, w, 13)
+        .fill({ color: 0x1b1424, alpha: 0.9 })
+        .stroke({ width: 1, color: isStory ? 0xffe066 : 0x8f86b3 })
+      label.position.set(4, 1.5)
+      chip.addChild(bg, label)
+      chip.position.set(-w / 2, -34)
+      chip.visible = false
+      mark.addChild(gem, chip)
+      this._marks.addChild(mark)
+      this._marked.push({ g: mark, chip, base: 0, id: e.id, at: e.at })
     }
     this._view.setHighlights(
       exploring(this._run) && zone.length
         ? [{ cells: zone, color: 0xffe066, alpha: 0.16, outline: true }]
         : [],
     )
+    this._anchorMarks()
+  }
+
+  /** Puts each marker above its target (an actor's head, or its cell). */
+  private _anchorMarks() {
+    for (const m of this._marked) {
+      const actor = this._wanderers.get(m.id)?.actor ?? this._npcs.get(m.id)
+      const feet = actor
+        ? { x: actor.node.x, y: actor.node.y }
+        : toScreen(m.at, this._board.standHeight(m.at))
+      const top = actor
+        ? actor.puppet.getLocalBounds().minY * actor.puppet.scale.y
+        : -24
+      const p = markAnchor(feet, top)
+      m.g.x = p.x
+      m.base = p.y
+    }
   }
 
   private _bob() {
+    this._anchorMarks()
+    const hovered = this._hovered
+    // only the closest one speaks up by itself (the others wait for a hover)
+    let nearest: (typeof this._marked)[number] | null = null
+    let best = Number.POSITIVE_INFINITY
     for (const m of this._marked) {
-      const w = this._wanderers.get(m.id)
-      if (w) {
-        m.g.x = w.actor.node.x
-        m.base = w.actor.node.y - 92
+      const cell =
+        (this._wanderers.get(m.id)?.actor ?? this._npcs.get(m.id))?.cell ?? m.at
+      const d = distance(this._hero.cell, cell)
+      if (d < best) {
+        best = d
+        nearest = m
       }
-      m.g.y = m.base + Math.sin(this._time / 260) * 3
+    }
+    for (const m of this._marked) {
+      const actor = this._wanderers.get(m.id)?.actor ?? this._npcs.get(m.id)
+      const cell = actor?.cell ?? m.at
+      m.g.y = m.base + Math.sin(this._time / 260) * 2
+      m.chip.visible =
+        (hovered !== null && (same(hovered, cell) || same(hovered, m.at))) ||
+        (m === nearest && distance(this._hero.cell, cell) <= 2)
+      m.g.zIndex = m.chip.visible ? 10000 : 9999
     }
     if (this._speaker && this._speaking) {
       this._speaker.position.set(
