@@ -1,8 +1,12 @@
-import { Container, Graphics, Sprite, Texture } from "pixi.js"
+import { Container, Sprite, Texture } from "pixi.js"
 import { softCircle, starDot } from "./effects"
-import { drawFloatingIsland } from "./islands"
 import {
-  type Camera,
+  ISLET_ANCHOR,
+  ISLET_RESOLUTION,
+  isletTexture,
+  pickIslet,
+} from "./islets"
+import {
   camera,
   depthAlong,
   levelHeight,
@@ -15,7 +19,8 @@ import ViewChip from "./ViewChip"
 /** A distant island of the Clair, floating at its own pace. */
 export interface DistantIsland {
   node: Container
-  graphics: Graphics
+  /** The one sprite of the islet (a baked, opaque image): it carries the alpha. */
+  sprite: Sprite
   cells: number
   seed: number
   /** Place around the board: direction (°), distance and height. */
@@ -129,19 +134,19 @@ export interface Mote {
 
 /** Points along a star trail (its arc), from the last view to this one. */
 const TRAIL_STEPS = 4
-/** How much the camera turns before the distant islands are redrawn (°). */
 /**
  * Colour multiplying a distant island, from its depth towards the viewer
- * (-1 behind the board, 1 in front): the farther behind, the bluer and the
- * darker, mixed towards the sky rather than faded (no transparency).
+ * (-1 behind the board, 1 in front): the farther behind, the bluer.
  */
 export function islandHaze(depth: number) {
-  if (depth > 0) return 0xffffff
   const haze = Math.max(0, -depth)
-  return mix(0xffffff, 0x5a5490, 0.55 + 0.45 * haze)
+  return mix(0xffffff, 0x8f86c4, depth > 0 ? 0 : 0.4 + 0.6 * haze)
 }
 
-export const ISLAND_REDRAW_ANGLE = 0.6
+/** Opacity of a distant island (the whole sprite at once, never per block). */
+export function islandAlpha(depth: number) {
+  return depth > 0 ? 1 : 0.85 - 0.3 * Math.max(0, -depth)
+}
 
 /** Field of view across the screen's width, for the stars (°). */
 export const SKY_FOV = 90
@@ -236,8 +241,6 @@ export default class Backdrop extends ViewChip {
   private _layer!: Container
   /** Islands nearer than the board: the scene puts it above the board. */
   private _front!: Container
-  /** Camera the distant islands were last drawn with. */
-  private _drawn: Camera | null = null
   /** Screen point the camera looks at (the middle of the board). */
   private _focus: { x: number; y: number } | null = null
 
@@ -282,21 +285,30 @@ export default class Backdrop extends ViewChip {
     this._front = new Container()
     this._front.eventMode = "none"
     this._container.addChild(this._layer, this._front)
-    const seed = Math.floor(Math.random() * 1e6)
+    const base = Math.floor(Math.random() * 1e6)
     DISTANT.forEach((spec, i) => {
       const node = new Container()
-      const graphics = new Graphics()
-      node.addChild(graphics)
+      const seed = base + i * 101
+      const sprite = new Sprite(Texture.EMPTY)
+      sprite.anchor.set(ISLET_ANCHOR.x, ISLET_ANCHOR.y)
+      // the image is baked at 2x
+      sprite.scale.set(1 / ISLET_RESOLUTION)
+      node.addChild(sprite)
+      const index = pickIslet(seed, spec.cells)
+      isletTexture(index).then((texture) => {
+        if (sprite.destroyed) return
+        texture.source.scaleMode = "linear"
+        sprite.texture = texture
+      })
       this._layer.addChild(node)
       this._islands.push({
         ...spec,
         node,
-        graphics,
-        seed: seed + i * 101,
+        sprite,
+        seed,
         phase: (i * Math.PI * 2) / DISTANT.length,
       })
     })
-    this._drawIslands()
 
     // motes of light, in the void around the board
     for (let i = 0; i < 48; i++) {
@@ -600,26 +612,6 @@ export default class Backdrop extends ViewChip {
     }
   }
 
-  /**
-   * Draws the islands again when the camera moved enough to be seen (far
-   * and small, they need less than the board).
-   */
-  private _drawIslands() {
-    const drawn = this._drawn
-    if (
-      drawn &&
-      drawn.quarter === camera.quarter &&
-      Math.abs(drawn.pitch - camera.pitch) < ISLAND_REDRAW_ANGLE &&
-      Math.abs(drawn.yaw - camera.yaw) < ISLAND_REDRAW_ANGLE
-    )
-      return
-    this._drawn = { ...camera }
-    for (const island of this._islands) {
-      island.graphics.clear()
-      drawFloatingIsland(island.graphics, island.cells, island.seed, camera)
-    }
-  }
-
   /** Where the camera sees each island, and how big (nearer = bigger). */
   private _placeIslands() {
     if (!this._layer) return
@@ -645,11 +637,10 @@ export default class Backdrop extends ViewChip {
         island.size * (this._height / 1000) * (1 + 0.25 * depth) * this._zoom,
       )
       // atmospheric perspective: behind the board, the farther, the bluer
-      // and the darker; in front of it, as solid and as lit as the board.
-      // Opaque, haze baked into the colours: a translucent island would show
-      // its own blocks through each other
-      island.node.alpha = 1
-      island.graphics.tint = islandHaze(depth)
+      // and the paler; in front of it, as solid and as lit as the board.
+      // The islet is one opaque image: its alpha shows no block through another
+      island.sprite.alpha = islandAlpha(depth)
+      island.sprite.tint = islandHaze(depth)
       order.push({ island, depth })
     }
     // the farther behind, the earlier drawn; nearer than the board: above it
@@ -672,7 +663,6 @@ export default class Backdrop extends ViewChip {
     this._time += dt
     const detail = this._detail
     this._stars.alpha = (0.75 + 0.25 * Math.sin(this._time * 0.8)) * detail
-    this._drawIslands()
     this._placeIslands()
     if (detail > 0) {
       this._stars.visible = true

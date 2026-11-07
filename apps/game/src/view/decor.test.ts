@@ -1,9 +1,11 @@
 import { describe, expect, test } from "bun:test"
 import { Board, createRng } from "@realms/engine"
 import { Container, Graphics } from "pixi.js"
+import { ISLET_CELLS } from "../../scripts/islets"
 import { mount, tick } from "../test/harness"
 import Backdrop, {
   DETAIL_ZOOM,
+  islandAlpha,
   islandHaze,
   skyDetail,
   skyPoint,
@@ -17,6 +19,7 @@ import {
   undersideColor,
   undersideDepths,
 } from "./islands"
+import { pickIslet } from "./islets"
 import {
   camera,
   depthAlong,
@@ -308,12 +311,12 @@ describe("everything floats, each at its own pace", () => {
           const near = depthAlong({ x: Math.cos(a), y: Math.sin(a) }) > 0
           if (near) {
             expect(island.node.parent).toBe(backdrop.front)
-            expect(island.node.alpha).toBe(1)
-            expect(island.graphics.tint).toBe(0xffffff)
+            expect(island.sprite.alpha).toBe(1)
+            expect(island.sprite.tint).toBe(0xffffff)
           } else {
             expect(island.node.parent).not.toBe(backdrop.front)
-            expect(island.node.alpha).toBe(1)
-            expect(island.graphics.tint).not.toBe(0xffffff)
+            expect(island.sprite.alpha).toBeLessThan(1)
+            expect(island.sprite.tint).not.toBe(0xffffff)
           }
         }
         // turning puts some in front and others behind
@@ -335,7 +338,7 @@ describe("everything floats, each at its own pace", () => {
       backdrop.islands.map((i) => ({
         x: i.node.x,
         y: i.node.y,
-        b: i.graphics.bounds.height,
+        b: i.sprite.height,
       }))
     try {
       tick(backdrop, 16)
@@ -354,8 +357,8 @@ describe("everything floats, each at its own pace", () => {
       // seen from above: the ring flattens less, the heights shrink
       const above = place()
       expect(above.map((p) => p.y)).not.toEqual(before.map((p) => p.y))
-      // and each island is drawn from that angle too
-      expect(above.map((p) => p.b)).not.toEqual(before.map((p) => p.b))
+      // the baked islets themselves stay as they are (far away, fixed look)
+      expect(above.map((p) => p.b)).toEqual(before.map((p) => p.b))
     } finally {
       resetCamera()
     }
@@ -447,15 +450,31 @@ describe("underside shading and distant islets", () => {
     expect(luma(undersideColor(12))).toBeLessThan(luma(undersideColor(2)))
   })
 
-  test("distant islets are opaque, hazed by colour (no per-block alpha)", () => {
+  test("a distant islet is one sprite carrying the alpha and the haze", () => {
+    const backdrop = mount(new Backdrop())
+    ;(backdrop as any)._onResize(1280, 720)
+    try {
+      tick(backdrop, 16)
+      for (const island of backdrop.islands) {
+        // one single sprite: no block of its own to show through another
+        expect(island.node.children).toEqual([island.sprite])
+        expect(island.node.alpha).toBe(1)
+        expect(island.sprite.alpha).toBeGreaterThan(0.5)
+      }
+      expect(backdrop.islands.some((i) => i.sprite.alpha < 1)).toBe(true)
+    } finally {
+      resetCamera()
+    }
+    expect(islandAlpha(1)).toBe(1)
+    expect(islandAlpha(-1)).toBeLessThan(islandAlpha(-0.2))
     expect(islandHaze(1)).toBe(0xffffff)
     expect(luma(islandHaze(-1))).toBeLessThan(luma(islandHaze(-0.2)))
-    const g = new Graphics()
-    drawFloatingIsland(g, 4, 7)
-    const alphas = g.context.instructions
-      .filter((i) => i.action === "fill")
-      .map((i) => (i.data as { style: { alpha: number } }).style.alpha)
-    expect(alphas.every((a) => a === 1)).toBe(true)
+  })
+
+  test("the same seed picks the same baked islet, of the right size", () => {
+    expect(pickIslet(12345, 4)).toBe(pickIslet(12345, 4))
+    for (let seed = 0; seed < 40; seed++)
+      expect(ISLET_CELLS[pickIslet(seed, 5)]).toBe(5)
   })
 })
 

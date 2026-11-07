@@ -8,7 +8,8 @@
     "build": "bun build ./index.html --outdir dist --minify --sourcemap=linked --env=PUBLIC_*",
     "preview": "bun --port 1234 ./dist/index.html",
     "test": "bun test",
-    "typecheck": "tsc --noEmit -p ."
+    "typecheck": "tsc --noEmit -p .",
+    "bake:islets": "bun scripts/bake-islets.ts"
   },
   "dependencies": {
     "@ghom/booyah": "^1.3.0",
@@ -19,6 +20,7 @@
   },
   "devDependencies": {
     "@happy-dom/global-registrator": "^21.0.4",
-    "happy-dom": "^21.0.4"
+    "happy-dom": "^21.0.4",
+    "playwright-core": "^1.65.0"
   }
 }
