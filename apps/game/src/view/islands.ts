@@ -187,7 +187,8 @@ export function drawFloatingIsland(
     }
     // the inverted pyramid under it
     const depth = depths[cell.y][cell.x]
-    for (let k = 0; k < depth; k++) {
+    // deepest first: a block covers the top face of the one under it
+    for (let k = depth - 1; k >= 0; k--) {
       drawBlock(
         g,
         origin,

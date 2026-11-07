@@ -1246,7 +1246,9 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       const origin = toScreen(cell)
       // the strata of the column go on: its bottom band is `base - 1`
       const base = columnBands(cell.elevation)
-      for (let k = 0; k < depth; k++) {
+      // deepest first: each block then covers the top face of the one under
+      // it (drawn the other way round, that top overpaints the faces above)
+      for (let k = depth - 1; k >= 0; k--) {
         // a face against the neighbor's block of the same level is hidden
         const hidden = (d: Point) => {
           const n = { x: cell.x + d.x, y: cell.y + d.y }

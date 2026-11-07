@@ -17,7 +17,15 @@ import {
   undersideColor,
   undersideDepths,
 } from "./islands"
-import { camera, depthAlong, resetCamera } from "./theme"
+import {
+  camera,
+  depthAlong,
+  ISO_PITCH,
+  MAX_PITCH,
+  project,
+  resetCamera,
+  visibleFaces,
+} from "./theme"
 
 describe("island underside (inverted pyramid of blocks)", () => {
   test("deterministic for a seed, deeper in the middle, irregular", () => {
@@ -448,5 +456,41 @@ describe("underside shading and distant islets", () => {
       .filter((i) => i.action === "fill")
       .map((i) => (i.data as { style: { alpha: number } }).style.alpha)
     expect(alphas.every((a) => a === 1)).toBe(true)
+  })
+})
+
+describe("underside blocks at any camera", () => {
+  test("only faces turned towards the viewer are visible, at every pitch and quarter", () => {
+    for (let quarter = 0; quarter < 4; quarter++)
+      for (let pitch = ISO_PITCH; pitch <= MAX_PITCH; pitch += 6) {
+        const c = { quarter, yaw: 0, pitch }
+        const faces = visibleFaces(c)
+        expect(faces.length).toBe(2)
+        for (const f of faces)
+          expect(project(f.dir.x, f.dir.y, c).y).toBeGreaterThan(0)
+      }
+  })
+
+  test("a block's top is never painted over the block above it", () => {
+    // blocks are drawn deepest first: the lowest block's fill comes first
+    const g = new Graphics()
+    const origin = { x: 0, y: 0 }
+    for (let k = 2; k >= 0; k--)
+      drawBlock(g, origin, k * 20, k, undefined, undefined, 1)
+    const fills = g.context.instructions.filter((i) => i.action === "fill")
+    const tops = fills.map((i) =>
+      Math.min(
+        ...(
+          i.data as unknown as {
+            path: {
+              shapePath: { shapePrimitives: { shape: { points: number[] } }[] }
+            }
+          }
+        ).path.shapePath.shapePrimitives[0].shape.points.filter(
+          (_, n) => n % 2 === 1,
+        ),
+      ),
+    )
+    expect(tops[0]).toBeGreaterThan(tops[tops.length - 1])
   })
 })
