@@ -195,6 +195,8 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
   private _bands = new Map<number, Container>()
   /** The waterfalls' fading foot, one shape per run of cells. */
   private _falls: Graphics | null = null
+  /** The front walls of the lakes (one translucent group). */
+  private _walls: Container | null = null
 
   constructor(
     private readonly _board: Board,
@@ -270,6 +272,7 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       this._bands.delete(key)
     }
     this._drawFalls()
+    this._drawWalls()
   }
 
   /**
@@ -322,20 +325,6 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     const t = this._time / 1000
     const [pa, pb] = edgeOf(dir)
     g.clear()
-    for (let k = 0; k < 3; k++) {
-      const y = (t * 36 + (k * length) / 3) % length
-      const alpha = 0.16 * (1 - y / length)
-      g.poly([
-        pa.x,
-        pa.y + y,
-        pb.x,
-        pb.y + y,
-        pb.x,
-        pb.y + y + 5,
-        pa.x,
-        pa.y + y + 5,
-      ]).fill({ color: 0xa9d6ff, alpha: alpha * 1.6 })
-    }
     for (let d = 0; d < 3; d++) {
       const u = (t / 1.1 + d / 3) % 1
       const p = lerp(pa, pb, (d * 0.31 + 0.2) % 1)
@@ -359,6 +348,7 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     this._hitLayer.destroy({ children: true })
     this._underside?.destroy({ children: true })
     this._falls?.destroy()
+    this._walls?.destroy({ children: true })
     for (const band of this._bands.values()) band.destroy({ children: true })
     this._bands.clear()
     for (const parts of this._parts.values()) {
@@ -382,6 +372,66 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       this._drawCell(cell)
     }
     this._drawFalls()
+    this._drawWalls()
+  }
+
+  /**
+   * The front walls of the lakes: opaque quads (a cell slightly wider than
+   * itself) in one group of their own, translucent as a whole and sorted
+   * after every column; the wall fades out at the bottom of the terrain
+   * column along a gradient parallel to its edge (no stair-step line).
+   */
+  private _drawWalls() {
+    this._walls?.destroy({ children: true })
+    const group = new Container()
+    group.label = "aux"
+    group.filters = [new AlphaFilter({ alpha: waterTint(1).alpha })]
+    const g = new Graphics()
+    group.addChild(g)
+    const h = COLUMN_BOTTOM * verticalScale()
+    let z = 0
+    for (const cell of this._board.cells) {
+      z = Math.max(z, depthOf(cell, DEPTH.fighter + 1))
+      if (cell.terrain !== "water") continue
+      const { color } = waterTint(-cell.elevation)
+      const base = toScreen(cell)
+      for (const { a, b, light } of this._edgeFaces(cell)) {
+        const p = { x: base.x + a.x, y: base.y + a.y }
+        const q = { x: base.x + b.x, y: base.y + b.y }
+        const e = { x: q.x - p.x, y: q.y - p.y }
+        const len = Math.hypot(e.x, e.y)
+        // normal of the edge, pointing down
+        let n = { x: -e.y / len, y: e.x / len }
+        if (n.y < 0) n = { x: -n.x, y: -n.y }
+        const perp = h * n.y
+        const c = shade(color, light < 1 ? 0.85 : 1)
+        const rgb = `${(c >> 16) & 255},${(c >> 8) & 255},${c & 255}`
+        const fade = new FillGradient({
+          type: "linear",
+          start: p,
+          end: { x: p.x + n.x * perp, y: p.y + n.y * perp },
+          colorStops: [
+            { offset: 0, color: `rgba(${rgb},1)` },
+            { offset: 0.8, color: `rgba(${rgb},1)` },
+            { offset: 1, color: `rgba(${rgb},0)` },
+          ],
+          textureSpace: "global",
+        })
+        g.poly([
+          p.x - 0.5,
+          p.y,
+          q.x + 0.5,
+          q.y,
+          q.x + 0.5,
+          q.y + h,
+          p.x - 0.5,
+          p.y + h,
+        ]).fill(fade)
+      }
+    }
+    group.zIndex = z
+    this._entities.addChild(group)
+    this._walls = group
   }
 
   /**
@@ -422,7 +472,7 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
         const l = run[0].l
         const r = run[run.length - 1].r
         const length = Math.max(...run.map((s) => s.length)) * verticalScale()
-        const y0 = Math.min(l.y, r.y) + top
+        const y0 = Math.min(l.y, r.y) + top - 6
         const y1 = Math.max(l.y, r.y) + length
         if (y1 > y0 + 1) {
           const fade = new FillGradient({
@@ -435,7 +485,16 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
             ],
             textureSpace: "global",
           })
-          g.poly([l.x, l.y + top, r.x, r.y + top, r.x, y1, l.x, y1]).fill(fade)
+          g.poly([
+            l.x,
+            l.y + top - 6,
+            r.x,
+            r.y + top - 6,
+            r.x,
+            y1,
+            l.x,
+            y1,
+          ]).fill(fade)
         }
         run = []
       }
@@ -771,6 +830,25 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       // (the water is translucent: the beds and the steps between them show)
       return n ? -n.elevation * level + HIDDEN_MARGIN : Number.POSITIVE_INFINITY
     })
+    if (underwater) {
+      // a submerged bed: its sides once, in one colour (no rims or strata
+      // under the water), no outline
+      faces.forEach(({ a, b, light }, i) => {
+        const y1 = Math.min(bottom, cover[i])
+        if (y1 <= topY + 0.01) return
+        g.poly([
+          a.x,
+          a.y + topY,
+          b.x,
+          b.y + topY,
+          b.x,
+          b.y + y1,
+          a.x,
+          a.y + y1,
+        ]).fill(shade(STRATA[3], light))
+      })
+      return
+    }
     let band = 0
     for (let y0 = topY; y0 < bottom - 0.01; y0 += step, band++) {
       const y1 = Math.min(bottom, y0 + step)
@@ -855,7 +933,7 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     const length = COLUMN_BOTTOM + this._depths[cell.y][cell.x] * BLOCK_HEIGHT
     const falls: Cascade[] = []
     const column = parts.column
-    for (const { a, b, light, dir } of this._edgeFaces(cell)) {
+    for (const { dir } of this._edgeFaces(cell)) {
       const fall: Cascade = { g: new Graphics(), dir, length }
       falls.push(fall)
       fall.g.position.set(column.x, column.y)
@@ -864,12 +942,6 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       this._entities.addChild(fall.g)
       parts.transient.push(fall.g)
       this._drawCascade(fall)
-      // the wall stops at the bottom of the terrain column: the island
-      // underside is never behind the water
-      const h = COLUMN_BOTTOM * verticalScale()
-      w.poly([a.x, a.y, b.x, b.y, b.x, b.y + h, a.x, a.y + h]).fill(
-        shade(body, light < 1 ? 0.85 : 1),
-      )
     }
     this._cascades.set(keyOf(cell), falls)
     w.poly(diamond()).fill(body)
