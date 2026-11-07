@@ -159,6 +159,8 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
   private _marked: {
     g: Container
     chip: Container
+    stem: Graphics
+    stemLength: number
     base: number
     id: string
     at: Point
@@ -521,11 +523,14 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
       chip.addChild(bg, label)
       chip.position.set(-w / 2, -48)
       chip.visible = false
-      mark.addChild(gem, chip)
+      const stem = new Graphics()
+      mark.addChild(stem, gem, chip)
       this._marks.addChild(mark)
       this._marked.push({
         g: mark,
         chip,
+        stem,
+        stemLength: 0,
         base: 0,
         id: e.id,
         at: this._clamp(e.at),
@@ -583,10 +588,26 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
         ? actor.puppet.getLocalBounds().minY * actor.puppet.scale.y
         : 0
       // (a sprite whose textures are not there yet measures nothing)
-      const top = actor ? Math.min(head, -30) : 0
+      const top = actor ? Math.min(head, -30) : -12
       const p = markAnchor(feet, top)
       m.g.x = p.x
       m.base = p.y
+      // a pin down to the tile itself when the marker was raised above taller neighbours
+      const own = actor
+        ? feet.y
+        : toScreen(m.at, this._board.standHeight(m.at)).y
+      const len = actor ? 0 : Math.max(0, Math.round(own - p.y))
+      if (len !== m.stemLength) {
+        m.stemLength = len
+        m.stem.clear()
+        if (len > 3)
+          m.stem
+            .moveTo(0, 0)
+            .lineTo(0, len)
+            .stroke({ width: 1.5, color: 0x1b1424, alpha: 0.7 })
+            .circle(0, len, 2)
+            .fill({ color: 0xffe066, alpha: 0.9 })
+      }
     }
   }
 
@@ -609,7 +630,17 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
       const actor = this._wanderers.get(m.id)?.actor ?? this._npcs.get(m.id)
       const cell = actor?.cell ?? m.at
       m.g.y = m.base + Math.sin(this._time / 260) * 2
-      m.g.visible = !(m.place && same(this._hero.cell, cell))
+      // one marker per target: a place marker stacked on another one gives way
+      const stacked =
+        m.place &&
+        this._marked.some(
+          (o) =>
+            o !== m &&
+            (!o.place || o.id < m.id) &&
+            Math.abs(o.g.x - m.g.x) < 28 &&
+            Math.abs(o.base - m.base) < 64,
+        )
+      m.g.visible = !(m.place && same(this._hero.cell, cell)) && !stacked
       m.chip.visible =
         (hovered !== null && (same(hovered, cell) || same(hovered, m.at))) ||
         (m === nearest && distance(this._hero.cell, cell) <= 2)
