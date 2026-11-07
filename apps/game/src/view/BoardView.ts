@@ -13,7 +13,6 @@ import {
   type FederatedPointerEvent,
   FillGradient,
   Graphics,
-  Matrix,
   Polygon,
   Sprite,
 } from "pixi.js"
@@ -93,6 +92,9 @@ export function waveOffset(amplitude: number, u: number) {
  */
 const HIDDEN_MARGIN = 14
 /** Depth of the island underside: behind every column and fighter. */
+/** Fading tail of the runoff sheet under the lowest block. */
+const FALL_TAIL = 40
+
 export const UNDERSIDE_Z = -1e9
 
 /** Bottom of every column, below the lowest level (classic view). */
@@ -322,31 +324,30 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     const t = this._time / 1000
     const [pa, pb] = edgeOf(dir)
     g.clear()
-    const h = COLUMN_BOTTOM * verticalScale()
-    const reach = h * 1.25 * 0.85
+    const reach =
+      this._undersideBottom - g.y - Math.min(pa.y, pb.y) + FALL_TAIL * 0.5
     // a few soft streaks sliding straight down the sheet
     for (let d = 0; d < 3; d++) {
-      const p = lerp(pa, pb, (d + 0.5) / 3)
-      const u = (t * 0.7 + d * 0.37) % 1
-      const y0 = p.y + h + u * reach * 0.8
+      const p = lerp(pa, pb, 0.2 + d * 0.3)
+      const u = (t * 0.45 + d * 0.37) % 1
+      const y0 = p.y + u * reach * 0.9
       g.moveTo(p.x, y0)
         .lineTo(p.x, y0 + 16)
-        .stroke({
-          width: 1.5,
-          color: 0xd6efff,
-          alpha: 0.4 * (1 - u),
-        })
+        .stroke({ width: 1.5, color: 0xd6efff, alpha: 0.4 * (1 - u) })
     }
-    // drops breaking off the fall, inside its width
+    // drops running down the sheet, inside its width
     for (let d = 0; d < 5; d++) {
-      const u = (t / 1.4 + d / 5) % 1
+      const u = (t / 2.4 + d / 5) % 1
       const p = lerp(pa, pb, 0.1 + ((d * 0.37 + 0.12) % 1) * 0.8)
-      g.circle(p.x, p.y + h + 2 + u * reach, 1.9 - u * 0.6).fill({
-        color: 0xa9d6ff,
-        alpha: 0.95 * (1 - u) ** 0.7,
+      g.circle(p.x, p.y + u * reach, 1.9 - u * 0.5).fill({
+        color: 0xc4e6ff,
+        alpha: 0.9 * (1 - u) ** 0.7,
       })
     }
   }
+
+  /** Lowest screen y of the underside blocks (past it the fall fades). */
+  private _undersideBottom = 0
 
   /** Waterfalls of the island (one per water cell side on the edge). */
   get cascades(): readonly Cascade[] {
@@ -395,19 +396,10 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
    */
   private _drawWalls() {
     this._walls?.destroy({ children: true })
-    const group = new Container()
-    group.label = "aux"
-    group.filters = [new AlphaFilter({ alpha: waterTint(1).alpha })]
-    const g = new Graphics()
-    group.addChild(g)
-    // the fall is drawn on its own, outside the translucent group, so it
-    // stays a clear blue sheet instead of showing the strata through
     const root = new Container()
     root.label = "aux"
     const gf = new Container()
-    root.addChild(group, gf)
-    const h = COLUMN_BOTTOM * verticalScale()
-    const fade = h * 1.25
+    root.addChild(gf)
     let z = 0
     const faceOf = (cell: Point) => {
       const base = toScreen(cell)
@@ -456,58 +448,36 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     }
     for (const r of merged) {
       const { lead, tail, color: tone } = r
-      const e = { x: tail.x - lead.x, y: tail.y - lead.y }
-      const len = Math.max(1, Math.abs(e.x))
-      const x0 = merged.some(
-        (o) => o !== r && same(o.dir, r.dir) && near(o.tail, lead),
-      )
-        ? -0.5 / len
-        : 0
-      const x1 = merged.some(
-        (o) => o !== r && same(o.dir, r.dir) && near(o.lead, tail),
-      )
-        ? 1 + 0.5 / len
-        : 1
-      const at = (u: number, y: number) => [
-        lead.x + e.x * u,
-        lead.y + e.y * u + y,
-      ]
-      // the wall: from the surface down to the bed of the cell only (the
-      // dirt of the bed column shows under it, then the fall starts at the
-      // bottom of the column)
-      const wall = h
-      g.poly([
-        ...at(x0, 0),
-        ...at(x1, 0),
-        ...at(x1, wall),
-        ...at(x0, wall),
-      ]).fill(tone)
-      // the fall: a straight sheet under the edge run, as wide as the run,
-      // lighter blue fading out downwards
-      const lighter = mix(tone, 0x4fb0ff, 0.75)
+      // one straight sheet per run: from the water surface edge, over the
+      // bed column, the island side and the underside, down to past the
+      // lowest block, fading out over its last part
+      const lighter = mix(tone, 0x4fb0ff, 0.55)
       const rgb = `${(lighter >> 16) & 255},${(lighter >> 8) & 255},${lighter & 255}`
-      const lead0 = 0
-      const total = lead0 + fade
-      const pk = lead0 / total
+      const bottom = this._undersideBottom + FALL_TAIL
+      const top = Math.min(lead.y, tail.y)
+      const solid = (this._undersideBottom - top) / (bottom - top)
       const grad = new FillGradient({
         type: "linear",
         start: { x: 0, y: 0 },
         end: { x: 0, y: 1 },
         textureSpace: "local",
-        colorStops: [0, 1, 2, 3, 4, 5, 6].map((i) => {
-          const k = i / 6
-          const a = 0.68 * (1 - k) ** 1.3
-          return {
-            offset: pk + (1 - pk) * k,
-            color: `rgba(${rgb},${a})`,
-          }
-        }),
+        colorStops: [
+          { offset: 0, color: `rgba(${rgb},0.5)` },
+          { offset: solid, color: `rgba(${rgb},0.42)` },
+          { offset: 1, color: `rgba(${rgb},0)` },
+        ],
       })
       const fg = new Graphics()
-      fg.poly([0, 0, len, 0, len, total, 0, total]).fill(grad)
-      fg.setFromMatrix(
-        new Matrix(1, e.y / e.x, 0, 1, lead.x, lead.y + h - lead0),
-      )
+      fg.poly([
+        lead.x - 0.4,
+        lead.y,
+        tail.x + 0.4,
+        tail.y,
+        tail.x + 0.4,
+        bottom,
+        lead.x - 0.4,
+        bottom,
+      ]).fill(grad)
       gf.addChild(fg)
     }
     root.zIndex = z
@@ -1135,6 +1105,7 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       }
     }
     container.addChild(blocks)
+    this._undersideBottom = blocks.getLocalBounds().maxY
     // strata and darkening with depth: whole horizontal bands across the
     // underside, clipped to the blocks (never per block: it draws wedges)
     const box = blocks.getLocalBounds()
