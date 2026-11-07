@@ -132,6 +132,7 @@ interface DecorItem {
 
 /** A waterfall pouring from a water cell over the edge of the island. */
 interface Cascade {
+  g: Graphics
   /** Grid direction of the side the water runs down. */
   dir: Point
   /** Height of the fall along the column and the blocks under it. */
@@ -248,7 +249,44 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       }
       i++
     }
+    for (const list of this._cascades.values()) {
+      for (const cascade of list) this._drawCascade(cascade)
+    }
     this._updateWaves()
+  }
+
+  /**
+   * Animated waterfall over the seamless wall: a few soft lighter bands
+   * sliding down it, and droplets breaking off at its foot.
+   */
+  private _drawCascade(cascade: Cascade) {
+    const { g, dir } = cascade
+    const length = cascade.length * verticalScale()
+    const t = this._time / 1000
+    const [pa, pb] = edgeOf(dir)
+    g.clear()
+    for (let k = 0; k < 3; k++) {
+      const y = (t * 36 + (k * length) / 3) % length
+      const alpha = 0.16 * (1 - y / length)
+      g.poly([
+        pa.x,
+        pa.y + y,
+        pb.x,
+        pb.y + y,
+        pb.x,
+        pb.y + y + 5,
+        pa.x,
+        pa.y + y + 5,
+      ]).fill({ color: 0xffffff, alpha })
+    }
+    for (let d = 0; d < 3; d++) {
+      const u = (t / 1.1 + d / 3) % 1
+      const p = lerp(pa, pb, (d * 0.31 + 0.2) % 1)
+      g.circle(p.x, p.y + length + u * 30, 1.4).fill({
+        color: 0xe7f5ff,
+        alpha: 0.6 * (1 - u),
+      })
+    }
   }
 
   /** Waterfalls of the island (one per water cell side on the edge). */
@@ -683,7 +721,11 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     const length = COLUMN_BOTTOM + this._depths[cell.y][cell.x] * BLOCK_HEIGHT
     const falls: Cascade[] = []
     for (const { a, b, light, dir } of this._edgeFaces(cell)) {
-      falls.push({ dir, length })
+      const fall: Cascade = { g: new Graphics(), dir, length }
+      falls.push(fall)
+      parts.column.addChild(fall.g)
+      parts.transient.push(fall.g)
+      this._drawCascade(fall)
       const h = length * verticalScale()
       const bands = 12
       for (let i = 0; i < bands; i++) {
@@ -870,6 +912,22 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       }
     }
     container.addChild(blocks)
+    // strata and darkening with depth: whole horizontal bands across the
+    // underside, clipped to the blocks (never per block: it draws wedges)
+    const box = blocks.getLocalBounds()
+    const bands = new Graphics()
+    const step = BLOCK_HEIGHT * 2 * verticalScale()
+    const rows = Math.ceil(box.height / step)
+    for (let i = 0; i < rows; i++) {
+      const alpha = Math.min(0.45, (i / Math.max(1, rows)) * 0.5)
+      bands
+        .rect(box.x - 2, box.y + i * step, box.width + 4, step)
+        .fill({ color: i % 2 === 0 ? 0x1a1208 : 0x2a1c0c, alpha })
+    }
+    container.addChild(bands)
+    const clip = new Graphics(blocks.context)
+    container.addChild(clip)
+    bands.setMask({ mask: clip })
     return container
   }
 }
