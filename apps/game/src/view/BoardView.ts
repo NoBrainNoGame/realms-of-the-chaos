@@ -8,13 +8,13 @@ import {
   type Point,
 } from "@realms/engine"
 import {
-  AlphaFilter,
   Container,
   type FederatedPointerEvent,
   Graphics,
   Polygon,
   Sprite,
 } from "pixi.js"
+import { ColorMesh } from "./colorMesh"
 import { softCircle } from "./effects"
 import { BLOCK_HEIGHT, drawBlock, undersideDepths } from "./islands"
 import {
@@ -153,7 +153,8 @@ interface CellParts {
   transient: Container[]
   /** The water of the cell (opaque: it is translucent as a group). */
   water: Container
-  waterG: Graphics
+  /** Flat-shaded mesh of the swell, made at the first paint. */
+  waterMesh: ColorMesh | null
   hit: Graphics
   /** Rest position of the column on screen. */
   y: number
@@ -169,7 +170,7 @@ interface DecorItem {
 
 /** A merged runoff sheet along the island edge (see `_paintSheet`). */
 interface Sheet {
-  g: Graphics
+  mesh: ColorMesh
   lead: { x: number; y: number }
   tail: { x: number; y: number }
   /** Grid points under the two ends. */
@@ -250,8 +251,6 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       const ground = new Graphics()
       const overlay = new Graphics()
       const water = new Container()
-      const waterG = new Graphics()
-      water.addChild(waterG)
       this._entities.addChild(column)
 
       const hit = new Graphics()
@@ -268,7 +267,7 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
         ground,
         overlay,
         water,
-        waterG,
+        waterMesh: null,
         animated: [],
         decor: null,
         vines: new Map(),
@@ -283,6 +282,7 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
 
   /** Draws everything again, after the camera moved. */
   redraw() {
+    this._gridStale = true
     this._underside?.destroy({ children: true })
     this._underside = this._drawUnderside()
     // in the depth-sorted layer of the columns, behind all of them (its own
@@ -311,7 +311,6 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     let band = this._bands.get(key)
     if (!band) {
       band = new Container()
-      band.filters = [new AlphaFilter({ alpha: waterTint(1).alpha })]
       band.zIndex = depthOf(cell, DEPTH.column + 0.5)
       band.label = "aux"
       this._entities.addChild(band)
@@ -339,51 +338,89 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     this._updateWaves()
   }
 
-  /** The water surface of a cell: its swell and crest/trough shading. */
+  /**
+   * The water surface of a cell: its swell and crest/trough shading, as one
+   * flat-shaded mesh (a quad per mesh square, own vertices, no overlap), with
+   * the translucency of the water baked in the vertices.
+   */
   private _paintWater(parts: CellParts) {
     const at = parts.swellAt
     if (!at) return
     const t = this._time / 1000
-    const w = parts.waterG
-    w.clear()
     const n = MESH
-    const pt: number[][][] = []
-    const hs: number[][] = []
+    const side = n + 1
+    let mesh = parts.waterMesh
+    if (!mesh) {
+      mesh = parts.waterMesh = new ColorMesh(n * n * 4, n * n * 6)
+      for (let q = 0; q < n * n; q++) {
+        const v = q * 4
+        mesh.indices.set([v, v + 1, v + 2, v, v + 2, v + 3], q * 6)
+      }
+      mesh.usedVertices = n * n * 4
+      mesh.usedIndices = n * n * 6
+      mesh.commit(0)
+    }
+    if (mesh.parent !== parts.water) parts.water.addChild(mesh)
+    const alpha = waterTint(1).alpha
+    const pos = mesh.positions
+    if (this._gridStale) this._refreshGrid()
+    const { _gridX: gx, _gridY: gy, _gridH: gh } = this
     for (let i = 0; i <= n; i++) {
-      pt.push([])
-      hs.push([])
       for (let j = 0; j <= n; j++) {
-        const ox = -0.5 + i / n
-        const oy = -0.5 + j / n
-        const h = swell(at.x + ox, at.y + oy, t)
-        const p = project(ox, oy)
-        pt[i].push([p.x, p.y - h * SWELL])
-        hs[i].push(h)
+        const k = i * side + j
+        const h = swell(at.x - 0.5 + i / n, at.y - 0.5 + j / n, t)
+        gy[k] = this._projY[k] - h * SWELL
+        gh[k] = h
       }
     }
-    const ring: number[][] = []
-    for (let i = 0; i < n; i++) ring.push(pt[i][0])
-    for (let j = 0; j < n; j++) ring.push(pt[n][j])
-    for (let i = n; i > 0; i--) ring.push(pt[i][n])
-    for (let j = n; j > 0; j--) ring.push(pt[0][j])
-    w.poly(ring.flat()).fill(at.color)
     for (let i = 0; i < n; i++) {
       for (let j = 0; j < n; j++) {
-        const s =
-          (hs[i][j] + hs[i + 1][j] + hs[i][j + 1] + hs[i + 1][j + 1]) / 4
-        if (Math.abs(s) < 0.03) continue
+        const a = i * side + j
+        const b = a + side
+        const d = a + 1
+        const c = b + 1
+        const s = (gh[a] + gh[b] + gh[d] + gh[c]) / 4
         const color =
-          s > 0
-            ? mix(at.color, 0xffffff, 0.12 * s)
-            : mix(at.color, WATER.deep, -0.3 * s)
-        w.poly([
-          ...pt[i][j],
-          ...pt[i + 1][j],
-          ...pt[i + 1][j + 1],
-          ...pt[i][j + 1],
-        ]).fill(color)
+          Math.abs(s) < 0.03
+            ? at.color
+            : s > 0
+              ? mix(at.color, 0xffffff, 0.12 * s)
+              : mix(at.color, WATER.deep, -0.3 * s)
+        const v = (i * n + j) * 4
+        let o = v * 2
+        pos[o++] = gx[a]
+        pos[o++] = gy[a]
+        pos[o++] = gx[b]
+        pos[o++] = gy[b]
+        pos[o++] = gx[c]
+        pos[o++] = gy[c]
+        pos[o++] = gx[d]
+        pos[o] = gy[d]
+        for (let q = 0; q < 4; q++) mesh.setColor(v + q, color, alpha)
       }
     }
+    mesh.commit()
+  }
+
+  /** Screen x of the points of a water mesh, and y without the swell. */
+  private readonly _gridX = new Float32Array((MESH + 1) ** 2)
+  private readonly _projY = new Float32Array((MESH + 1) ** 2)
+  /** Swell-lifted y and height of the points, rewritten at each paint. */
+  private readonly _gridY = new Float32Array((MESH + 1) ** 2)
+  private readonly _gridH = new Float32Array((MESH + 1) ** 2)
+  /** The camera moved: the projected points are computed again. */
+  private _gridStale = true
+
+  private _refreshGrid() {
+    const n = MESH
+    for (let i = 0; i <= n; i++) {
+      for (let j = 0; j <= n; j++) {
+        const p = project(-0.5 + i / n, -0.5 + j / n)
+        this._gridX[i * (n + 1) + j] = p.x
+        this._projY[i * (n + 1) + j] = p.y
+      }
+    }
+    this._gridStale = false
   }
 
   /**
@@ -392,12 +429,19 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
    * speed. Flat strips (no texture), the fade is in their alpha.
    */
   private _paintSheet(sheet: Sheet) {
-    const { g, lead, tail, glead, gtail } = sheet
+    const { mesh, lead, tail, glead, gtail, drop } = sheet
     const t = this._time / 1000
-    g.clear()
     const len = Math.hypot(gtail.x - glead.x, gtail.y - glead.y)
     const m = Math.max(2, Math.ceil(len * MESH))
-    const top: number[][] = []
+    const sc = sheetScratch(m + 8)
+    const { tx, ty, cy } = sc
+    const sway = (x: number, y: number) =>
+      1.2 * Math.sin(y / 70 - t * 1.1 + x / 40)
+    const swayL = sway(lead.x, lead.y + drop / 2)
+    const swayR = sway(tail.x, tail.y + drop / 2)
+    // the sheet: a swelling top, vertical sides, a flat bottom. Cut into a
+    // trapezoid per mesh column under the top edge (convex pieces, vertical
+    // joints) and one body under the line below the whole swell
     for (let i = 0; i <= m; i++) {
       const u = i / m
       const h = swell(
@@ -405,23 +449,12 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
         glead.y + (gtail.y - glead.y) * u,
         t,
       )
-      top.push([
-        lead.x + (tail.x - lead.x) * u,
-        lead.y + (tail.y - lead.y) * u - h * SWELL,
-      ])
+      tx[i] = lead.x + (tail.x - lead.x) * u + swayL + ((swayR - swayL) * i) / m
+      ty[i] = lead.y + (tail.y - lead.y) * u - h * SWELL
+      cy[i] = lead.y + (tail.y - lead.y) * u + SWELL + 0.5
     }
-    const sway = (x: number, y: number) =>
-      1.2 * Math.sin(y / 70 - t * 1.1 + x / 40)
-    const { drop } = sheet
-    const swayL = sway(lead.x, lead.y + drop / 2)
-    const swayR = sway(tail.x, tail.y + drop / 2)
-    const poly = [
-      ...top.flatMap(([x, y], i) => [x + swayL + ((swayR - swayL) * i) / m, y]),
-      tail.x + swayR,
-      tail.y + drop,
-      lead.x + swayL,
-      lead.y + drop,
-    ]
+    const bl = lead.y + drop
+    const br = tail.y + drop
     // strips parallel to the surface edge (so the bottom is parallel too),
     // slightly slanted; v is the depth under the edge plus the slant, so
     // the crests of two runs meeting at a corner line up
@@ -429,20 +462,21 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     const slant = 0.06
     const tilt = slope - slant
     const c = slope * lead.x - lead.y
-    const f = (x: number, y: number) => y - tilt * x
-    let vmin = Infinity
-    let vmax = -Infinity
-    for (let i = 0; i < poly.length; i += 2) {
-      vmin = Math.min(vmin, f(poly[i], poly[i + 1]))
-      vmax = Math.max(vmax, f(poly[i], poly[i + 1]))
+    let vmin = Math.min(bl - tilt * tx[0], br - tilt * tx[m])
+    let vmax = Math.max(bl - tilt * tx[0], br - tilt * tx[m])
+    for (let i = 0; i <= m; i++) {
+      const f = ty[i] - tilt * tx[i]
+      if (f < vmin) vmin = f
+      if (f > vmax) vmax = f
     }
     const xm = (lead.x + tail.x) / 2
     const solidD = drop * 0.25
     const fadeFrom = drop - FALL_TAIL
-    for (let f0 = vmin; f0 < vmax; f0 += FALL_BAND) {
+    const strips = Math.max(0, Math.ceil((vmax - vmin) / FALL_BAND))
+    const { stripColor, stripAlpha } = sheetStrips(strips)
+    for (let k = 0; k < strips; k++) {
+      const f0 = vmin + k * FALL_BAND
       const f1 = Math.min(vmax, f0 + FALL_BAND)
-      const strip = clipSlab(poly, tilt, f0, f1)
-      if (strip.length < 6) continue
       const v = (f0 + f1) / 2 + c
       // depth under the surface edge at the middle of the strip
       const d = v - slant * xm
@@ -451,15 +485,95 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
           ? 0.3 - (0.06 * Math.max(0, d)) / Math.max(1, solidD)
           : 0.24 -
             0.1 * Math.min(1, (d - solidD) / Math.max(1, fadeFrom - solidD))
-      const k = Math.max(0, Math.min(1, (drop - d) / FALL_TAIL))
-      const alpha = d > fadeFrom ? body * k * k * (3 - 2 * k) : body
+      const kk = Math.max(0, Math.min(1, (drop - d) / FALL_TAIL))
+      const alpha = d > fadeFrom ? body * kk * kk * (3 - 2 * kk) : body
       const s = Math.sin(((v - WAVE_SPEED * t) * 2 * Math.PI) / WAVE_LENGTH)
-      const color =
+      stripColor[k] =
         s > 0
           ? mix(sheet.lighter, 0xffffff, 0.35 * s)
           : mix(sheet.lighter, sheet.tone, -0.5 * s)
-      g.poly(strip).fill({ color, alpha: Math.max(0, alpha) * (1 + 0.3 * s) })
+      stripAlpha[k] = Math.max(0, alpha) * (1 + 0.3 * s)
     }
+    const prev = mesh.usedIndices
+    mesh.usedVertices = 0
+    mesh.usedIndices = 0
+    const emit = (n: number, k: number) => {
+      const { ax, ay, bx, by } = sc
+      const f0 = vmin + k * FALL_BAND
+      const f1 = Math.min(vmax, f0 + FALL_BAND)
+      let cnt = clipEdge(ax, ay, n, bx, by, tilt, f0, true)
+      if (cnt >= 3) cnt = clipEdge(bx, by, cnt, ax, ay, tilt, f1, false)
+      if (cnt < 3) return
+      const v0 = mesh.usedVertices
+      mesh.ensure(v0 + cnt, mesh.usedIndices + (cnt - 2) * 3)
+      const pos = mesh.positions
+      const idx = mesh.indices
+      for (let i = 0; i < cnt; i++) {
+        pos[(v0 + i) * 2] = ax[i]
+        pos[(v0 + i) * 2 + 1] = ay[i]
+        mesh.setColor(v0 + i, stripColor[k], stripAlpha[k])
+      }
+      let o = mesh.usedIndices
+      for (let i = 1; i < cnt - 1; i++) {
+        idx[o++] = v0
+        idx[o++] = v0 + i
+        idx[o++] = v0 + i + 1
+      }
+      mesh.usedVertices = v0 + cnt
+      mesh.usedIndices = o
+    }
+    const strip = (f: number) =>
+      Math.max(0, Math.min(strips - 1, Math.floor((f - vmin) / FALL_BAND)))
+    // under the swell: the columns
+    for (let i = 0; i < m; i++) {
+      const f0 = ty[i] - tilt * tx[i]
+      const f1 = ty[i + 1] - tilt * tx[i + 1]
+      const f2 = cy[i] - tilt * tx[i]
+      const f3 = cy[i + 1] - tilt * tx[i + 1]
+      const lo = strip(Math.min(f0, f1, f2, f3))
+      const hi = strip(Math.max(f0, f1, f2, f3))
+      for (let k = lo; k <= hi; k++) {
+        const { ax, ay } = sc
+        ax[0] = tx[i]
+        ay[0] = ty[i]
+        ax[1] = tx[i + 1]
+        ay[1] = ty[i + 1]
+        ax[2] = tx[i + 1]
+        ay[2] = cy[i + 1]
+        ax[3] = tx[i]
+        ay[3] = cy[i]
+        emit(4, k)
+      }
+    }
+    // under the line below the swell: the body (with the points of the line
+    // while a strip meets it, so that the joints with the columns are shared)
+    const fa = cy[0] - tilt * tx[0]
+    const fb = cy[m] - tilt * tx[m]
+    const cutLo = Math.min(fa, fb) - 0.01
+    const cutHi = Math.max(fa, fb) + 0.01
+    const first = strip(cutLo)
+    for (let k = first; k < strips; k++) {
+      const { ax, ay } = sc
+      const f0 = vmin + k * FALL_BAND
+      let n = 0
+      if (f0 <= cutHi) {
+        for (let i = 0; i <= m; i++) {
+          ax[n] = tx[i]
+          ay[n++] = cy[i]
+        }
+      } else {
+        ax[n] = tx[0]
+        ay[n++] = cy[0]
+        ax[n] = tx[m]
+        ay[n++] = cy[m]
+      }
+      ax[n] = tx[m]
+      ay[n++] = br
+      ax[n] = tx[0]
+      ay[n++] = bl
+      emit(n, k)
+    }
+    mesh.commit(prev)
   }
 
   /** Lowest screen y of the underside blocks (past it the fall fades). */
@@ -618,7 +732,7 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     for (const { isBack, r } of pending) {
       const { lead, tail, glead, gtail, color: tone } = r
       const sheet: Sheet = {
-        g: new Graphics(),
+        mesh: new ColorMesh(1024, 3072),
         lead,
         tail,
         glead,
@@ -629,7 +743,7 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       }
       this._paintSheet(sheet)
       this._sheets.push(sheet)
-      ;(isBack ? bgf : gf).addChild(sheet.g)
+      ;(isBack ? bgf : gf).addChild(sheet.mesh)
     }
     root.zIndex = z
     this._entities.addChild(root)
@@ -873,8 +987,6 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     column.removeChildren()
     parts.water.removeFromParent()
     parts.water.removeChildren()
-    parts.water.addChild(parts.waterG)
-    parts.waterG.clear()
     for (const node of parts.transient) node.destroy({ children: true })
     parts.transient = []
     parts.animated = []
@@ -1161,27 +1273,79 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
   }
 }
 
-/** Part of a convex polygon (flat x, y list) between two heights. */
-function clipSlab(poly: number[], tilt: number, v0: number, v1: number) {
-  const f = (p: number[]) => p[1] - tilt * p[0]
-  const clip = (pts: number[][], keep: (v: number) => boolean, at: number) => {
-    const out: number[][] = []
-    for (let i = 0; i < pts.length; i++) {
-      const a = pts[i]
-      const b = pts[(i + 1) % pts.length]
-      if (keep(f(a))) out.push(a)
-      if (keep(f(a)) !== keep(f(b))) {
-        const k = (at - f(a)) / (f(b) - f(a))
-        out.push([a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k])
-      }
-    }
-    return out
+/** Scratch arrays of the runoff sheets (grown on demand, never freed). */
+const sheetBuffers = {
+  size: 0,
+  tx: new Float64Array(0),
+  ty: new Float64Array(0),
+  cy: new Float64Array(0),
+  ax: new Float64Array(0),
+  ay: new Float64Array(0),
+  bx: new Float64Array(0),
+  by: new Float64Array(0),
+  strips: 0,
+  stripColor: new Int32Array(0),
+  stripAlpha: new Float64Array(0),
+}
+
+function sheetScratch(points: number) {
+  const b = sheetBuffers
+  if (b.size < points) {
+    b.size = points * 2
+    b.tx = new Float64Array(b.size)
+    b.ty = new Float64Array(b.size)
+    b.cy = new Float64Array(b.size)
+    // a clipped polygon has at most two more points than the original
+    b.ax = new Float64Array(b.size + 8)
+    b.ay = new Float64Array(b.size + 8)
+    b.bx = new Float64Array(b.size + 8)
+    b.by = new Float64Array(b.size + 8)
   }
-  let pts: number[][] = []
-  for (let i = 0; i < poly.length; i += 2) pts.push([poly[i], poly[i + 1]])
-  pts = clip(pts, (v) => v >= v0, v0)
-  pts = clip(pts, (v) => v <= v1, v1)
-  return pts.flat()
+  return b
+}
+
+function sheetStrips(count: number) {
+  const b = sheetBuffers
+  if (b.strips < count) {
+    b.strips = count * 2
+    b.stripColor = new Int32Array(b.strips)
+    b.stripAlpha = new Float64Array(b.strips)
+  }
+  return b
+}
+
+/**
+ * Keeps the part of a convex polygon (in `ax`, `ay`, `n` points) on one side
+ * of the line y - tilt x = at, written in `bx`, `by`; returns its point count.
+ */
+function clipEdge(
+  ax: Float64Array,
+  ay: Float64Array,
+  n: number,
+  bx: Float64Array,
+  by: Float64Array,
+  tilt: number,
+  at: number,
+  above: boolean,
+) {
+  let out = 0
+  for (let i = 0; i < n; i++) {
+    const j = i + 1 === n ? 0 : i + 1
+    const fa = ay[i] - tilt * ax[i]
+    const fb = ay[j] - tilt * ax[j]
+    const ka = above ? fa >= at : fa <= at
+    const kb = above ? fb >= at : fb <= at
+    if (ka) {
+      bx[out] = ax[i]
+      by[out++] = ay[i]
+    }
+    if (ka !== kb) {
+      const k = (at - fa) / (fb - fa)
+      bx[out] = ax[i] + (ax[j] - ax[i]) * k
+      by[out++] = ay[i] + (ay[j] - ay[i]) * k
+    }
+  }
+  return out
 }
 
 /**

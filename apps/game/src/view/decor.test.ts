@@ -1,9 +1,10 @@
 import { describe, expect, test } from "bun:test"
 import { Board, createRng } from "@realms/engine"
-import { AlphaFilter, Container, Graphics } from "pixi.js"
+import { Container, Graphics } from "pixi.js"
 import { mount, tick } from "../test/harness"
 import Backdrop, { DETAIL_ZOOM, skyDetail, skyPoint } from "./Backdrop"
 import BoardView, { waterTint } from "./BoardView"
+import { ColorMesh } from "./colorMesh"
 import FightScene, { classicFight } from "./FightScene"
 import { drawBlock, drawFloatingIsland, undersideDepths } from "./islands"
 import { camera, depthAlong, resetCamera } from "./theme"
@@ -382,7 +383,7 @@ describe("translucent water", () => {
     }
   })
 
-  test("all the water is opaque shapes in groups that carry the alpha filter", () => {
+  test("the water is flat-shaded meshes with the alpha baked in, no filter", () => {
     const board = mount(
       new BoardView(
         Board.fromAscii(["..~", ".W~", "..."]),
@@ -394,15 +395,18 @@ describe("translucent water", () => {
     const groups = board.waterGroups
     expect(groups.length).toBeGreaterThan(0)
     for (const group of groups) {
-      const filter = group.filters?.[0] as AlphaFilter
-      expect(filter).toBeInstanceOf(AlphaFilter)
-      expect(filter.alpha).toBeLessThan(1)
+      // no offscreen pass: the translucency is in the vertices
+      expect(group.filters ?? []).toHaveLength(0)
       for (const cell of group.children) {
-        const fills = (
-          (cell.children[0] as Graphics).context.instructions as any[]
-        ).filter((i) => i.action === "fill")
-        expect(fills.length).toBeGreaterThan(0)
-        for (const f of fills) expect(f.data.style.alpha).toBe(1)
+        const mesh = cell.children[0] as ColorMesh
+        expect(mesh).toBeInstanceOf(ColorMesh)
+        expect(mesh.usedVertices).toBeGreaterThan(0)
+        for (let v = 0; v < mesh.usedVertices; v++) {
+          expect(mesh.colors[v * 4 + 3] / 255).toBeCloseTo(
+            waterTint(1).alpha,
+            2,
+          )
+        }
       }
     }
     // the bed is in the terrain column, under the water
