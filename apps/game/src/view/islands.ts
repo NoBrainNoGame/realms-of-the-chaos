@@ -65,8 +65,8 @@ export function undersideDepths(
  * the more "deep rock" strata).
  */
 export function blockColor(depth: number) {
-  const index = Math.min(STRATA.length - 1, 2 + Math.floor(depth * 0.8))
-  return shade(STRATA[index], 1 - Math.min(0.18, depth * 0.02))
+  const index = Math.min(4, 1 + Math.floor(depth * 0.5))
+  return shade(STRATA[index], 1.12)
 }
 
 /**
@@ -99,7 +99,7 @@ export function drawBlock(
       bottom + b.y,
       x + a.x,
       bottom + a.y,
-    ]).fill(shade(color, light < 1 ? 0.72 : 1))
+    ]).fill(shade(color, light < 1 ? 0.8 : 1))
   }
   // block seams (the top edges of the faces) and the front edge, in one
   // stroke: a stroke is costly to build
@@ -109,7 +109,7 @@ export function drawBlock(
   const f = frontCorner(c)
   g.moveTo(x + f.x, top + f.y)
     .lineTo(x + f.x, bottom + f.y)
-    .stroke({ width: 1, color: 0x000000, alpha: 0.25 })
+    .stroke({ width: 1, color: 0x000000, alpha: 0.12 })
 }
 
 /**
