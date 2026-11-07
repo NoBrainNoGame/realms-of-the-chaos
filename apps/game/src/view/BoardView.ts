@@ -89,6 +89,8 @@ export function waveOffset(amplitude: number, u: number) {
  * more than a shockwave moves a column, so no hole shows.
  */
 const HIDDEN_MARGIN = 14
+/** Depth of the island underside: behind every column and fighter. */
+export const UNDERSIDE_Z = -1e9
 
 /** Bottom of every column, below the lowest level (classic view). */
 export const COLUMN_BOTTOM = -FLOOR_LEVEL * ELEVATION_HEIGHT + TILE_DEPTH
@@ -229,7 +231,12 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
   redraw() {
     this._underside?.destroy({ children: true })
     this._underside = this._drawUnderside()
-    this._container.addChildAt(this._underside, 0)
+    // in the depth-sorted layer of the columns, behind all of them (its own
+    // container may sit above that layer: the blocks of the deep middle
+    // would then be drawn over the front cells, which "climb")
+    this._entities.sortableChildren = true
+    this._underside.zIndex = UNDERSIDE_Z
+    this._entities.addChild(this._underside)
     for (const cell of this._board.cells) this._drawCell(cell)
   }
 

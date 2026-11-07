@@ -42,12 +42,19 @@ export function undersideDepths(
   const rings = Math.ceil(Math.max(cx, cy))
   return Array.from({ length: height }, (_, y) =>
     Array.from({ length: width }, (_, x) => {
-      const ring = Math.ceil(Math.max(Math.abs(x - cx), Math.abs(y - cy)))
+      // (normalized by each half-axis: on a rectangle the whole perimeter
+      // is on the last ring, so the front edge stays level instead of
+      // climbing step by step towards the ends of the long side)
+      const nx = cx > 0 ? (Math.abs(x - cx) / cx) * rings : 0
+      const ny = cy > 0 ? (Math.abs(y - cy) / cy) * rings : 0
+      const ring = Math.ceil(Math.max(nx, ny) - 1e-9)
       // each ring towards the edge loses about `step` blocks: a stepped
       // pyramid that narrows down to the middle column, its tip
       const base = (rings - ring) * step + 1
       // irregular: a block more or less here and there
-      const noise = Math.floor(cellNoise({ x, y }, seed, 11) * 3) - 1
+      // (but not on the outer ring: a level rim, no ragged front edge)
+      const noise =
+        ring === rings ? 0 : Math.floor(cellNoise({ x, y }, seed, 11) * 3) - 1
       return Math.max(1, base + (ring === 0 ? 1 : noise))
     }),
   )
