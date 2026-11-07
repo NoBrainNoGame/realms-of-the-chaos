@@ -46,7 +46,12 @@ import { settings } from "../settings"
 import { adventureSave } from "../storage"
 import AppearanceEditor from "./AppearanceEditor"
 import Backdrop from "./Backdrop"
-import BoardView, { COLUMN_BOTTOM, DEPTH, depthOf } from "./BoardView"
+import BoardView, {
+  COLUMN_BOTTOM,
+  DEPTH,
+  depthOf,
+  type Highlight,
+} from "./BoardView"
 import { CameraRig, turnButton } from "./cameraRig"
 import type FightScene from "./FightScene"
 import { drawIcon, MARK_LEGEND, markAnchor, markInfo } from "./marks"
@@ -201,6 +206,8 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
   }[] = []
   /** The cell under the pointer. */
   private _hovered: Point | null = null
+  /** Ground overlays last set (drawn again whenever the camera moves). */
+  private _highlights: Highlight[] = []
   private _time = 0
   private _autoIn = 0
   private _fight: FightScene | null = null
@@ -357,6 +364,8 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
   /** The quarter, tilt or small turn changed: everything is drawn again. */
   private _cameraRedraw() {
     this._view.redraw()
+    // the overlays are shaped by the camera: drawn again with the tiles
+    this._view.setHighlights(this._highlights)
     for (const a of this._everyone()) {
       a.puppet.setFacing(screenFacing(a.facing))
       this._place(a)
@@ -656,11 +665,11 @@ export default class ExplorationScene extends ViewChip<ExplorationEvents> {
         place: !(e.actor || e.wander),
       })
     }
-    this._view.setHighlights(
+    this._highlights =
       exploring(this._run) && zone.length
         ? [{ cells: zone, color: 0xffe066, alpha: 0.16, outline: true }]
-        : [],
-    )
+        : []
+    this._view.setHighlights(this._highlights)
     this._anchorMarks()
   }
 

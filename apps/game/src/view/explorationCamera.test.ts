@@ -4,7 +4,7 @@ import { mount, tick } from "../test/harness"
 import { TURN_DURATION } from "./cameraRig"
 import type ExplorationScene from "./ExplorationScene"
 import Game from "./Game"
-import { camera, resetCamera, toScreen } from "./theme"
+import { camera, diamond, resetCamera, toScreen } from "./theme"
 
 const island = (query: string) => {
   const g = mount(new Game(parseParams(new URLSearchParams(query))))
@@ -94,5 +94,37 @@ describe("exploration camera", () => {
     rig.zoomAt({ x: 400, y: 300 }, 3)
     tick(s, 1500)
     expect(rig.zoom.value).toBeGreaterThan(1.3)
+  })
+
+  test("ground overlays follow the tilt like the tile tops", () => {
+    const s = island("chapter=3")
+    tick(s, 100)
+    const x = s as any
+    const cell = x._hero.cell
+    x._highlights = [{ cells: [cell], color: 0xffe066, alpha: 0.3 }]
+    x._view.setHighlights(x._highlights)
+    const size = () => {
+      const b = x._view._parts
+        .get(`${cell.x},${cell.y}`)
+        .overlay.getLocalBounds()
+      return { w: b.width, h: b.height }
+    }
+    const want = () => {
+      const d = diamond(3)
+      const xs = d.filter((_, i) => i % 2 === 0)
+      const ys = d.filter((_, i) => i % 2 === 1)
+      return {
+        w: Math.max(...xs) - Math.min(...xs),
+        h: Math.max(...ys) - Math.min(...ys),
+      }
+    }
+    const flat = want()
+    expect(size().h).toBeCloseTo(flat.h, 1)
+    x._rig.aimCamera(60, 0)
+    tick(s, 2000)
+    const tall = want()
+    expect(tall.h).toBeGreaterThan(flat.h + 4)
+    expect(size().w).toBeCloseTo(tall.w, 1)
+    expect(size().h).toBeCloseTo(tall.h, 1)
   })
 })
