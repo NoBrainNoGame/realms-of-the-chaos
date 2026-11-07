@@ -16,14 +16,18 @@ import {
 } from "pixi.js"
 import { ColorMesh } from "./colorMesh"
 import { softCircle } from "./effects"
-import { BLOCK_HEIGHT, drawBlock, undersideDepths } from "./islands"
+import {
+  BLOCK_HEIGHT,
+  COLUMN_BOTTOM,
+  columnBands,
+  drawUndersideStack,
+  undersideDepths,
+} from "./islands"
 import {
   cellNoise,
   depthAlong,
   diamond,
-  ELEVATION_HEIGHT,
   edgeOf,
-  FLOOR_LEVEL,
   frontCorner,
   GROUND_TOP,
   levelHeight,
@@ -31,7 +35,6 @@ import {
   project,
   STRATA,
   shade,
-  TILE_DEPTH,
   TILE_WIDTH,
   toScreen,
   verticalScale,
@@ -114,17 +117,7 @@ export function swell(gx: number, gy: number, t: number) {
 
 export const UNDERSIDE_Z = -1e9
 
-/**
- * Number of strata bands of a column of `elevation` (one per level, the
- * last one cut by the bottom): the underside goes on with the next band.
- */
-export function columnBands(elevation: number) {
-  const step = ELEVATION_HEIGHT
-  return Math.ceil((COLUMN_BOTTOM + elevation * step - 0.01) / step)
-}
-
-/** Bottom of every column, below the lowest level (classic view). */
-export const COLUMN_BOTTOM = -FLOOR_LEVEL * ELEVATION_HEIGHT + TILE_DEPTH
+export { COLUMN_BOTTOM, columnBands }
 
 /**
  * Tint of the water surface over a bed `depth` levels down: a fixed step
@@ -1246,24 +1239,18 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       const origin = toScreen(cell)
       // the strata of the column go on: its bottom band is `base - 1`
       const base = columnBands(cell.elevation)
-      // deepest first: each block then covers the top face of the one under
-      // it (drawn the other way round, that top overpaints the faces above)
-      for (let k = depth - 1; k >= 0; k--) {
-        // a face against the neighbor's block of the same level is hidden
-        const hidden = (d: Point) => {
+      drawUndersideStack(
+        blocks,
+        origin,
+        COLUMN_BOTTOM,
+        depth,
+        base,
+        undefined,
+        (d, k) => {
           const n = { x: cell.x + d.x, y: cell.y + d.y }
           return this._board.inBounds(n) && this._depths[n.y][n.x] > k
-        }
-        drawBlock(
-          blocks,
-          origin,
-          COLUMN_BOTTOM + k * BLOCK_HEIGHT,
-          k,
-          undefined,
-          hidden,
-          base,
-        )
-      }
+        },
+      )
     }
     container.addChild(blocks)
     this._undersideBottom = blocks.getLocalBounds().maxY

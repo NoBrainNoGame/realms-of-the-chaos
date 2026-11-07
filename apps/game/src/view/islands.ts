@@ -7,11 +7,13 @@ import {
   depthAlong,
   diamond,
   ELEVATION_HEIGHT,
+  FLOOR_LEVEL,
   frontCorner,
   GROUND_TOP,
   ISO,
   STRATA,
   shade,
+  TILE_DEPTH,
   toScreen,
   verticalScale,
   visibleFaces,
@@ -59,6 +61,48 @@ export function undersideDepths(
       return Math.max(1, base + (ring === 0 ? 1 : noise))
     }),
   )
+}
+
+/** Bottom of every board column, below the lowest level (classic view). */
+export const COLUMN_BOTTOM = -FLOOR_LEVEL * ELEVATION_HEIGHT + TILE_DEPTH
+
+/**
+ * Number of strata bands of a column whose bottom is at `bottom` (classic
+ * view) and whose top is `elevation` levels up (one band per level, the
+ * last one cut by the bottom): the underside goes on with the next band.
+ */
+export function columnBands(elevation: number, bottom = COLUMN_BOTTOM) {
+  const step = ELEVATION_HEIGHT
+  return Math.ceil((bottom + elevation * step - 0.01) / step)
+}
+
+/**
+ * The underside of one cell, shared by the board and the floating islands:
+ * `depth` blocks stacked from `bottom` (the bottom of the column), deepest
+ * first (a block covers the top face of the one under it), continuing the
+ * strata of the column (`base`) and darkening with every level.
+ */
+export function drawUndersideStack(
+  g: Graphics,
+  origin: { x: number; y: number },
+  bottom: number,
+  depth: number,
+  base: number,
+  c: Readonly<Camera> | undefined,
+  /** Is the block `k` of the neighbor in this direction there (face hidden)? */
+  neighbor: (dir: { x: number; y: number }, k: number) => boolean,
+) {
+  for (let k = depth - 1; k >= 0; k--) {
+    drawBlock(
+      g,
+      origin,
+      bottom + k * BLOCK_HEIGHT,
+      k,
+      c,
+      (d) => neighbor(d, k),
+      base,
+    )
+  }
 }
 
 /**
@@ -137,6 +181,9 @@ export function drawBlock(
     .stroke({ width: 1, color: 0x000000, alpha: 0.12 })
 }
 
+/** Blocks lost per ring on a floating island: a short, pointed tip. */
+export const ISLET_STEP = 3
+
 /**
  * A whole floating island of `size` × `size` cells, centered on (0, 0): a
  * grassy top with a little relief, columns, and the block pyramid under
@@ -149,7 +196,7 @@ export function drawFloatingIsland(
   seed: number,
   c: Readonly<Camera> = ISO,
 ) {
-  const depths = undersideDepths(size, size, seed, size + 2)
+  const depths = undersideDepths(size, size, seed, ISLET_STEP)
   const center = toScreen({ x: (size - 1) / 2, y: (size - 1) / 2 }, 0, c)
   const cells: { x: number; y: number; elevation: number; skip: boolean }[] = []
   for (let y = 0; y < size; y++) {
@@ -179,27 +226,26 @@ export function drawFloatingIsland(
       const n = at(cell.x + d.x, cell.y + d.y)
       return n && !n.skip ? n : null
     }
-    for (let level = cell.elevation; level > -1; level--) {
+    // the inverted pyramid under it: the very algorithm of the board's
+    // underside, from the bottom of the one-block column
+    drawUndersideStack(
+      g,
+      origin,
+      ELEVATION_HEIGHT,
+      depths[cell.y][cell.x],
+      cell.elevation + 1,
+      c,
+      (d, k) => {
+        const n = next(d)
+        return !!n && depths[n.y][n.x] > k
+      },
+    )
+    // bottom-up: a block covers the top face of the one under it
+    for (let level = 0; level <= cell.elevation; level++) {
       drawBlock(g, origin, -level * ELEVATION_HEIGHT, 0, c, (d) => {
         const n = next(d)
         return !!n && n.elevation >= level
       })
-    }
-    // the inverted pyramid under it
-    const depth = depths[cell.y][cell.x]
-    // deepest first: a block covers the top face of the one under it
-    for (let k = depth - 1; k >= 0; k--) {
-      drawBlock(
-        g,
-        origin,
-        ELEVATION_HEIGHT + k * BLOCK_HEIGHT,
-        k + 1,
-        c,
-        (d) => {
-          const n = next(d)
-          return !!n && depths[n.y][n.x] > k
-        },
-      )
     }
     const grass = shade(
       GROUND_TOP[cell.elevation] ?? GROUND_TOP[0],
@@ -207,7 +253,7 @@ export function drawFloatingIsland(
     )
     g.poly(
       diamond(0, c).map((v, i) =>
-        i % 2 === 0 ? v + origin.x : v + origin.y + top,
+        i % 2 === 0 ? v + origin.x : v + origin.y + top * verticalScale(c),
       ),
     ).fill(grass)
   }

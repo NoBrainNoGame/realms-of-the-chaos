@@ -16,6 +16,7 @@ import FightScene, { classicFight } from "./FightScene"
 import {
   drawBlock,
   drawFloatingIsland,
+  ISLET_STEP,
   undersideColor,
   undersideDepths,
 } from "./islands"
@@ -68,6 +69,19 @@ describe("island underside (inverted pyramid of blocks)", () => {
               rim.push(a[y][x])
         expect(new Set(rim).size).toBe(1)
       }
+    }
+  })
+
+  test("a floating islet tapers like the board: fewer cells at each level down", () => {
+    for (const size of [3, 4, 5]) {
+      const d = undersideDepths(size, size, 7, ISLET_STEP)
+      const width = (level: number) => d.flat().filter((n) => n > level).length
+      expect(width(0)).toBe(size * size)
+      expect(width(1)).toBeLessThan(width(0))
+      const deepest = Math.max(...d.flat())
+      expect(width(deepest - 1)).toBeLessThanOrEqual(2)
+      for (let k = 1; k < deepest; k++)
+        expect(width(k)).toBeLessThanOrEqual(width(k - 1))
     }
   })
 
