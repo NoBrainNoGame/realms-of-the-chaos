@@ -100,8 +100,6 @@ const WAVE_LENGTH = 240
 /** Height (px) of the swell of the water surface, and its mesh density. */
 const SWELL = 2
 const MESH = 8
-/** Tilt of the crest lines of the runoff (so none runs flat). */
-const CREST_TILT = 0.15
 
 /**
  * The swell at a point of the board (grid coordinates), in [-1, 1]: two
@@ -179,10 +177,8 @@ interface Sheet {
   gtail: Point
   tone: number
   lighter: number
-  top: number
-  bottom: number
-  /** Where the fade starts. */
-  solidY: number
+  /** Height of the fall under the surface edge (px at this tilt). */
+  drop: number
 }
 
 /** A waterfall pouring from a water cell over the edge of the island. */
@@ -416,17 +412,24 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     }
     const sway = (x: number, y: number) =>
       1.2 * Math.sin(y / 70 - t * 1.1 + x / 40)
-    const { bottom, solidY, top: y0 } = sheet
-    const swayL = sway(lead.x, (y0 + bottom) / 2)
-    const swayR = sway(tail.x, (y0 + bottom) / 2)
+    const { drop } = sheet
+    const swayL = sway(lead.x, lead.y + drop / 2)
+    const swayR = sway(tail.x, tail.y + drop / 2)
     const poly = [
       ...top.flatMap(([x, y], i) => [x + swayL + ((swayR - swayL) * i) / m, y]),
       tail.x + swayR,
-      bottom,
+      tail.y + drop,
       lead.x + swayL,
-      bottom,
+      lead.y + drop,
     ]
-    const f = (x: number, y: number) => y - CREST_TILT * x
+    // strips parallel to the surface edge (so the bottom is parallel too),
+    // slightly slanted; v is the depth under the edge plus the slant, so
+    // the crests of two runs meeting at a corner line up
+    const slope = (tail.y - lead.y) / Math.max(1, tail.x - lead.x)
+    const slant = 0.06
+    const tilt = slope - slant
+    const c = slope * lead.x - lead.y
+    const f = (x: number, y: number) => y - tilt * x
     let vmin = Infinity
     let vmax = -Infinity
     for (let i = 0; i < poly.length; i += 2) {
@@ -434,22 +437,22 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       vmax = Math.max(vmax, f(poly[i], poly[i + 1]))
     }
     const xm = (lead.x + tail.x) / 2
-    for (let v0 = vmin; v0 < vmax; v0 += FALL_BAND) {
-      const v1 = Math.min(vmax, v0 + FALL_BAND)
-      const strip = clipSlab(poly, CREST_TILT, v0, v1)
+    const solidD = drop * 0.25
+    const fadeFrom = drop - FALL_TAIL
+    for (let f0 = vmin; f0 < vmax; f0 += FALL_BAND) {
+      const f1 = Math.min(vmax, f0 + FALL_BAND)
+      const strip = clipSlab(poly, tilt, f0, f1)
       if (strip.length < 6) continue
-      const v = (v0 + v1) / 2
-      const y = v + CREST_TILT * xm
-      // light near the surface, then thinning, then a smooth fade to
-      // nothing over the last FALL_TAIL px (no hard end to the sheet)
-      const fadeFrom = bottom - FALL_TAIL
+      const v = (f0 + f1) / 2 + c
+      // depth under the surface edge at the middle of the strip
+      const d = v - slant * xm
       const body =
-        y < solidY
-          ? 0.3 - (0.06 * (y - y0)) / Math.max(1, solidY - y0)
+        d < solidD
+          ? 0.3 - (0.06 * Math.max(0, d)) / Math.max(1, solidD)
           : 0.24 -
-            0.1 * Math.min(1, (y - solidY) / Math.max(1, fadeFrom - solidY))
-      const k = Math.max(0, Math.min(1, (bottom - y) / FALL_TAIL))
-      const alpha = y > fadeFrom ? body * k * k * (3 - 2 * k) : body
+            0.1 * Math.min(1, (d - solidD) / Math.max(1, fadeFrom - solidD))
+      const k = Math.max(0, Math.min(1, (drop - d) / FALL_TAIL))
+      const alpha = d > fadeFrom ? body * k * k * (3 - 2 * k) : body
       const s = Math.sin(((v - WAVE_SPEED * t) * 2 * Math.PI) / WAVE_LENGTH)
       const color =
         s > 0
@@ -560,11 +563,12 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     // behind the island and only show below its silhouette
     const back = new Container()
     back.label = "aux"
-    back.zIndex = UNDERSIDE_Z + 1
+    back.zIndex = UNDERSIDE_Z - 1
     const bgf = new Container()
     back.addChild(bgf)
     this._entities.addChild(back)
     this._backWalls = back
+    const pending: { isBack: boolean; r: Run }[] = []
     for (const isBack of [false, true]) {
       const runs: Run[] = []
       for (const cell of this._board.cells) {
@@ -599,34 +603,33 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
         m = { ...r }
         merged.push(m)
       }
-      for (const r of merged) {
-        const { lead, tail, glead, gtail, color: tone } = r
-        // one straight sheet per run: from the water surface edge, over the
-        // bed column, the island side and the underside, down to past the
-        // lowest block, fading out over its last part
-        const bottom = this._undersideBottom + FALL_TAIL
-        const top = Math.min(lead.y, tail.y)
-        // fade starts a quarter of the way down: light, mostly see-through
-        const solid = Math.min(
-          0.25,
-          (this._undersideBottom - top) / (bottom - top),
-        )
-        const sheet: Sheet = {
-          g: new Graphics(),
-          lead,
-          tail,
-          glead,
-          gtail,
-          tone,
-          lighter: mix(tone, 0x4fb0ff, 0.55),
-          top,
-          bottom,
-          solidY: top + solid * (bottom - top),
-        }
-        this._paintSheet(sheet)
-        this._sheets.push(sheet)
-        ;(isBack ? bgf : gf).addChild(sheet.g)
+      for (const r of merged) pending.push({ isBack, r })
+    }
+    // every sheet drops by the same world height (so the same pixels at this
+    // tilt): past the lowest underside block for the front ones
+    const front = pending.filter((p) => !p.isBack)
+    const drop =
+      Math.max(
+        FALL_TAIL,
+        ...(front.length > 0 ? front : pending).map(
+          ({ r }) => this._undersideBottom - Math.min(r.lead.y, r.tail.y),
+        ),
+      ) + FALL_TAIL
+    for (const { isBack, r } of pending) {
+      const { lead, tail, glead, gtail, color: tone } = r
+      const sheet: Sheet = {
+        g: new Graphics(),
+        lead,
+        tail,
+        glead,
+        gtail,
+        tone,
+        lighter: mix(tone, 0x4fb0ff, 0.55),
+        drop,
       }
+      this._paintSheet(sheet)
+      this._sheets.push(sheet)
+      ;(isBack ? bgf : gf).addChild(sheet.g)
     }
     root.zIndex = z
     this._entities.addChild(root)
