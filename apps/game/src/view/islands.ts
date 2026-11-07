@@ -66,7 +66,7 @@ export function undersideDepths(
  */
 export function blockColor(depth: number) {
   const index = Math.min(STRATA.length - 1, 2 + Math.floor(depth * 0.8))
-  return shade(STRATA[index], 1 - Math.min(0.35, depth * 0.04))
+  return shade(STRATA[index], 1 - Math.min(0.18, depth * 0.02))
 }
 
 /**

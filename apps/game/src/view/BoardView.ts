@@ -584,6 +584,9 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     // below this, a face is behind its neighbor's column
     const cover = faces.map(({ dir }) => {
       const n = this._board.get({ x: cell.x + dir.x, y: cell.y + dir.y })
+      // no wall between two water cells: the lake is one body, a deeper
+      // neighbour shows no step
+      if (underwater && n?.terrain === "water") return Number.NEGATIVE_INFINITY
       return n ? -n.elevation * level + HIDDEN_MARGIN : Number.POSITIVE_INFINITY
     })
     // faces looking at water: what is under its surface (y >= 0) is seen
@@ -598,13 +601,12 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       const y1 = Math.min(bottom, y0 + step)
       const rock =
         STRATA[Math.min(band + (underwater ? 2 : 0), STRATA.length - 1)]
-      const color = underwater ? mix(rock, WATER.deep, 0.5) : rock
+      const color = underwater ? mix(rock, WATER.deep, 0.35) : rock
       const shown = faces.filter((_, i) => y0 < cover[i] - 0.01)
       if (shown.length === 0) continue
       for (const { a, b, light: lit0 } of shown) {
         const i = faces.findIndex((f) => f.a === a && f.b === b)
-        const under = underwater || (wet[i] && y0 >= -0.01)
-        const light = under ? Math.max(lit0, 0.85) : lit0
+        const light = lit0
         g.poly([
           a.x,
           a.y + y0,
@@ -617,7 +619,7 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
         ]).fill(
           shade(
             wet[i] && !underwater && y0 >= -0.01
-              ? mix(color, WATER.deep, 0.5)
+              ? mix(color, WATER.deep, 0.28)
               : color,
             light,
           ),
@@ -675,7 +677,7 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     const t = this._time / 1000
     // the top edge of the face the water runs down
     const [a, b] = edgeOf(dir)
-    const at = (u: number) => lerp(a, b, 0.02 + u * 0.96)
+    const at = (u: number) => lerp(a, b, u)
     g.clear()
     const slices = 8
     const pa = at(0)
@@ -731,8 +733,7 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
 
   /** Flooded hole: sandy bed, translucent water body, shimmer and foam. */
   private _drawWater(g: Graphics, cell: Cell, bedY: number, parts: CellParts) {
-    const depth = -cell.elevation
-    const bed = mix(WATER.bed, WATER.deep, Math.min(0.6, depth * 0.15))
+    const bed = mix(WATER.bed, WATER.deep, 0.3)
     // the bed reaches the surface along the back edges that face nothing (the
     // lake has no hole through which the rock under the island would show);
     // against land its own wall closes the pit, against water there is no face
@@ -788,17 +789,6 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       this._drawCascade(fall)
     }
     this._cascades.set(keyOf(cell), falls)
-
-    // foam along the shores
-    for (const d of SIDES) {
-      const neighbor = this._board.get(add(cell, d))
-      if (neighbor && neighbor.terrain !== "water") {
-        const [a, b] = edgeOf(d, undefined, 0.92)
-        g.moveTo(a.x, a.y)
-          .lineTo(b.x, b.y)
-          .stroke({ width: 2, color: WATER.foam, alpha: 0.7 })
-      }
-    }
   }
 
   /** Detaches and frees the cached decor of a cell (drawn again later). */
