@@ -322,12 +322,26 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     const t = this._time / 1000
     const [pa, pb] = edgeOf(dir)
     g.clear()
-    // drops breaking off the fall and dropping under the island
     const h = COLUMN_BOTTOM * verticalScale()
+    const reach = h * 1.25 * 0.85
+    // a few soft streaks sliding straight down the sheet
+    for (let d = 0; d < 3; d++) {
+      const p = lerp(pa, pb, (d + 0.5) / 3)
+      const u = (t * 0.7 + d * 0.37) % 1
+      const y0 = p.y + h + u * reach * 0.8
+      g.moveTo(p.x, y0)
+        .lineTo(p.x, y0 + 16)
+        .stroke({
+          width: 1.5,
+          color: 0xd6efff,
+          alpha: 0.4 * (1 - u),
+        })
+    }
+    // drops breaking off the fall, inside its width
     for (let d = 0; d < 5; d++) {
       const u = (t / 1.4 + d / 5) % 1
-      const p = lerp(pa, pb, (d * 0.37 + 0.12) % 1)
-      g.circle(p.x, p.y + h + 2 + u * (h * 1.1 + 20), 1.9 - u * 0.6).fill({
+      const p = lerp(pa, pb, 0.1 + ((d * 0.37 + 0.12) % 1) * 0.8)
+      g.circle(p.x, p.y + h + 2 + u * reach, 1.9 - u * 0.6).fill({
         color: 0xa9d6ff,
         alpha: 0.95 * (1 - u) ** 0.7,
       })
@@ -444,8 +458,16 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       const { lead, tail, color: tone, depth } = r
       const e = { x: tail.x - lead.x, y: tail.y - lead.y }
       const len = Math.max(1, Math.abs(e.x))
-      const x0 = -0.5 / len
-      const x1 = 1 + 0.5 / len
+      const x0 = merged.some(
+        (o) => o !== r && same(o.dir, r.dir) && near(o.tail, lead),
+      )
+        ? -0.5 / len
+        : 0
+      const x1 = merged.some(
+        (o) => o !== r && same(o.dir, r.dir) && near(o.lead, tail),
+      )
+        ? 1 + 0.5 / len
+        : 1
       const at = (u: number, y: number) => [
         lead.x + e.x * u,
         lead.y + e.y * u + y,
@@ -462,9 +484,9 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       ]).fill(tone)
       // the fall: a straight sheet under the edge run, as wide as the run,
       // lighter blue fading out downwards
-      const lighter = mix(tone, 0x7fc4ff, 0.55)
+      const lighter = mix(tone, 0x4fb0ff, 0.75)
       const rgb = `${(lighter >> 16) & 255},${(lighter >> 8) & 255},${lighter & 255}`
-      const lead0 = 6
+      const lead0 = 0
       const total = lead0 + fade
       const pk = lead0 / total
       const grad = new FillGradient({
@@ -474,9 +496,9 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
         textureSpace: "local",
         colorStops: [0, 1, 2, 3, 4, 5, 6].map((i) => {
           const k = i / 6
-          const a = i === 0 ? 0 : 0.45 * (1 - k) ** 1.2
+          const a = 0.68 * (1 - k) ** 1.3
           return {
-            offset: i === 0 ? 0 : pk + (1 - pk) * k,
+            offset: pk + (1 - pk) * k,
             color: `rgba(${rgb},${a})`,
           }
         }),
@@ -930,7 +952,10 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     const { color: body } = waterTint(-cell.elevation)
     const bedY = -cell.elevation * levelHeight()
     g.poly(diamond().map((v, i) => (i % 2 === 1 ? v + bedY : v))).fill(
-      shade(WATER.bed, 0.9 + cellNoise(cell, this._seed, 3) * 0.2),
+      shade(
+        mix(WATER.bed, STRATA[1], 0.6),
+        0.85 + cellNoise(cell, this._seed, 3) * 0.2,
+      ),
     )
     const w = parts.waterG
     const length = COLUMN_BOTTOM + this._depths[cell.y][cell.x] * BLOCK_HEIGHT
