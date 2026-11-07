@@ -72,7 +72,7 @@ describe("drawing only what can be seen", () => {
     expect(count(none)).toBe(0)
   })
 
-  test("a redraw reuses the decor of the cells, a refresh rebuilds it", () => {
+  test("the tops stay smooth: no decor stands on the ground", () => {
     const board = mount(
       new BoardView(
         Board.generate(createRng(42)),
@@ -81,27 +81,10 @@ describe("drawing only what can be seen", () => {
         42,
       ),
     )
-    const parts = [...(board as any)._parts.entries()] as [
-      string,
-      { decor: { node: Container }[] | null },
-    ][]
-    const [key, decorated] = parts.find(
-      ([, p]) => p.decor && p.decor.length > 0,
-    )!
-    expect(decorated).toBeDefined()
-    const nodes = decorated!.decor!.map((d) => d.node)
-    try {
-      camera.yaw = 10
-      board.redraw()
-      expect(decorated!.decor!.map((d) => d.node)).toEqual(nodes)
-      for (const node of nodes) expect(node.destroyed).toBe(false)
-      const [x, y] = key.split(",").map(Number)
-      board.refreshCell({ x, y })
-      expect(decorated!.decor).not.toBe(null)
-      for (const node of nodes) expect(node.destroyed).toBe(true)
-    } finally {
-      resetCamera()
-    }
+    const parts = [...(board as any)._parts.values()] as {
+      decor: unknown[] | null
+    }[]
+    for (const p of parts) expect(p.decor ?? []).toHaveLength(0)
   })
 })
 

@@ -1078,65 +1078,9 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     }
   }
 
-  /** A point of the top (grid offset), away from where fighters stand. */
-  private _spot(cell: Point, salt: number): Point {
-    const rand = (k: number) => cellNoise(cell, this._seed, k)
-    let u = rand(salt) * 1.4 - 0.7
-    const v = rand(salt + 1) * 1.4 - 0.7
-    if (Math.abs(u) < 0.3 && Math.abs(v) < 0.3) u = Math.sign(u || 1) * 0.45
-    return { x: u * 0.5, y: v * 0.5 }
-  }
-
-  /**
-   * Grass, flowers, bushes, mushrooms, reeds, pebbles and chaos crystals:
-   * each piece drawn around (0, 0), facing the screen, and placed on its
-   * spot of the top by `_placeDecor`.
-   */
-  private _drawDecor(cell: Cell): DecorItem[] {
-    const rand = (salt: number) => cellNoise(cell, this._seed, salt)
-    const items: DecorItem[] = []
-    // each spot starts a new piece, drawn by `g` around p = (0, 0)
-    let item: DecorItem = { at: { x: 0, y: 0 }, node: new Graphics() }
-    let g = item.node as Graphics
-    const spot = (salt: number) => {
-      g = new Graphics()
-      item = { at: this._spot(cell, salt), node: new Container() }
-      item.node.addChild(g)
-      items.push(item)
-      return { x: 0, y: 0 }
-    }
-    const e = cell.elevation
-    // (smooth tiles: no grass, flowers, bushes, mushrooms, reeds or pebbles;
-    // only the chaos crystals of the lore stand on the ground)
-    if (e >= 2 && rand(14) < (e === 3 ? 0.45 : 0.15)) {
-      // chaos crystal (lore: fragments of the shattered worlds)
-      const p = spot(80)
-      const color = rand(15) < 0.5 ? 0xb197fc : 0x63e6be
-      const crystal = new Graphics()
-        .poly([
-          p.x - 3,
-          p.y,
-          p.x - 1.5,
-          p.y - 10,
-          p.x + 1,
-          p.y - 13,
-          p.x + 3,
-          p.y,
-        ])
-        .fill({ color, alpha: 0.85 })
-        .stroke({ width: 1, color: shade(color, 0.6) })
-        .poly([p.x + 1, p.y - 1, p.x + 4, p.y - 7, p.x + 6, p.y - 1])
-        .fill({ color: shade(color, 1.2), alpha: 0.85 })
-      const glow = new Sprite(softCircle())
-      glow.anchor.set(0.5)
-      glow.tint = color
-      glow.blendMode = "add"
-      glow.scale.set(28 / 64)
-      glow.position.set(p.x, p.y - 6)
-      item.node.addChild(crystal, glow)
-      item.animated = glow
-    }
-    return items
+  /** Decor standing on a top: none, the tiles stay smooth. */
+  private _drawDecor(_cell: Cell): DecorItem[] {
+    return []
   }
 
   /**
