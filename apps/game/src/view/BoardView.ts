@@ -11,7 +11,9 @@ import {
   AlphaFilter,
   Container,
   type FederatedPointerEvent,
+  FillGradient,
   Graphics,
+  Matrix,
   Polygon,
   Sprite,
 } from "pixi.js"
@@ -384,9 +386,14 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     group.filters = [new AlphaFilter({ alpha: waterTint(1).alpha })]
     const g = new Graphics()
     group.addChild(g)
+    // the fall is drawn on its own, outside the translucent group, so it
+    // stays a clear blue sheet instead of showing the strata through
+    const root = new Container()
+    root.label = "aux"
+    const gf = new Container()
+    root.addChild(group, gf)
     const h = COLUMN_BOTTOM * verticalScale()
     const fade = h * 1.25
-    const row = 2
     let z = 0
     const faceOf = (cell: Point) => {
       const base = toScreen(cell)
@@ -396,73 +403,119 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
         q: { x: base.x + f.b.x, y: base.y + f.b.y },
       }))
     }
-    const joined = (cell: Cell, dir: Point, end: { x: number; y: number }) => {
-      for (const t of [
-        { x: dir.y, y: dir.x },
-        { x: -dir.y, y: -dir.x },
-      ]) {
-        const n = this._board.get(add(cell, t))
-        if (n?.terrain !== "water") continue
-        for (const f of faceOf(n))
-          if (f.dir.x === dir.x && f.dir.y === dir.y)
-            for (const o of [f.p, f.q])
-              if (Math.hypot(o.x - end.x, o.y - end.y) < 1.5) return true
-      }
-      return false
+    // every water face on the island edge, with its tint (depth of its cell)
+    interface Run {
+      dir: Point
+      lead: Point
+      tail: Point
+      color: number
+      depth: number
     }
+    const runs: Run[] = []
     for (const cell of this._board.cells) {
       z = Math.max(z, depthOf(cell, DEPTH.fighter + 1))
       if (cell.terrain !== "water") continue
       const { color } = waterTint(-cell.elevation)
       for (const { p, q, light, dir } of faceOf(cell)) {
-        const tone = shade(color, light < 1 ? 0.85 : 1)
-        const lead = p.x <= q.x ? p : q
-        const tail = p.x <= q.x ? q : p
-        const e = { x: tail.x - lead.x, y: tail.y - lead.y }
-        // the wall, a hair below the column's bottom (hides its stair-step)
-        const wall = h + 2
-        g.poly([
-          lead.x - 0.5,
-          lead.y,
-          tail.x + 0.5,
-          tail.y,
-          tail.x + 0.5,
-          tail.y + wall,
-          lead.x - 0.5,
-          lead.y + wall,
-        ]).fill(tone)
-        // the fall: lighter water, thinner and fainter row after row
-        const open = {
-          lead: !joined(cell, dir, lead),
-          tail: !joined(cell, dir, tail),
-        }
-        const lighter = mix(tone, 0xcfe9ff, 0.35)
-        for (let t = 0; t < fade; t += row) {
-          const k = t / fade
-          const alpha = 0.92 * (1 - k) ** 1.4
-          if (alpha < 0.02) break
-          const inset = (t * 0.7) / Math.max(1, Math.abs(e.x)) // 0..1 of run
-          const u0 = open.lead ? inset : 0
-          const u1 = 1 - (open.tail ? inset : 0)
-          if (u1 <= u0) break
-          const y0 = wall + t - 2
-          const y1 = y0 + row + 2
-          const at = (u: number, y: number) => [
-            lead.x + e.x * u,
-            lead.y + e.y * u + y,
-          ]
-          g.poly([
-            ...at(u0 === 0 ? -0.5 / Math.abs(e.x) : u0, y0),
-            ...at(u1 === 1 ? 1 + 0.5 / Math.abs(e.x) : u1, y0),
-            ...at(u1 === 1 ? 1 + 0.5 / Math.abs(e.x) : u1, y1),
-            ...at(u0 === 0 ? -0.5 / Math.abs(e.x) : u0, y1),
-          ]).fill({ color: lighter, alpha })
-        }
+        runs.push({
+          dir,
+          lead: p.x <= q.x ? p : q,
+          tail: p.x <= q.x ? q : p,
+          color: shade(color, light < 1 ? 0.85 : 1),
+          depth: -cell.elevation,
+        })
       }
     }
-    group.zIndex = z
-    this._entities.addChild(group)
-    this._walls = group
+    // contiguous faces of one side with the same tint make a single run
+    const near = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y) < 1.5
+    const same = (a: Point, b: Point) => a.x === b.x && a.y === b.y
+    runs.sort((a, b) => a.lead.x - b.lead.x)
+    const merged: Run[] = []
+    const openLead = new Set<Run>()
+    const openTail = new Set<Run>()
+    for (const r of runs) {
+      let m = merged.find((o) => same(o.dir, r.dir) && near(o.tail, r.lead))
+      if (m && m.color === r.color) {
+        m.tail = r.tail
+        continue
+      }
+      m = { ...r }
+      merged.push(m)
+    }
+    for (const r of merged) {
+      // a run ends softly unless another run of the same side continues it
+      const joinedLead = merged.some(
+        (o) => o !== r && same(o.dir, r.dir) && near(o.tail, r.lead),
+      )
+      const joinedTail = merged.some(
+        (o) => o !== r && same(o.dir, r.dir) && near(o.lead, r.tail),
+      )
+      if (!joinedLead) openLead.add(r)
+      if (!joinedTail) openTail.add(r)
+    }
+    for (const r of merged) {
+      const { lead, tail, color: tone } = r
+      const e = { x: tail.x - lead.x, y: tail.y - lead.y }
+      const len = Math.max(1, Math.abs(e.x))
+      const x0 = -0.5 / len
+      const x1 = 1 + 0.5 / len
+      const at = (u: number, y: number) => [
+        lead.x + e.x * u,
+        lead.y + e.y * u + y,
+      ]
+      // the wall: one polygon, its bottom on the straight line of the edge
+      const wall = h + 2
+      g.poly([
+        ...at(x0, 0),
+        ...at(x1, 0),
+        ...at(x1, wall),
+        ...at(x0, wall),
+      ]).fill(tone)
+      // the fall: lighter water as gradient sheets (clear at the top so no
+      // seam with the wall, fading downwards), skewed along the edge; a few
+      // stacked layers taper differently so that open ends soften
+      const lighter = mix(tone, 0x7fc4ff, 0.55)
+      const rgb = `${(lighter >> 16) & 255},${(lighter >> 8) & 255},${lighter & 255}`
+      const lead0 = 12
+      const total = lead0 + fade
+      const pk = lead0 / total
+      const grad = new FillGradient({
+        type: "linear",
+        start: { x: 0, y: 0 },
+        end: { x: 0, y: 1 },
+        textureSpace: "local",
+        colorStops: [0, 1, 2, 3, 4, 5, 6].map((i) => {
+          const k = i / 6
+          const a = i === 0 ? 0 : 0.36 * (1 - k) ** 1.2
+          return {
+            offset: i === 0 ? 0 : pk + (1 - pk) * k,
+            color: `rgba(${rgb},${a})`,
+          }
+        }),
+      })
+      for (const slope of [0.3, 0.5, 0.75, 1.05]) {
+        const ins = (v: number, open: boolean) => (open ? v * slope : 0)
+        const fg = new Graphics()
+        const w = len + 1
+        fg.poly([
+          -0.5,
+          0,
+          w,
+          0,
+          w - ins(total, openTail.has(r)),
+          total,
+          -0.5 + ins(total, openLead.has(r)),
+          total,
+        ]).fill(grad)
+        fg.setFromMatrix(
+          new Matrix(1, e.y / e.x, 0, 1, lead.x, lead.y + wall - lead0),
+        )
+        gf.addChild(fg)
+      }
+    }
+    root.zIndex = z
+    this._entities.addChild(root)
+    this._walls = root
   }
 
   setHighlights(highlights: Highlight[]) {
