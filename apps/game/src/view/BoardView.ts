@@ -99,7 +99,7 @@ const WAVE_SPEED = 40
 const WAVE_LENGTH = 240
 /** Height (px) of the swell of the water surface, and its mesh density. */
 const SWELL = 2
-const MESH = 5
+const MESH = 8
 /** Tilt of the crest lines of the runoff (so none runs flat). */
 const CREST_TILT = 0.15
 
@@ -226,6 +226,7 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
   private _bands = new Map<number, Container>()
   /** The front walls of the lakes (one translucent group). */
   private _walls: Container | null = null
+  private _backWalls: Container | null = null
 
   constructor(
     private readonly _board: Board,
@@ -374,11 +375,11 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       for (let j = 0; j < n; j++) {
         const s =
           (hs[i][j] + hs[i + 1][j] + hs[i][j + 1] + hs[i + 1][j + 1]) / 4
-        if (Math.abs(s) < 0.12) continue
+        if (Math.abs(s) < 0.03) continue
         const color =
           s > 0
-            ? mix(at.color, 0xffffff, 0.2 * s)
-            : mix(at.color, WATER.deep, -0.5 * s)
+            ? mix(at.color, 0xffffff, 0.12 * s)
+            : mix(at.color, WATER.deep, -0.3 * s)
         w.poly([
           ...pt[i][j],
           ...pt[i + 1][j],
@@ -439,10 +440,16 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       if (strip.length < 6) continue
       const v = (v0 + v1) / 2
       const y = v + CREST_TILT * xm
-      const alpha =
+      // light near the surface, then thinning, then a smooth fade to
+      // nothing over the last FALL_TAIL px (no hard end to the sheet)
+      const fadeFrom = bottom - FALL_TAIL
+      const body =
         y < solidY
           ? 0.3 - (0.06 * (y - y0)) / Math.max(1, solidY - y0)
-          : 0.24 * (1 - (y - solidY) / Math.max(1, bottom - solidY))
+          : 0.24 -
+            0.1 * Math.min(1, (y - solidY) / Math.max(1, fadeFrom - solidY))
+      const k = Math.max(0, Math.min(1, (bottom - y) / FALL_TAIL))
+      const alpha = y > fadeFrom ? body * k * k * (3 - 2 * k) : body
       const s = Math.sin(((v - WAVE_SPEED * t) * 2 * Math.PI) / WAVE_LENGTH)
       const color =
         s > 0
@@ -470,6 +477,7 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     this._hitLayer.destroy({ children: true })
     this._underside?.destroy({ children: true })
     this._walls?.destroy({ children: true })
+    this._backWalls?.destroy({ children: true })
     for (const band of this._bands.values()) band.destroy({ children: true })
     this._bands.clear()
     for (const parts of this._parts.values()) {
@@ -504,15 +512,22 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
    */
   private _drawWalls() {
     this._walls?.destroy({ children: true })
+    this._backWalls?.destroy({ children: true })
     this._sheets = []
     const root = new Container()
     root.label = "aux"
     const gf = new Container()
     root.addChild(gf)
     let z = 0
-    const faceOf = (cell: Point) => {
+    const faceOf = (cell: Point, back: boolean) => {
       const base = toScreen(cell)
-      return this._edgeFaces(cell).map((f) => {
+      const faces = back
+        ? this._backFaces(cell).map((dir) => {
+            const [a, b] = edgeOf(dir)
+            return { dir, a, b, light: 1 }
+          })
+        : this._edgeFaces(cell)
+      return faces.map((f) => {
         const { dir } = f
         const ends = [
           { x: cell.x + (dir.x - dir.y) / 2, y: cell.y + (dir.y + dir.x) / 2 },
@@ -541,65 +556,77 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       color: number
       depth: number
     }
-    const runs: Run[] = []
-    for (const cell of this._board.cells) {
-      z = Math.max(z, depthOf(cell, DEPTH.fighter + 1))
-      if (cell.terrain !== "water") continue
-      const { color } = waterTint(-cell.elevation)
-      for (const { p, q, light, dir, ga, gb } of faceOf(cell)) {
-        runs.push({
-          dir,
-          lead: p.x <= q.x ? p : q,
-          tail: p.x <= q.x ? q : p,
-          glead: ga,
-          gtail: gb,
-          color: shade(color, light < 1 ? 0.85 : 1),
-          depth: -cell.elevation,
-        })
+    // the sides turned away from the viewer spill too: their sheets go
+    // behind the island and only show below its silhouette
+    const back = new Container()
+    back.label = "aux"
+    back.zIndex = UNDERSIDE_Z + 1
+    const bgf = new Container()
+    back.addChild(bgf)
+    this._entities.addChild(back)
+    this._backWalls = back
+    for (const isBack of [false, true]) {
+      const runs: Run[] = []
+      for (const cell of this._board.cells) {
+        z = Math.max(z, depthOf(cell, DEPTH.fighter + 1))
+        if (cell.terrain !== "water") continue
+        const { color } = waterTint(-cell.elevation)
+        for (const { p, q, light, dir, ga, gb } of faceOf(cell, isBack)) {
+          runs.push({
+            dir,
+            lead: p.x <= q.x ? p : q,
+            tail: p.x <= q.x ? q : p,
+            glead: ga,
+            gtail: gb,
+            color: shade(color, light < 1 ? 0.85 : 1),
+            depth: -cell.elevation,
+          })
+        }
       }
-    }
-    // contiguous faces of one side with the same tint make a single run
-    const near = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y) < 1.5
-    const same = (a: Point, b: Point) => a.x === b.x && a.y === b.y
-    runs.sort((a, b) => a.lead.x - b.lead.x)
-    const merged: Run[] = []
-    for (const r of runs) {
-      let m = merged.find((o) => same(o.dir, r.dir) && near(o.tail, r.lead))
-      if (m) {
-        m.tail = r.tail
-        m.gtail = r.gtail
-        continue
+      // contiguous faces of one side with the same tint make a single run
+      const near = (a: Point, b: Point) =>
+        Math.hypot(a.x - b.x, a.y - b.y) < 1.5
+      const same = (a: Point, b: Point) => a.x === b.x && a.y === b.y
+      runs.sort((a, b) => a.lead.x - b.lead.x)
+      const merged: Run[] = []
+      for (const r of runs) {
+        let m = merged.find((o) => same(o.dir, r.dir) && near(o.tail, r.lead))
+        if (m) {
+          m.tail = r.tail
+          m.gtail = r.gtail
+          continue
+        }
+        m = { ...r }
+        merged.push(m)
       }
-      m = { ...r }
-      merged.push(m)
-    }
-    for (const r of merged) {
-      const { lead, tail, glead, gtail, color: tone } = r
-      // one straight sheet per run: from the water surface edge, over the
-      // bed column, the island side and the underside, down to past the
-      // lowest block, fading out over its last part
-      const bottom = this._undersideBottom + FALL_TAIL
-      const top = Math.min(lead.y, tail.y)
-      // fade starts a quarter of the way down: light, mostly see-through
-      const solid = Math.min(
-        0.25,
-        (this._undersideBottom - top) / (bottom - top),
-      )
-      const sheet: Sheet = {
-        g: new Graphics(),
-        lead,
-        tail,
-        glead,
-        gtail,
-        tone,
-        lighter: mix(tone, 0x4fb0ff, 0.55),
-        top,
-        bottom,
-        solidY: top + solid * (bottom - top),
+      for (const r of merged) {
+        const { lead, tail, glead, gtail, color: tone } = r
+        // one straight sheet per run: from the water surface edge, over the
+        // bed column, the island side and the underside, down to past the
+        // lowest block, fading out over its last part
+        const bottom = this._undersideBottom + FALL_TAIL
+        const top = Math.min(lead.y, tail.y)
+        // fade starts a quarter of the way down: light, mostly see-through
+        const solid = Math.min(
+          0.25,
+          (this._undersideBottom - top) / (bottom - top),
+        )
+        const sheet: Sheet = {
+          g: new Graphics(),
+          lead,
+          tail,
+          glead,
+          gtail,
+          tone,
+          lighter: mix(tone, 0x4fb0ff, 0.55),
+          top,
+          bottom,
+          solidY: top + solid * (bottom - top),
+        }
+        this._paintSheet(sheet)
+        this._sheets.push(sheet)
+        ;(isBack ? bgf : gf).addChild(sheet.g)
       }
-      this._paintSheet(sheet)
-      this._sheets.push(sheet)
-      gf.addChild(sheet.g)
     }
     root.zIndex = z
     this._entities.addChild(root)
@@ -981,6 +1008,16 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     g.moveTo(f.x, f.y + topY)
       .lineTo(f.x, f.y + bottom)
       .stroke({ width: 1, color: 0x000000, alpha: 0.25 })
+  }
+
+  /** Sides of the cell on the island edge looking away from the viewer. */
+  private _backFaces(cell: Point) {
+    const seen = visibleFaces().map((f) => f.dir)
+    return SIDES.filter(
+      (d) =>
+        !seen.some((o) => o.x === d.x && o.y === d.y) &&
+        !this._board.inBounds(add(cell, d)),
+    )
   }
 
   /** Sides of the cell looking out of the island, towards the viewer. */
