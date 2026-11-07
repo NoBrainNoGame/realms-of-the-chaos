@@ -41,6 +41,9 @@ export interface CameraHost {
   placed(): void
 }
 
+/** Change of tilt or turn (degrees) that is worth drawing the board again. */
+const REDRAW_STEP = 0.5
+
 /**
  * The camera of a board scene (fights and walks): zoom around a point, pan,
  * tilt and small turns, quarter turns, the keys and the mouse gestures. The
@@ -220,6 +223,19 @@ export class CameraRig {
       drawn.quarter === camera.quarter &&
       drawn.pitch === camera.pitch &&
       drawn.yaw === camera.yaw
+    )
+      return
+    // a redraw is costly: while the camera eases, only for a visible step
+    // (the last frame, when it settles, is always drawn)
+    const settled =
+      !this.turn &&
+      camera.pitch === this.aim.pitch &&
+      camera.yaw === this.aim.yaw
+    if (
+      !settled &&
+      drawn.quarter === camera.quarter &&
+      Math.abs(drawn.pitch - camera.pitch) < REDRAW_STEP &&
+      Math.abs(drawn.yaw - camera.yaw) < REDRAW_STEP
     )
       return
     this.drawn = { ...camera }
