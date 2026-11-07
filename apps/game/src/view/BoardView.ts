@@ -11,7 +11,6 @@ import {
   AlphaFilter,
   Container,
   type FederatedPointerEvent,
-  FillGradient,
   Graphics,
   Polygon,
   Sprite,
@@ -93,6 +92,8 @@ export function waveOffset(amplitude: number, u: number) {
 const HIDDEN_MARGIN = 14
 /** Depth of the island underside: behind every column and fighter. */
 /** Fading tail of the runoff sheet under the lowest block. */
+/** Height of one band of the runoff's fade. */
+const FALL_BAND = 4
 const FALL_TAIL = 110
 /** Fall speed of the runoff streaks and drops (px/s), same on every column. */
 const STREAK_SPEED = 90
@@ -458,7 +459,6 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       // bed column, the island side and the underside, down to past the
       // lowest block, fading out over its last part
       const lighter = mix(tone, 0x4fb0ff, 0.55)
-      const rgb = `${(lighter >> 16) & 255},${(lighter >> 8) & 255},${lighter & 255}`
       const bottom = this._undersideBottom + FALL_TAIL
       const top = Math.min(lead.y, tail.y)
       // fade starts a quarter of the way down: light, mostly see-through
@@ -466,19 +466,10 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
         0.25,
         (this._undersideBottom - top) / (bottom - top),
       )
-      const grad = new FillGradient({
-        type: "linear",
-        start: { x: 0, y: 0 },
-        end: { x: 0, y: 1 },
-        textureSpace: "local",
-        colorStops: [
-          { offset: 0, color: `rgba(${rgb},0.3)` },
-          { offset: solid, color: `rgba(${rgb},0.24)` },
-          { offset: 1, color: `rgba(${rgb},0)` },
-        ],
-      })
+      // the fade as stacked flat bands (no gradient texture: it would be
+      // resampled, banded and leaked at every zoom and redraw)
       const fg = new Graphics()
-      fg.poly([
+      const sheet = [
         lead.x,
         lead.y,
         tail.x,
@@ -487,7 +478,18 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
         bottom,
         lead.x,
         bottom,
-      ]).fill(grad)
+      ]
+      const solidY = top + solid * (bottom - top)
+      const alphaAt = (y: number) =>
+        y < solidY
+          ? 0.3 - (0.06 * (y - top)) / Math.max(1, solidY - top)
+          : 0.24 * (1 - (y - solidY) / Math.max(1, bottom - solidY))
+      for (let y0 = top; y0 < bottom - 0.5; y0 += FALL_BAND) {
+        const y1 = Math.min(bottom, y0 + FALL_BAND)
+        const poly = clipBand(sheet, y0, y1)
+        if (poly.length < 6) continue
+        fg.poly(poly).fill({ color: lighter, alpha: alphaAt((y0 + y1) / 2) })
+      }
       gf.addChild(fg)
     }
     root.zIndex = z
@@ -1134,6 +1136,28 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     bands.setMask({ mask: clip })
     return container
   }
+}
+
+/** Part of a convex polygon (flat x, y list) between two heights. */
+function clipBand(poly: number[], y0: number, y1: number): number[] {
+  const clip = (pts: number[][], keep: (y: number) => boolean, at: number) => {
+    const out: number[][] = []
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i]
+      const b = pts[(i + 1) % pts.length]
+      if (keep(a[1])) out.push(a)
+      if (keep(a[1]) !== keep(b[1])) {
+        const k = (at - a[1]) / (b[1] - a[1])
+        out.push([a[0] + (b[0] - a[0]) * k, at])
+      }
+    }
+    return out
+  }
+  let pts: number[][] = []
+  for (let i = 0; i < poly.length; i += 2) pts.push([poly[i], poly[i + 1]])
+  pts = clip(pts, (y) => y >= y0, y0)
+  pts = clip(pts, (y) => y <= y1, y1)
+  return pts.flat()
 }
 
 /**
