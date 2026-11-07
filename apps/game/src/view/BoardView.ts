@@ -93,7 +93,10 @@ export function waveOffset(amplitude: number, u: number) {
 const HIDDEN_MARGIN = 14
 /** Depth of the island underside: behind every column and fighter. */
 /** Fading tail of the runoff sheet under the lowest block. */
-const FALL_TAIL = 56
+const FALL_TAIL = 110
+/** Fall speed of the runoff streaks and drops (px/s), same on every column. */
+const STREAK_SPEED = 90
+const DROP_SPEED = 70
 
 export const UNDERSIDE_Z = -1e9
 
@@ -329,17 +332,20 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
     // a few soft streaks sliding straight down the sheet
     for (let d = 0; d < 3; d++) {
       const p = lerp(pa, pb, 0.2 + d * 0.3)
-      const u = (t * 0.45 + d * 0.37) % 1
-      const y0 = p.y + u * (floor - p.y - 16)
+      // same speed (px/s) on every column, whatever its height
+      const span = Math.max(1, floor - p.y - 16)
+      const u = ((t * STREAK_SPEED) / span + d * 0.37) % 1
+      const y0 = p.y + u * span
       g.moveTo(p.x, y0)
         .lineTo(p.x, y0 + 16)
         .stroke({ width: 1.5, color: 0xd6efff, alpha: 0.4 * (1 - u) })
     }
     // drops running down the sheet, inside its width
     for (let d = 0; d < 5; d++) {
-      const u = (t / 2.4 + d / 5) % 1
       const p = lerp(pa, pb, 0.1 + ((d * 0.37 + 0.12) % 1) * 0.8)
-      g.circle(p.x, p.y + u * (floor - p.y), 1.9 - u * 0.5).fill({
+      const span = Math.max(1, floor - p.y)
+      const u = ((t * DROP_SPEED) / span + d / 5) % 1
+      g.circle(p.x, p.y + u * span, 1.9 - u * 0.5).fill({
         color: 0xc4e6ff,
         alpha: 0.9 * (1 - u) ** 0.7,
       })
@@ -455,15 +461,19 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       const rgb = `${(lighter >> 16) & 255},${(lighter >> 8) & 255},${lighter & 255}`
       const bottom = this._undersideBottom + FALL_TAIL
       const top = Math.min(lead.y, tail.y)
-      const solid = (this._undersideBottom - top) / (bottom - top)
+      // fade starts a quarter of the way down: light, mostly see-through
+      const solid = Math.min(
+        0.25,
+        (this._undersideBottom - top) / (bottom - top),
+      )
       const grad = new FillGradient({
         type: "linear",
         start: { x: 0, y: 0 },
         end: { x: 0, y: 1 },
         textureSpace: "local",
         colorStops: [
-          { offset: 0, color: `rgba(${rgb},0.5)` },
-          { offset: solid, color: `rgba(${rgb},0.42)` },
+          { offset: 0, color: `rgba(${rgb},0.3)` },
+          { offset: solid, color: `rgba(${rgb},0.24)` },
           { offset: 1, color: `rgba(${rgb},0)` },
         ],
       })
