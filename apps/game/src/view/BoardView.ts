@@ -266,6 +266,7 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       parts.column.destroy({ children: true })
     }
     this._hitLayer.destroy({ children: true })
+    this._underside?.destroy({ children: true })
     this._parts.clear()
   }
 
@@ -585,15 +586,25 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
       const n = this._board.get({ x: cell.x + dir.x, y: cell.y + dir.y })
       return n ? -n.elevation * level + HIDDEN_MARGIN : Number.POSITIVE_INFINITY
     })
+    // faces looking at water: what is under its surface (y >= 0) is seen
+    // through it, tinted like the bed instead of near-black deep rock
+    const wet = faces.map(
+      ({ dir }) =>
+        this._board.get({ x: cell.x + dir.x, y: cell.y + dir.y })?.terrain ===
+        "water",
+    )
     let band = 0
     for (let y0 = topY; y0 < bottom - 0.01; y0 += step, band++) {
       const y1 = Math.min(bottom, y0 + step)
       const rock =
         STRATA[Math.min(band + (underwater ? 2 : 0), STRATA.length - 1)]
-      const color = underwater ? mix(rock, WATER.deep, 0.25) : rock
+      const color = underwater ? mix(rock, WATER.deep, 0.5) : rock
       const shown = faces.filter((_, i) => y0 < cover[i] - 0.01)
       if (shown.length === 0) continue
-      for (const { a, b, light } of shown) {
+      for (const { a, b, light: lit0 } of shown) {
+        const i = faces.findIndex((f) => f.a === a && f.b === b)
+        const under = underwater || (wet[i] && y0 >= -0.01)
+        const light = under ? Math.max(lit0, 0.85) : lit0
         g.poly([
           a.x,
           a.y + y0,
@@ -603,7 +614,14 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
           b.y + y1,
           a.x,
           a.y + y1,
-        ]).fill(shade(color, light))
+        ]).fill(
+          shade(
+            wet[i] && !underwater && y0 >= -0.01
+              ? mix(color, WATER.deep, 0.5)
+              : color,
+            light,
+          ),
+        )
       }
       // pebbles in the strata
       const dark = shown.find((f) => f.light < 1)
@@ -714,19 +732,32 @@ export default class BoardView extends ViewChip<BoardViewEvents> {
   /** Flooded hole: sandy bed, translucent water body, shimmer and foam. */
   private _drawWater(g: Graphics, cell: Cell, bedY: number, parts: CellParts) {
     const depth = -cell.elevation
-    g.poly(diamond().map((v, i) => (i % 2 === 1 ? v + bedY : v))).fill(
-      WATER.bed,
-    )
+    const bed = mix(WATER.bed, WATER.deep, Math.min(0.6, depth * 0.15))
+    // the bed reaches the surface along the back edges against other water
+    // (or nothing): the lake has no hole through which the rock under the
+    // island would show (against land, its own wall closes the pit)
+    for (const dir of SIDES) {
+      if (project(dir.x, dir.y).y > 0) continue
+      const n = this._board.get(add(cell, dir))
+      if (n && n.terrain !== "water") continue
+      const [a, b] = edgeOf(dir)
+      g.poly([a.x, a.y, b.x, b.y, b.x, b.y + bedY, a.x, a.y + bedY]).fill(bed)
+    }
+    g.poly(diamond().map((v, i) => (i % 2 === 1 ? v + bedY : v))).fill(bed)
 
-    const body = mix(WATER.surface, WATER.deep, Math.min(1, depth / 3))
-    // water box sides (seen at the island edge)
-    for (const { a, b, light } of visibleFaces()) {
+    const body = mix(WATER.surface, WATER.deep, 0.35)
+    // water is one sheet, not a stack of columns: no face between two water
+    // cells, only where it spills over the edge of the island (the cascades
+    // below hide the rest of that face)
+    for (const { a, b, light } of this._edgeFaces(cell)) {
       g.poly([a.x, a.y, b.x, b.y, b.x, b.y + bedY, a.x, a.y + bedY]).fill({
         color: shade(body, light < 1 ? 0.8 : 1),
-        alpha: 0.7,
+        alpha: 0.96,
       })
     }
-    g.poly(diamond()).fill({ color: body, alpha: 0.55 + depth * 0.1 })
+    // the surface: the same color on every cell (the bed shows the depth),
+    // diamonds that share their edges exactly and are never stroked
+    g.poly(diamond()).fill({ color: body, alpha: 0.6 })
 
     if (!parts.shimmer) {
       const n = cellNoise(cell, this._seed, 7)

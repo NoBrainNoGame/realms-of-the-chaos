@@ -6,6 +6,7 @@ import BoardView, {
   COLUMN_BOTTOM,
   DEPTH,
   depthOf,
+  UNDERSIDE_Z,
   waveOffset,
   withSides,
 } from "./BoardView"
@@ -39,10 +40,14 @@ describe("waveOffset", () => {
   })
 })
 
+/** The terrain columns of the entities layer (without the island underside). */
+const columns = (entities: Container) =>
+  entities.children.filter((c) => c.zIndex !== UNDERSIDE_Z)
+
 describe("BoardView", () => {
   test("one terrain column per cell in the entities layer, one hit area on top", () => {
     const { board, entities, top } = setup(["...", ".2.", "~a."])
-    expect(entities.children).toHaveLength(board.cells.length)
+    expect(columns(entities)).toHaveLength(board.cells.length)
     const hits = top.children[0] as Container
     expect(hits.children).toHaveLength(board.cells.length)
     expect(COLUMN_BOTTOM).toBeGreaterThan(0)
@@ -91,7 +96,7 @@ describe("BoardView", () => {
   test("highlights are drawn on the cells and cleared", () => {
     const { view, entities } = setup(["...", "..."])
     const overlays = () =>
-      entities.children.map((c) => (c as Container).children.at(-1) as Graphics)
+      columns(entities).map((c) => (c as Container).children.at(-1) as Graphics)
     view.setHighlights([
       { cells: [{ x: 1, y: 0 }], color: 0xff0000, alpha: 0.5, outline: true },
     ])
@@ -128,7 +133,7 @@ describe("BoardView", () => {
     expect(view.cellTop({ x: 2, y: 0 }).y).toBe(
       toScreen({ x: 2, y: 0 }).y - 3 * ELEVATION_HEIGHT,
     )
-    expect(entities.children).toHaveLength(10)
+    expect(columns(entities)).toHaveLength(10)
   })
 
   test("generated maps draw water, pits, hills, crystals and animate", () => {

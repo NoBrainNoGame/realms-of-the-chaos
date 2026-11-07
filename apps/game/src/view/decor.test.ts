@@ -31,6 +31,24 @@ describe("island underside (inverted pyramid of blocks)", () => {
     )
   })
 
+  test("the whole rim of a rectangular island is level (no climbing bottom row)", () => {
+    for (const [w, h] of [
+      [9, 9],
+      [12, 7],
+      [6, 13],
+    ]) {
+      for (const seed of [1, 2, 3]) {
+        const a = undersideDepths(w, h, seed)
+        const rim: number[] = []
+        for (let y = 0; y < h; y++)
+          for (let x = 0; x < w; x++)
+            if (x === 0 || y === 0 || x === w - 1 || y === h - 1)
+              rim.push(a[y][x])
+        expect(new Set(rim).size).toBe(1)
+      }
+    }
+  })
+
   test("a floating island can be drawn at any size", () => {
     for (const size of [3, 4, 5]) {
       const g = new Graphics()
