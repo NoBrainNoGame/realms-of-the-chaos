@@ -1,11 +1,16 @@
 import type * as booyah from "@ghom/booyah"
 import { CHAPTERS, ERAS } from "@realms/adventure"
-import { Container, Graphics } from "pixi.js"
+import { Container, Sprite, Texture } from "pixi.js"
 import { unlockedChapters } from "../adventure/progress"
 import { settings } from "../settings"
 import { adventureSave } from "../storage"
 import Backdrop from "./Backdrop"
-import { drawFloatingIsland } from "./islands"
+import {
+  ISLET_ANCHOR,
+  ISLET_RESOLUTION,
+  isletTexture,
+  pickIslet,
+} from "./islets"
 import { COLORS } from "./theme"
 import { panel, text } from "./ui"
 import ViewChip from "./ViewChip"
@@ -63,10 +68,19 @@ export default class WorldMap extends ViewChip<WorldMapEvents> {
     this._container.addChild(title, this._label)
     this.islands.forEach((data, i) => {
       const node = new Container()
-      const g = new Graphics()
-      drawFloatingIsland(g, 4, 11 + i * 7)
-      g.label = "art"
-      node.addChild(g)
+      // one baked, opaque image: its alpha shows no block through another
+      const art = new Container()
+      art.label = "art"
+      const sprite = new Sprite(Texture.EMPTY)
+      sprite.anchor.set(ISLET_ANCHOR.x, ISLET_ANCHOR.y)
+      sprite.scale.set(1 / ISLET_RESOLUTION)
+      art.addChild(sprite)
+      isletTexture(pickIslet(11 + i * 7, 4)).then((texture) => {
+        if (sprite.destroyed) return
+        texture.source.scaleMode = "linear"
+        sprite.texture = texture
+      })
+      node.addChild(art)
       node.alpha = data.enabled ? 1 : 0.3
       if (data.enabled) {
         node.eventMode = "static"
