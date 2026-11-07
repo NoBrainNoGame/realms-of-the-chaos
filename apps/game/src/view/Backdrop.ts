@@ -1,12 +1,16 @@
-import { Container, Sprite, Texture } from "pixi.js"
+import { Container, Graphics, Sprite, Texture } from "pixi.js"
+import { ISLET_CELLS, ISLET_SEEDS, ISLET_VIEWS } from "../../scripts/islets"
 import { softCircle, starDot } from "./effects"
+import { drawFloatingIsland } from "./islands"
 import {
-  ISLET_ANCHOR,
   ISLET_RESOLUTION,
+  isletAnchor,
   isletTexture,
+  nearestView,
   pickIslet,
 } from "./islets"
 import {
+  type Camera,
   camera,
   depthAlong,
   levelHeight,
@@ -19,8 +23,18 @@ import ViewChip from "./ViewChip"
 /** A distant island of the Clair, floating at its own pace. */
 export interface DistantIsland {
   node: Container
-  /** The one sprite of the islet (a baked, opaque image): it carries the alpha. */
+  /**
+   * Behind the board: one sprite (a baked, opaque image, stretched to the
+   * camera's pitch) carrying the alpha.
+   */
   sprite: Sprite
+  /** In front of the board: drawn live like the board, opaque. */
+  live: Graphics
+  /** The baked islet this one is, and the baked view its sprite shows. */
+  index: number
+  view: number
+  /** Camera the live drawing was made with (null: not drawn). */
+  drawn: Camera | null
   cells: number
   seed: number
   /** Place around the board: direction (°), distance and height. */
@@ -144,6 +158,9 @@ export function islandHaze(depth: number) {
 }
 
 /** Opacity of a distant island (the whole sprite at once, never per block). */
+/** How much the camera turns before a live islet is redrawn (°), like the board. */
+export const ISLAND_REDRAW_ANGLE = 0.5
+
 export function islandAlpha(depth: number) {
   return depth > 0 ? 1 : 0.85 - 0.3 * Math.max(0, -depth)
 }
@@ -289,22 +306,20 @@ export default class Backdrop extends ViewChip {
     DISTANT.forEach((spec, i) => {
       const node = new Container()
       const seed = base + i * 101
-      const sprite = new Sprite(Texture.EMPTY)
-      sprite.anchor.set(ISLET_ANCHOR.x, ISLET_ANCHOR.y)
-      // the image is baked at 2x
-      sprite.scale.set(1 / ISLET_RESOLUTION)
-      node.addChild(sprite)
       const index = pickIslet(seed, spec.cells)
-      isletTexture(index).then((texture) => {
-        if (sprite.destroyed) return
-        texture.source.scaleMode = "linear"
-        sprite.texture = texture
-      })
+      const sprite = new Sprite(Texture.EMPTY)
+      const live = new Graphics()
+      live.visible = false
+      node.addChild(sprite, live)
       this._layer.addChild(node)
       this._islands.push({
         ...spec,
         node,
         sprite,
+        live,
+        index,
+        view: -1,
+        drawn: null,
         seed,
         phase: (i * Math.PI * 2) / DISTANT.length,
       })
@@ -612,6 +627,46 @@ export default class Backdrop extends ViewChip {
     }
   }
 
+  /** Draws a near island again when the camera moved enough to be seen. */
+  private _drawLive(island: DistantIsland) {
+    const drawn = island.drawn
+    if (
+      drawn &&
+      drawn.quarter === camera.quarter &&
+      Math.abs(drawn.pitch - camera.pitch) < ISLAND_REDRAW_ANGLE &&
+      Math.abs(drawn.yaw - camera.yaw) < ISLAND_REDRAW_ANGLE
+    )
+      return
+    island.drawn = { ...camera }
+    island.live.clear()
+    drawFloatingIsland(
+      island.live,
+      ISLET_CELLS[island.index],
+      ISLET_SEEDS[island.index],
+      camera,
+    )
+  }
+
+  /** Shows the baked view nearest to the pitch, stretched to the exact pitch. */
+  private _showBaked(island: DistantIsland) {
+    const view = nearestView(camera.pitch)
+    const { sprite } = island
+    if (island.view !== view) {
+      island.view = view
+      const anchor = isletAnchor(view)
+      sprite.anchor.set(anchor.x, anchor.y)
+      isletTexture(island.index, view).then((texture) => {
+        if (sprite.destroyed || island.view !== view) return
+        texture.source.scaleMode = "linear"
+        sprite.texture = texture
+      })
+    }
+    // the ground flattens with the sine of the pitch
+    const stretch =
+      Math.sin(camera.pitch * DEG) / Math.sin(ISLET_VIEWS[view].pitch * DEG)
+    sprite.scale.set(1 / ISLET_RESOLUTION, stretch / ISLET_RESOLUTION)
+  }
+
   /** Where the camera sees each island, and how big (nearer = bigger). */
   private _placeIslands() {
     if (!this._layer) return
@@ -638,9 +693,25 @@ export default class Backdrop extends ViewChip {
       )
       // atmospheric perspective: behind the board, the farther, the bluer
       // and the paler; in front of it, as solid and as lit as the board.
-      // The islet is one opaque image: its alpha shows no block through another
-      island.sprite.alpha = islandAlpha(depth)
-      island.sprite.tint = islandHaze(depth)
+      if (depth > 0) {
+        // near: drawn live with the camera, like the board (opaque: no block
+        // shows through another)
+        island.sprite.visible = false
+        island.live.visible = true
+        this._drawLive(island)
+      } else {
+        // far: a baked, opaque image, stretched to the pitch; its alpha shows
+        // no block through another
+        if (island.drawn) {
+          island.live.clear()
+          island.drawn = null
+        }
+        island.live.visible = false
+        island.sprite.visible = true
+        this._showBaked(island)
+        island.sprite.alpha = islandAlpha(depth)
+        island.sprite.tint = islandHaze(depth)
+      }
       order.push({ island, depth })
     }
     // the farther behind, the earlier drawn; nearer than the board: above it

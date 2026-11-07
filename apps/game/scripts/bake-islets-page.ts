@@ -1,15 +1,16 @@
 import { Application, Graphics } from "pixi.js"
 import { drawFloatingIsland } from "../src/view/islands"
+import { ISO } from "../src/view/theme"
 import {
-  ISLET_CANVAS,
   ISLET_CELLS,
   ISLET_RESOLUTION,
   ISLET_SEEDS,
+  ISLET_VIEWS,
 } from "./islets"
 
 /** Draws every islet, opaque, on a transparent canvas: one data URL each. */
-async function bake() {
-  const { width, height, ax, ay } = ISLET_CANVAS
+async function bake(view: number) {
+  const { pitch, width, height, ax, ay } = ISLET_VIEWS[view]
   const app = new Application()
   await app.init({
     width,
@@ -25,7 +26,10 @@ async function bake() {
   for (let i = 0; i < ISLET_SEEDS.length; i++) {
     app.stage.removeChildren()
     const g = new Graphics()
-    drawFloatingIsland(g, ISLET_CELLS[i], ISLET_SEEDS[i])
+    drawFloatingIsland(g, ISLET_CELLS[i], ISLET_SEEDS[i], {
+      ...ISO,
+      pitch,
+    })
     g.position.set(width * ax, height * ay)
     app.stage.addChild(g)
     const b = g.getBounds()

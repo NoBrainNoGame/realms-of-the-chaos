@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { Board, createRng } from "@realms/engine"
 import { Container, Graphics } from "pixi.js"
-import { ISLET_CELLS } from "../../scripts/islets"
+import { ISLET_CELLS, ISLET_VIEWS } from "../../scripts/islets"
 import { mount, tick } from "../test/harness"
 import Backdrop, {
   DETAIL_ZOOM,
@@ -311,10 +311,13 @@ describe("everything floats, each at its own pace", () => {
           const near = depthAlong({ x: Math.cos(a), y: Math.sin(a) }) > 0
           if (near) {
             expect(island.node.parent).toBe(backdrop.front)
-            expect(island.sprite.alpha).toBe(1)
-            expect(island.sprite.tint).toBe(0xffffff)
+            // live, opaque, like the board
+            expect(island.live.visible).toBe(true)
+            expect(island.sprite.visible).toBe(false)
           } else {
             expect(island.node.parent).not.toBe(backdrop.front)
+            expect(island.sprite.visible).toBe(true)
+            expect(island.live.visible).toBe(false)
             expect(island.sprite.alpha).toBeLessThan(1)
             expect(island.sprite.tint).not.toBe(0xffffff)
           }
@@ -357,8 +360,6 @@ describe("everything floats, each at its own pace", () => {
       // seen from above: the ring flattens less, the heights shrink
       const above = place()
       expect(above.map((p) => p.y)).not.toEqual(before.map((p) => p.y))
-      // the baked islets themselves stay as they are (far away, fixed look)
-      expect(above.map((p) => p.b)).toEqual(before.map((p) => p.b))
     } finally {
       resetCamera()
     }
@@ -457,7 +458,7 @@ describe("underside shading and distant islets", () => {
       tick(backdrop, 16)
       for (const island of backdrop.islands) {
         // one single sprite: no block of its own to show through another
-        expect(island.node.children).toEqual([island.sprite])
+        expect(island.node.children).toEqual([island.sprite, island.live])
         expect(island.node.alpha).toBe(1)
         expect(island.sprite.alpha).toBeGreaterThan(0.5)
       }
@@ -469,6 +470,69 @@ describe("underside shading and distant islets", () => {
     expect(islandAlpha(-1)).toBeLessThan(islandAlpha(-0.2))
     expect(islandHaze(1)).toBe(0xffffff)
     expect(luma(islandHaze(-1))).toBeLessThan(luma(islandHaze(-0.2)))
+  })
+
+  test("a baked islet tilts with the pitch (its sprite stretches by the sine)", () => {
+    const backdrop = mount(new Backdrop())
+    ;(backdrop as any)._onResize(1280, 720)
+    try {
+      const far = () =>
+        backdrop.islands.filter((i) => i.sprite.visible).map((i) => i.sprite)
+      tick(backdrop, 16)
+      const flat = far().map((s) => s.scale.y)
+      camera.pitch = 72
+      tick(backdrop, 16)
+      const steep = far().map((s) => s.scale.y)
+      expect(steep.length).toBeGreaterThan(0)
+      for (const y of steep) expect(y).toBeGreaterThan(0)
+      // the baked view changes with the pitch, the stretch stays exact
+      for (const island of backdrop.islands.filter((i) => i.sprite.visible)) {
+        const view = ISLET_VIEWS[island.view]
+        expect(island.sprite.scale.y * 2).toBeCloseTo(
+          Math.sin((72 * Math.PI) / 180) /
+            Math.sin((view.pitch * Math.PI) / 180),
+        )
+      }
+      expect(flat.length).toBeGreaterThan(0)
+      camera.pitch = 40
+      tick(backdrop, 16)
+      const mid = far().map((s) => s.scale.y)
+      expect(mid).not.toEqual(steep)
+    } finally {
+      resetCamera()
+    }
+  })
+
+  test("near islets are live graphics, redrawn when the camera moves enough", () => {
+    const backdrop = mount(new Backdrop())
+    ;(backdrop as any)._onResize(1280, 720)
+    try {
+      tick(backdrop, 16)
+      const near = backdrop.islands.filter((i) => i.live.visible)
+      expect(near.length).toBeGreaterThan(0)
+      const drawn = near.map((i) => i.drawn)
+      expect(drawn.every((d) => d !== null)).toBe(true)
+      // a tiny move: not redrawn
+      camera.pitch += 0.2
+      tick(backdrop, 16)
+      near.forEach((i, k) => {
+        if (i.live.visible) expect(i.drawn).toBe(drawn[k])
+      })
+      // a real one: redrawn with the new camera
+      camera.pitch += 2
+      tick(backdrop, 16)
+      near.forEach((i, k) => {
+        if (i.live.visible) {
+          expect(i.drawn).not.toBe(drawn[k])
+          expect(i.drawn?.pitch).toBe(camera.pitch)
+        }
+      })
+      // the far ones hold no live drawing
+      for (const i of backdrop.islands.filter((i) => i.sprite.visible))
+        expect(i.drawn).toBeNull()
+    } finally {
+      resetCamera()
+    }
   })
 
   test("the same seed picks the same baked islet, of the right size", () => {
