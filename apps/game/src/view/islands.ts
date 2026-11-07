@@ -51,22 +51,23 @@ export function undersideDepths(
       // each ring towards the edge loses about `step` blocks: a stepped
       // pyramid that narrows down to the middle column, its tip
       const base = (rings - ring) * step + 1
-      // irregular: a block more or less here and there
+      // irregular: a block more here and there (never one less: a notch in a
+      // flat face shows the faces behind it as stray triangles)
       // (but not on the outer ring: a level rim, no ragged front edge)
       const noise =
-        ring === rings ? 0 : Math.floor(cellNoise({ x, y }, seed, 11) * 3) - 1
+        ring === rings ? 0 : Math.floor(cellNoise({ x, y }, seed, 11) * 2)
       return Math.max(1, base + (ring === 0 ? 1 : noise))
     }),
   )
 }
 
 /**
- * Strata color of a block of the underside: the deeper, the darker (and
- * the more "deep rock" strata).
+ * Color of a block of the underside: one flat color whatever the depth,
+ * since any difference between neighboring blocks (by depth or by face)
+ * draws sawtooth triangles along the stepped silhouette.
  */
-export function blockColor(depth: number) {
-  const index = Math.min(4, 1 + Math.floor(depth * 0.5))
-  return shade(STRATA[index], 1.12)
+export function blockColor(_depth: number) {
+  return shade(STRATA[1], 0.95)
 }
 
 /**
@@ -89,7 +90,13 @@ export function drawBlock(
   const { x, y } = origin
   const top = y + y0 * v
   const bottom = y + (y0 + BLOCK_HEIGHT) * v
-  for (const { a, b, light } of faces) {
+  // the top of the block too, under its faces: wherever the faces of the
+  // blocks around do not cover it, a gap would show the faces behind it
+  // (stray triangles); the block above hides it everywhere else
+  g.poly(diamond(0, c).map((v, i) => (i % 2 === 0 ? x + v : top + v))).fill(
+    shade(color, 0.93),
+  )
+  for (const { a, b } of faces) {
     g.poly([
       x + a.x,
       top + a.y,
@@ -99,7 +106,7 @@ export function drawBlock(
       bottom + b.y,
       x + a.x,
       bottom + a.y,
-    ]).fill(shade(color, light < 1 ? 0.9 : 1))
+    ]).fill(shade(color, 0.93))
   }
   // block seams (the top edges of the faces) and the front edge, in one
   // stroke: a stroke is costly to build
